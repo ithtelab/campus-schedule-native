@@ -50,3 +50,23 @@ SIMCTL_CHILD_CAMPUS_SMOKE_TEST=reload xcrun simctl launch booted com.example.Cam
 sleep 3
 grep -q PASS "$data_path/Documents/persistence-smoke.txt"
 cp "$data_path/Documents/persistence-smoke.txt" screenshots/persistence-test.txt
+cp "$data_path/Documents/snapshot-smoke.txt" screenshots/shared-snapshot-test.txt
+if grep -q '^FAIL' screenshots/shared-snapshot-test.txt; then
+  echo 'Shared snapshot round trip failed.' >&2
+  exit 1
+fi
+
+# 实际向模拟器系统请求 Live Activity，而不是把普通卡片当成灵动岛截图。
+SIMCTL_CHILD_CAMPUS_SMOKE_TEST=live xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+sleep 3
+cp "$data_path/Documents/activity-smoke.txt" screenshots/activity-start-test.txt
+if grep -q '^PASS' screenshots/activity-start-test.txt; then
+  xcrun simctl launch booted com.apple.Preferences
+  sleep 3
+  xcrun simctl io booted screenshot screenshots/activity-in-background.png
+  sleep 22
+  xcrun simctl io booted screenshot screenshots/activity-after-end-time.png
+  SIMCTL_CHILD_CAMPUS_SMOKE_TEST=live-audit xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+  sleep 3
+  cp "$data_path/Documents/activity-smoke.txt" screenshots/activity-end-audit.txt
+fi

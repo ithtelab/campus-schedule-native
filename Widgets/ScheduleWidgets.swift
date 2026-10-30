@@ -15,12 +15,7 @@ struct ScheduleProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> Void) {
         let courses = SystemSnapshot.read()
         let now = Date()
-        var dates = Set([now, ScheduleRules.calendar.startOfDay(for: now).addingTimeInterval(86400)])
-        for course in courses where course.end > now && course.start < now.addingTimeInterval(86400 * 2) {
-            if course.start > now { dates.insert(course.start) }
-            dates.insert(course.end)
-        }
-        let entries = dates.sorted().map { ScheduleEntry(date: $0, courses: courses) }
+        let entries = WidgetTimelinePlan.dates(courses: courses, now: now).map { ScheduleEntry(date: $0, courses: courses) }
         completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(3600 * 12))))
     }
 }

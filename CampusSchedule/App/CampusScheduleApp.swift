@@ -1,4 +1,5 @@
 import SwiftUI
+@preconcurrency import ActivityKit
 
 @main
 struct CampusScheduleApp: App {
@@ -44,8 +45,29 @@ struct RootView: View {
             else { selectedScreen = .today }
         }
         .sheet(item: $linkedCourse) { CourseDetailView(course: $0).environment(store) }
-        .onChange(of: phase) { _, value in if value == .active { store.clockDate = Date(); store.synchronize() } }
+        .onChange(of: phase) { _, value in
+            if value == .active && !(ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] ?? "").hasPrefix("live") {
+                store.clockDate = Date(); store.synchronize()
+            }
+        }
         .task {
+            if let smoke = ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"], smoke.hasPrefix("live") {
+                let result: String
+                if smoke == "live-audit" {
+                    let remaining = Activity<CourseActivityAttributes>.activities
+                    result = remaining.isEmpty ? "REMOVED" : "STILL_PRESENT_AFTER_END"
+                    for activity in remaining { await CourseLiveActivities.shared.finish(activity, suppress: false) }
+                } else {
+                    do {
+                        let item = CourseOccurrence(id: "cloud-live-smoke", courseID: "cloud-test", title: "云端课程验证", room: "A302",
+                            start: Date().addingTimeInterval(5), end: Date().addingTimeInterval(20), nextTitle: "下一门课程", nextRoom: "B205")
+                        try CourseLiveActivities.shared.start(item)
+                        result = Activity<CourseActivityAttributes>.activities.isEmpty ? "UNAVAILABLE: system did not start an activity" : "PASS: Live Activity created"
+                    } catch { result = "UNAVAILABLE: \(error.localizedDescription)" }
+                }
+                try? result.write(to: URL.documentsDirectory.appendingPathComponent("activity-smoke.txt"), atomically: true, encoding: .utf8)
+                return
+            }
             if let smoke = ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] {
                 let file = URL.documentsDirectory.appendingPathComponent("persistence-smoke.txt")
                 if smoke == "seed" && store.courses.isEmpty {
@@ -58,6 +80,13 @@ struct RootView: View {
                 try? result.write(to: file, atomically: true, encoding: .utf8)
             }
             store.synchronize()
+            if ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] != nil {
+                try? await Task.sleep(for: .milliseconds(800))
+                let result: String
+                if SystemSnapshot.url == nil { result = "UNAVAILABLE: App Group container is not available in this environment" }
+                else { result = SystemSnapshot.read().contains(where: { $0.courseID == "persistence-test" }) ? "PASS" : "FAIL" }
+                try? result.write(to: URL.documentsDirectory.appendingPathComponent("snapshot-smoke.txt"), atomically: true, encoding: .utf8)
+            }
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(30)); store.clockDate = Date()
