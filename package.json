@@ -1,0 +1,14 @@
+{
+  "name": "campus-schedule-native",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "prepare:ios": "node scripts/generate-ios-project.mjs",
+    "eas:login": "npx --yes eas-cli@27.2.0 login",
+    "eas:init": "npx --yes eas-cli@27.2.0 init",
+    "preview:build": "npm run prepare:ios && npm run preview:check && npx --yes eas-cli@27.2.0 build --platform ios --profile simulator",
+    "preview:start": "node scripts/simulator-session.mjs start",
+    "preview:stop": "node scripts/simulator-session.mjs stop",
+    "preview:check": "node scripts/check-preview-config.mjs"
+  }
+}

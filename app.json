@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "CampusSchedule",
+    "slug": "campus-schedule-native",
+    "version": "0.1.0",
+    "ios": {
+      "bundleIdentifier": "com.example.CampusSchedule"
+    },
+    "extra": {
+      "nativePreview": {
+        "minimumIOSVersion": "27.0"
+      },
+      "eas": {
+        "projectId": "7ff78bf0-9088-4084-a76c-0615b1903ed3"
+      }
+    }
+  }
+}

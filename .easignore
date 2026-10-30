@@ -1,0 +1,14 @@
+.git/
+.tool-cache/
+node_modules/
+/build/
+ios/build/
+screenshots/
+DerivedData/
+**/xcuserdata/
+**/*.xcuserstate
+.env*
+*.p12
+*.mobileprovision
+*.p8
+*.ipa

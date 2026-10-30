@@ -1,0 +1,21 @@
+build:
+  name: Native SwiftUI screenshots
+  steps:
+    - eas/checkout
+    - run:
+        name: Build SwiftUI app directly with Xcode
+        command: bash scripts/build-native-simulator.sh
+    - eas/start_ios_simulator
+    - run:
+        name: Launch native app and capture light and dark pages
+        command: bash scripts/capture-ui.sh
+    - eas/upload_artifact:
+        name: Upload native simulator app
+        inputs:
+          type: application-archive
+          path: build/CampusSchedule.tar.gz
+    - eas/upload_artifact:
+        name: Upload native UI screenshots
+        inputs:
+          type: build-artifact
+          path: screenshots
