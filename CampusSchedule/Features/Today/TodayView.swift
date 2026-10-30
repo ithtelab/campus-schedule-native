@@ -3,14 +3,22 @@ import SwiftUI
 struct TodayView: View {
     @Environment(PreviewStore.self) private var store
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.campusSuppressMotion) private var suppressMotion
     @ScaledMetric(relativeTo: .largeTitle) private var focusSize: CGFloat = 34
     @ScaledMetric(relativeTo: .body) private var timeColumn: CGFloat = 72
     @State private var selectedCourse: DemoCourse?
     @State private var showingEditor = false
     @State private var pinnedY: CGFloat = .infinity
+    @State private var reader = CampusCharacterPlayer(style: .boy)
+    @State private var walker = CampusCharacterPlayer(style: .girl, state: .standingEmpty)
+    @State private var relaxing = CampusCharacterPlayer(style: .boy, state: .standingEmpty, frame: 15)
+    @State private var detailCharacter: CampusCharacterPlayer?
+    @State private var courseFeedback = 0
     private var time: String { store.timeText }
     private var daily: [DemoCourse] { store.todayCourses }
     private var next: DemoCourse? { daily.first { $0.endTime > time } }
+    private var activeCharacter: CampusCharacterPlayer { (next?.startTime ?? "99:99") <= time ? walker : reader }
 
     var body: some View {
         NavigationStack {
@@ -56,9 +64,13 @@ struct TodayView: View {
                     Button("添加课程", systemImage: "plus") { showingEditor = true }.tint(DesignSystem.toolbarTint)
                 }
             }
-            .sheet(item: $selectedCourse) { CourseDetailView(course: $0) }
+            .sheet(item: $selectedCourse) { CourseDetailView(course: $0, character: detailCharacter) }
             .sheet(isPresented: $showingEditor) { CourseEditorView() }
-            .task { showingEditor = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "course" }
+            .task {
+                showingEditor = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "course"
+                if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "detail", let next { openCourse(next) }
+            }
+            .sensoryFeedback(.selection, trigger: courseFeedback)
         }
     }
 
@@ -81,15 +93,16 @@ struct TodayView: View {
     }
 
     private func focusCard(_ course: DemoCourse) -> some View {
-        Button { selectedCourse = course } label: {
-            VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(course.startTime <= time ? "正在上课" : "下一节课").font(.caption.weight(.semibold))
                     Spacer(minLength: 8)
-                    Image(systemName: "arrow.up.right").font(.caption).accessibilityHidden(true)
+                    Button("课程详情", systemImage: "arrow.up.right") { openCourse(course) }
+                        .labelStyle(.iconOnly).font(.caption).buttonStyle(.plain)
                 }
                 HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 7) {
+                    Button { openCourse(course) } label: {
+                      VStack(alignment: .leading, spacing: 7) {
                         Text(course.title).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                         Text(course.shortRoom.isEmpty ? "地点待确认" : course.shortRoom)
                             .font(.system(size: min(focusSize, 44), weight: .bold))
@@ -99,9 +112,10 @@ struct TodayView: View {
                             .lineLimit(1).minimumScaleFactor(0.65)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(CampusPressStyle()).accessibilityHint("查看课程详情")
                     if !typeSize.isAccessibilitySize {
-                        CampusFigure(pose: course.startTime <= time ? .walking : .reading)
-                            .frame(width: 72, height: 134)
+                        CampusCharacter(player: activeCharacter).frame(width: 78, height: 150)
                     }
                 }
                 Text(course.startTime <= time ? "\(course.endTime) 下课" : "\(minutesUntil(course.startTime)) 分钟后上课")
@@ -115,9 +129,7 @@ struct TodayView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(DesignSystem.paper, in: RoundedRectangle(cornerRadius: 16))
             .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Color.primary, lineWidth: 1.2) }
-        }
-        .buttonStyle(.plain).foregroundStyle(.primary)
-        .accessibilityHint("查看课程详情")
+        .foregroundStyle(.primary)
     }
 
     private var agenda: some View {
@@ -142,7 +154,7 @@ struct TodayView: View {
         let focused = next?.id == course.id
         let ink = focused ? DesignSystem.inverse : Color.primary
         let secondaryInk = focused ? DesignSystem.inverse.opacity(0.8) : Color.secondary
-        return Button { selectedCourse = course } label: {
+        return Button { openCourse(course) } label: {
             let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .center, spacing: 14))
             layout {
                 VStack(alignment: .leading, spacing: 5) {
@@ -169,14 +181,14 @@ struct TodayView: View {
                 if ended { RoundedRectangle(cornerRadius: 12).strokeBorder(DesignSystem.rule, lineWidth: 0.75) }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CampusPressStyle())
         .accessibilityElement(children: .combine)
     }
 
     private var closingNote: some View {
         HStack(spacing: 16) {
             if next == nil {
-                CampusFigure(pose: .stretching).frame(width: 88, height: 158)
+                CampusCharacter(player: relaxing).frame(width: 88, height: 176)
                 VStack(alignment: .leading, spacing: 8) {
                     Text(daily.isEmpty ? "暂时没有课程" : "把时间留给自己").font(DesignSystem.hand(24))
                     Text(daily.isEmpty ? "从添加第一门课开始。" : "今天的课程结束了，休息一下。")
@@ -189,6 +201,14 @@ struct TodayView: View {
                 Spacer()
             }
         }
+    }
+
+    private func openCourse(_ course: DemoCourse) {
+        let player = activeCharacter
+        courseFeedback += 1
+        detailCharacter = player
+        player.request(course.endTime <= time ? .stretch : .prepareCourse, reducedMotion: reduceMotion || suppressMotion)
+        selectedCourse = course
     }
 
     private func roomChangeMessage(after course: DemoCourse) -> String? {

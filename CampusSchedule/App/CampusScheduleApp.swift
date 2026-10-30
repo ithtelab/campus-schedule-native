@@ -5,7 +5,9 @@ import SwiftUI
 struct CampusScheduleApp: App {
     var body: some Scene {
         WindowGroup {
-            if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
+            if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] != nil {
+                CampusCharacterGallery()
+            } else if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
                 WidgetGalleryView()
             } else {
                 RootView()
@@ -56,7 +58,7 @@ struct RootView: View {
         }
         .task {
             if store.isPreview {
-                let result = CampusArtAssets.available ? "PASS: three light and three dark campus figures and bundled handwriting font loaded" : "FAIL: campus art or handwriting font missing"
+                let result = CampusArtAssets.available && CampusCharacterAssets.available ? "PASS: light/dark figures, two 16-frame action atlases and bundled handwriting font loaded" : "FAIL: campus art, animation atlas or handwriting font missing"
                 try? result.write(to: URL.documentsDirectory.appendingPathComponent("campus-assets-smoke.txt"), atomically: true, encoding: .utf8)
             }
             if let smoke = ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"], smoke.hasPrefix("live") {

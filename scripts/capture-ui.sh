@@ -45,6 +45,9 @@ for appearance in light dark; do
     SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=21:00 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
     sleep 3
     xcrun simctl io booted screenshot screenshots/today-finished-dark.png
+    SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_SHEET=detail xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+    sleep 3
+    xcrun simctl io booted screenshot screenshots/course-detail-dark.png
   fi
 done
 
@@ -87,6 +90,20 @@ xcrun simctl io booted screenshot screenshots/today-finished.png
 SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=empty SIMCTL_CHILD_CAMPUS_PREVIEW_REDUCE_MOTION=1 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
 sleep 3
 xcrun simctl io booted screenshot screenshots/today-empty.png
+
+# Record the real native frame player. It uses the same action entry points as avatar/course buttons.
+xcrun simctl ui booted appearance dark
+SIMCTL_CHILD_CAMPUS_CHARACTER_PREVIEW=smoke xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+xcrun simctl io booted recordVideo --codec=h264 screenshots/campus-interactions.mp4 &
+record_pid=$!
+sleep 24
+kill -INT "$record_pid"
+wait "$record_pid" || true
+cp "$data_path/Documents/campus-interaction-smoke.txt" screenshots/campus-interaction-test.txt
+grep -q '^PASS' screenshots/campus-interaction-test.txt
+if grep -q '^FAIL' screenshots/campus-interaction-test.txt; then exit 1; fi
+xcrun simctl io booted screenshot screenshots/campus-interaction-finished.png
+xcrun simctl ui booted appearance light
 
 # 使用独立的个人数据模式检查 SwiftData 写入及进程重启后读回。
 SIMCTL_CHILD_CAMPUS_SMOKE_TEST=seed xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule

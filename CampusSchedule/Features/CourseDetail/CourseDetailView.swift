@@ -3,6 +3,7 @@ import ActivityKit
 
 struct CourseDetailView: View {
     let course: DemoCourse
+    var character: CampusCharacterPlayer? = nil
     @Environment(PreviewStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
@@ -17,7 +18,10 @@ struct CourseDetailView: View {
                     Toggle("此课程允许提醒", isOn: Binding(get: { original.remindersEnabled }, set: { value in
                         if let index = store.courses.firstIndex(where: { $0.id == original.id }) { store.courses[index].remindersEnabled = value }
                     })).tint(DesignSystem.switchTint)
-                    Text(original.title).font(.title.weight(.semibold))
+                    HStack(spacing: 16) {
+                        Text(original.title).font(.title.weight(.semibold))
+                        if let character { CampusCharacter(player: character).frame(width: 88, height: 176) }
+                    }
                     LabeledContent("教师", value: original.teacher)
                     LabeledContent("地点", value: original.room)
                     LabeledContent("时间", value: "\(original.startTime)–\(original.endTime)")
