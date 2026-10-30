@@ -4,9 +4,10 @@
     "slug": "campus-schedule-native",
     "version": "0.1.0",
     "ios": {
-      "bundleIdentifier": "com.example.CampusSchedule"
+      "bundleIdentifier": "com.ithtelab.campusschedule"
     },
     "extra": {
+      "nativeAppGroup": "group.com.ithtelab.campusschedule",
       "nativePreview": {
         "minimumIOSVersion": "27.0"
       },

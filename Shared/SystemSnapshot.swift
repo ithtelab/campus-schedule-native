@@ -2,7 +2,7 @@ import Foundation
 @preconcurrency import ActivityKit
 
 enum SystemSnapshot {
-    static let group = "group.com.example.CampusSchedule"
+    static let group = Bundle.main.object(forInfoDictionaryKey: "CampusAppGroup") as? String ?? ""
     static var url: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?.appendingPathComponent("schedule-v1.json")
     }

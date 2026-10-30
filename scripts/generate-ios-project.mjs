@@ -9,6 +9,8 @@ const config = JSON.parse(readFileSync(resolve(root, 'app.json'), 'utf8')).expo;
 const target = 'CampusSchedule';
 const minimumIOS = config.extra.nativePreview.minimumIOSVersion;
 const bundleID = config.ios.bundleIdentifier;
+const appGroup = config.extra.nativeAppGroup;
+if (!/^group\.[a-zA-Z0-9.-]+$/.test(appGroup)) throw new Error('Invalid app group');
 if (!/^[0-9]+\.[0-9]+$/.test(minimumIOS) || !/^[a-zA-Z0-9.-]+$/.test(bundleID)) {
   throw new Error('Invalid native project configuration');
 }
@@ -29,6 +31,7 @@ const resources = [
   ['CampusSchedule/Resources/CampusArtwork.xcassets', 'folder.assetcatalog'],
   ['CampusSchedule/Resources/Fonts/CampusHand.ttf', 'file'],
   ['CampusSchedule/Resources/Fonts/OFL.txt', 'text'],
+  ['CampusSchedule/Resources/PrivacyInfo.xcprivacy', 'text.xml'],
 ];
 for (const [file] of resources) readFileSync(resolve(root, file.endsWith('.xcassets') ? file + '/Contents.json' : file));
 if (files.length === 0) throw new Error('No Swift sources found');
@@ -65,6 +68,9 @@ for (const mode of ['Debug', 'Release']) {
   add(`target:${mode}`, `isa = XCBuildConfiguration; name = ${mode}; buildSettings = {
     PRODUCT_NAME = "$(TARGET_NAME)";
     PRODUCT_BUNDLE_IDENTIFIER = ${quote(bundleID)};
+    CAMPUS_APP_GROUP = ${quote(appGroup)};
+    PROVISIONING_PROFILE_SPECIFIER = "$(CAMPUS_APP_PROFILE)";
+    ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
     MARKETING_VERSION = ${quote(config.version)};
     CURRENT_PROJECT_VERSION = 1;
     GENERATE_INFOPLIST_FILE = YES;
@@ -100,15 +106,17 @@ for (const file of widgetFiles) {
 add('widgetproduct', 'isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = CampusWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR;');
 add('widgetgroup', 'isa = PBXGroup; children = ' + list(widgetFiles.map(file => 'widgetref:' + file)) + '; name = Widgets; sourceTree = "<group>";');
 add('widgetsources', 'isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ' + list(widgetFiles.map(file => 'widgetbuild:' + file)) + '; runOnlyForDeploymentPostprocessing = 0;');
+add('widgetprivacy', 'isa = PBXBuildFile; fileRef = ' + id('ref:CampusSchedule/Resources/PrivacyInfo.xcprivacy') + ';');
+add('widgetresources', 'isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ' + list(['widgetprivacy']) + '; runOnlyForDeploymentPostprocessing = 0;');
 add('embedfile', 'isa = PBXBuildFile; fileRef = ' + id('widgetproduct') + '; settings = { ATTRIBUTES = (RemoveHeadersOnCopy,); };');
 add('embed', 'isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = ' + list(['embedfile']) + '; name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0;');
 add('proxy', 'isa = PBXContainerItemProxy; containerPortal = ' + id('project') + '; proxyType = 1; remoteGlobalIDString = ' + id('widgettarget') + '; remoteInfo = CampusWidgets;');
 add('dependency', 'isa = PBXTargetDependency; target = ' + id('widgettarget') + '; targetProxy = ' + id('proxy') + ';');
 for (const mode of ['Debug', 'Release']) {
-  add('widget:' + mode, 'isa = XCBuildConfiguration; name = ' + mode + '; buildSettings = { PRODUCT_NAME = CampusWidgets; PRODUCT_BUNDLE_IDENTIFIER = ' + quote(bundleID + '.widgets') + '; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = Widgets-Info.plist; CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements; SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_VERSION = 6.0; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = ' + quote(config.version) + '; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; };');
+  add('widget:' + mode, 'isa = XCBuildConfiguration; name = ' + mode + '; buildSettings = { PRODUCT_NAME = CampusWidgets; PRODUCT_BUNDLE_IDENTIFIER = ' + quote(bundleID + '.widgets') + '; CAMPUS_APP_GROUP = ' + quote(appGroup) + '; PROVISIONING_PROFILE_SPECIFIER = "$(CAMPUS_WIDGET_PROFILE)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = Widgets-Info.plist; CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements; SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_VERSION = 6.0; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = ' + quote(config.version) + '; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; };');
 }
 add('widgetconfigs', 'isa = XCConfigurationList; buildConfigurations = ' + list(['widget:Debug', 'widget:Release']) + '; defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;');
-add('widgettarget', 'isa = PBXNativeTarget; buildConfigurationList = ' + id('widgetconfigs') + '; buildPhases = ' + list(['widgetsources']) + '; buildRules = (); dependencies = (); name = CampusWidgets; productName = CampusWidgets; productReference = ' + id('widgetproduct') + '; productType = "com.apple.product-type.app-extension";');
+add('widgettarget', 'isa = PBXNativeTarget; buildConfigurationList = ' + id('widgetconfigs') + '; buildPhases = ' + list(['widgetsources', 'widgetresources']) + '; buildRules = (); dependencies = (); name = CampusWidgets; productName = CampusWidgets; productReference = ' + id('widgetproduct') + '; productType = "com.apple.product-type.app-extension";');
 for (const object of objects) {
   if (object.text.startsWith(id('main') + ' ')) object.text = object.text.replace(id('products') + ' /* products */,', id('widgetgroup') + ' /* Widgets */, ' + id('products') + ' /* products */,');
   if (object.text.startsWith(id('products') + ' ')) object.text = object.text.replace(id('product') + ' /* product */,', id('product') + ' /* product */, ' + id('widgetproduct') + ' /* widgetproduct */,');
