@@ -34,7 +34,11 @@ async function api(path, { method = 'GET', data, query } = {}) {
   const result = await fetch(url, { method, headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' }, body: data ? JSON.stringify({ data }) : undefined, signal: AbortSignal.timeout(60000) });
   if (result.status === 204) return { data: [] };
   const body = await result.json();
-  if (!result.ok) throw new Error(`Apple ${result.status}: ${(body.errors ?? []).map(item => `${item.code}: ${item.detail ?? item.title}`).join('; ')}`);
+  if (!result.ok) {
+    const error = new Error(`Apple ${result.status}: ${(body.errors ?? []).map(item => `${item.code}: ${item.detail ?? item.title}`).join('; ')}`);
+    error.httpStatus = result.status;
+    throw error;
+  }
   return body;
 }
 function saveConfig() {
@@ -209,6 +213,81 @@ async function watchInternal(buildNumber) {
   }
   throw new Error('Apple processing still pending after this monitoring window; upload must not be repeated blindly');
 }
+async function externalStatus() {
+  const record = need(await findApp(), 'App Store Connect app');
+  const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
+  console.log(JSON.stringify(groups.filter(item => !item.attributes.isInternalGroup).map(item => ({ id: item.id, ...item.attributes })), null, 2));
+  const detail = (await api(`/v1/apps/${record.id}/betaAppReviewDetail`)).data;
+  const fields = ['contactFirstName', 'contactLastName', 'contactPhone', 'contactEmail'];
+  console.log(JSON.stringify({ missingReviewFields: fields.filter(key => !detail.attributes[key]), demoAccountRequired: detail.attributes.demoAccountRequired }));
+  const localizations = (await api(`/v1/apps/${record.id}/betaAppLocalizations`)).data;
+  console.log(JSON.stringify(localizations.map(item => ({ id: item.id, locale: item.attributes.locale, hasDescription: Boolean(item.attributes.description), hasFeedbackEmail: Boolean(item.attributes.feedbackEmail), hasPrivacyPolicy: Boolean(item.attributes.privacyPolicyUrl) }))));
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, limit: '10' } })).data;
+  for (const build of builds) {
+    const beta = (await api(`/v1/builds/${build.id}/buildBetaDetail`)).data;
+    console.log(JSON.stringify({ build: build.attributes.version, audience: build.attributes.buildAudienceType, ...beta.attributes }));
+  }
+}
+async function prepareExternal(buildNumber) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
+  const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID');
+  if (!build || build.attributes.buildAudienceType === 'INTERNAL_ONLY') throw new Error('This build is not eligible for external beta testing');
+  const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
+  let group = groups.find(item => item.attributes.name === '公开外部测试' && !item.attributes.isInternalGroup);
+  if (!group) group = (await api('/v1/betaGroups', { method: 'POST', data: { type: 'betaGroups', attributes: { name: '公开外部测试', isInternalGroup: false, publicLinkEnabled: false }, relationships: { app: { data: { type: 'apps', id: record.id } } } } })).data;
+  const assigned = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
+  if (!assigned.some(item => item.id === build.id)) await api(`/v1/betaGroups/${group.id}/relationships/builds`, { method: 'POST', data: [{ type: 'builds', id: build.id }] });
+  console.log(`External group prepared for build ${buildNumber}; review and public-link availability still need confirmation`);
+  await externalStatus();
+}
+async function configureExternal() {
+  const settings = JSON.parse(readFileSync(resolve(local, 'external-review.json'), 'utf8'));
+  if (!/^\+[0-9]{8,15}$/.test(settings.phone) || settings.feedbackEmailSource !== 'account-holder') throw new Error('Missing authorized external review contact or feedback email choice');
+  const record = need(await findApp(), 'App Store Connect app');
+  const owners = (await api('/v1/users', { query: { 'filter[roles]': 'ACCOUNT_HOLDER', limit: '2' } })).data;
+  if (owners.length !== 1) throw new Error('Cannot uniquely identify review contact');
+  const owner = owners[0].attributes;
+  const review = (await api(`/v1/apps/${record.id}/betaAppReviewDetail`)).data;
+  await api(`/v1/betaAppReviewDetails/${review.id}`, { method: 'PATCH', data: { type: 'betaAppReviewDetails', id: review.id, attributes: {
+    contactFirstName: need(owner.firstName, 'review first name'), contactLastName: need(owner.lastName, 'review last name'), contactEmail: owner.username, contactPhone: settings.phone,
+    demoAccountRequired: false,
+    notes: 'Native university timetable app. No sign-in, subscription or payment is required. On first launch the timetable is empty. Tap + to add a course; configure semester dates and class periods in Settings when needed. Course data is stored on the device. Please test manual course management, local persistence, local notifications and widgets. School-system login/import is not included. Full background automatic Live Activity ending and multi-course handoff remain under development. The app does not require a demo account. Notification permission is optional and requested when enabling reminders.',
+  } } });
+  const localizations = (await api(`/v1/apps/${record.id}/betaAppLocalizations`)).data;
+  const localized = localizations.find(item => item.attributes.locale === 'zh-Hans');
+  const attributes = {
+    description: '面向大学生的本地优先课表工具。支持手动添加课程、学期与作息设置、课程调停补课、上课及可选下课提醒，提供桌面和锁屏组件，以及随课表状态变化的黑白手绘校园人物。无需登录，课表保存在本机。本次为早期测试：学校教务导入尚未提供，实时活动的完整后台结束与多节衔接仍在完善。首次启动为空课表，请先手动添加课程。',
+    feedbackEmail: owner.username,
+  };
+  if (localized) await api(`/v1/betaAppLocalizations/${localized.id}`, { method: 'PATCH', data: { type: 'betaAppLocalizations', id: localized.id, attributes } });
+  else await api('/v1/betaAppLocalizations', { method: 'POST', data: { type: 'betaAppLocalizations', attributes: { locale: 'zh-Hans', ...attributes }, relationships: { app: { data: { type: 'apps', id: record.id } } } } });
+  console.log('Saved authorized review contact, no-login instructions, accurate beta description and feedback email; private contact values omitted');
+  await externalStatus();
+}
+async function submitExternal(buildNumber) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
+  const build = need(builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID'), 'eligible processed build');
+  if (build.attributes.buildAudienceType === 'INTERNAL_ONLY') throw new Error('Internal-only build cannot be submitted externally');
+  let submission;
+  try { submission = (await api(`/v1/builds/${build.id}/betaAppReviewSubmission`)).data; }
+  catch (error) { if (error.httpStatus !== 404) throw error; }
+  if (!submission) submission = (await api('/v1/betaAppReviewSubmissions', { method: 'POST', data: { type: 'betaAppReviewSubmissions', relationships: { build: { data: { type: 'builds', id: build.id } } } } })).data;
+  console.log(JSON.stringify({ build: buildNumber, submissionID: submission.id, reviewState: submission.attributes.betaReviewState }));
+  writeFileSync(resolve(local, 'external-submission.json'), JSON.stringify({ appID: record.id, buildID: build.id, build: buildNumber, submissionID: submission.id, reviewState: submission.attributes.betaReviewState, verifiedAt: new Date().toISOString() }, null, 2));
+  await externalStatus();
+}
+async function enableExternalLink(buildNumber) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
+  const group = need(groups.find(item => item.attributes.name === '公开外部测试' && !item.attributes.isInternalGroup), 'prepared external group');
+  const builds = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
+  if (!builds.some(item => item.attributes.version === need(buildNumber, 'build number') && item.attributes.processingState === 'VALID')) throw new Error('Specific processed build must be associated before enabling link');
+  const result = (await api(`/v1/betaGroups/${group.id}`, { method: 'PATCH', data: { type: 'betaGroups', id: group.id, attributes: { publicLinkEnabled: true, publicLinkLimitEnabled: true, publicLinkLimit: 100 } } })).data;
+  console.log(JSON.stringify({ group: result.attributes.name, publicLinkEnabled: result.attributes.publicLinkEnabled, publicLink: result.attributes.publicLink, limit: result.attributes.publicLinkLimit }));
+  writeFileSync(resolve(local, 'external-public-link.json'), JSON.stringify({ appID: record.id, groupID: group.id, build: buildNumber, publicLink: result.attributes.publicLink, publicLinkEnabled: result.attributes.publicLinkEnabled, limit: result.attributes.publicLinkLimit, verifiedAt: new Date().toISOString() }, null, 2));
+}
 try {
   switch (process.argv[2]) {
     case 'check-key': await api('/v1/bundleIds', { query: { limit: '1' } }); console.log('Apple team API key authenticated'); break;
@@ -221,7 +300,12 @@ try {
     case 'upload-status': await uploadStatus(); break;
     case 'enable-internal': await enableInternal(process.argv[3]); break;
     case 'watch-internal': await watchInternal(process.argv[3]); break;
-    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, upload-status, internal-status, enable-internal BUILD or watch-internal BUILD');
+    case 'external-status': await externalStatus(); break;
+    case 'prepare-external': await prepareExternal(process.argv[3]); break;
+    case 'configure-external': await configureExternal(); break;
+    case 'submit-external': await submitExternal(process.argv[3]); break;
+    case 'external-link': await enableExternalLink(process.argv[3]); break;
+    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
   }
 } catch (error) {
   // Do not print subprocess buffers, request headers, tokens or private key content.
