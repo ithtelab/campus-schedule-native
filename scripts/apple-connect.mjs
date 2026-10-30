@@ -150,6 +150,11 @@ async function internalStatus() {
     console.log(JSON.stringify({ group: group.attributes.name, internal: true, publicLink: group.attributes.publicLinkEnabled ?? false, testers: testers.map(item => ({ email: maskedEmail(item.attributes.email), state: item.attributes.state })), builds: builds.map(item => ({ build: item.attributes.version, processing: item.attributes.processingState })) }));
   }
 }
+async function uploadStatus() {
+  const record = need(await findApp(), 'App Store Connect app');
+  const uploads = (await api(`/v1/apps/${record.id}/buildUploads`, { query: { limit: '5' } })).data;
+  console.log(JSON.stringify(uploads.map(item => ({ id: item.id, ...item.attributes })), null, 2));
+}
 async function enableInternal(buildNumber) {
   need(buildNumber, 'specific build number');
   const record = need(await findApp(), 'App Store Connect app');
@@ -183,6 +188,27 @@ async function enableInternal(buildNumber) {
   console.log(`Internal build state: ${detail.attributes.internalBuildState}`);
   await internalStatus();
 }
+async function watchInternal(buildNumber) {
+  need(buildNumber, 'specific build number');
+  const record = need(await findApp(), 'App Store Connect app');
+  let previous;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const uploads = (await api(`/v1/apps/${record.id}/buildUploads`, { query: { limit: '20' } })).data;
+    const upload = uploads.find(item => item.attributes.cfBundleVersion === buildNumber);
+    const state = upload?.attributes.state?.state ?? 'WAITING_FOR_APPLE_RECORD';
+    if (state !== previous) { console.log(`Apple build ${buildNumber}: ${state}`); previous = state; }
+    if (state === 'FAILED') throw new Error(`Apple processing failed: ${JSON.stringify(upload.attributes.state.errors)}`);
+    const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': buildNumber, limit: '10' } })).data;
+    const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID');
+    if (build) {
+      await enableInternal(buildNumber);
+      writeFileSync(resolve(local, 'testflight-ready.json'), JSON.stringify({ appID: record.id, buildID: build.id, build: buildNumber, verifiedAt: new Date().toISOString(), status: 'INTERNAL_ACCESS_CONFIGURED' }, null, 2));
+      return;
+    }
+    await new Promise(done => setTimeout(done, 20000));
+  }
+  throw new Error('Apple processing still pending after this monitoring window; upload must not be repeated blindly');
+}
 try {
   switch (process.argv[2]) {
     case 'check-key': await api('/v1/bundleIds', { query: { limit: '1' } }); console.log('Apple team API key authenticated'); break;
@@ -192,8 +218,10 @@ try {
     case 'profiles': await profiles(); break;
     case 'status': await status(); break;
     case 'internal-status': await internalStatus(); break;
+    case 'upload-status': await uploadStatus(); break;
     case 'enable-internal': await enableInternal(process.argv[3]); break;
-    default: throw new Error('Use check-key, setup, certificate, secrets, profiles or status');
+    case 'watch-internal': await watchInternal(process.argv[3]); break;
+    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, upload-status, internal-status, enable-internal BUILD or watch-internal BUILD');
   }
 } catch (error) {
   // Do not print subprocess buffers, request headers, tokens or private key content.

@@ -41,6 +41,8 @@ eas.json               模拟器构建配置
 
 真机内测发布配置与当前状态见 [TestFlight 发布](docs/TestFlight发布.md)。云端 `validate` 编译真机架构，`upload` 签名并上传；未确认 Apple 处理和测试权限前不称已可安装。
 
+2026-10-31：`0.1.0 (4.1)` 已成功上传，Apple 处理为 VALID，内部测试为 IN_BETA_TESTING，已为账号持有人生成邀请。首次真机验收待用户反馈；可参照 [真机内测清单](docs/真机内测清单.md)。
+
 Windows 编辑 Swift 文件，用 `npm run prepare:ios` 更新原生工程并提交 Git。生成脚本不依赖 Xcode；真正的 Swift 编译仍在 macOS 进行。当前私有仓库的验证与截图流程见 [GitHub 云端验证](docs/GitHub云端验证.md)，原 EAS 配置仍保留在 [Expo 云端预览](docs/Expo云端预览.md)。
 
 当前部署目标为 iOS 27.0，须使用包含 iOS 27 SDK 的 Xcode。若云端环境尚未提供所需 SDK，应停止构建并调整环境，不把缺少 SDK 误判为源码验证成功。部署目标和最低支持版本仍可在后续讨论调整。

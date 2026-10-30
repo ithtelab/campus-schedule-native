@@ -55,10 +55,34 @@ App Store Connect 的应用记录已实际查询到。新 App 记录由用户在
 
 ## 当前状态及真机范围
 
-发布配置和标识已准备。[真机架构验证 41094352914](https://github.com/ithtelab/campus-schedule-native/actions/runs/41094352914) 已实际通过共享规则测试与 iOS device 编译；这是未签名构建，尚未上传 TestFlight。
+发布配置和标识已准备。[真机架构验证 41094352914](https://github.com/ithtelab/campus-schedule-native/actions/runs/41094352914) 已实际通过共享规则测试与 iOS device 编译。
 
 用户创建共享组并保存关联后，重新申请的主应用与组件描述文件已在本地解码，均确认包含 `group.com.ithtelab.campusschedule`。
 
-首次上传任务 `41095478801` 在 macOS 导入 PKCS#12 阶段失败，尚未上传；已将同一证书包的 PBE/MAC 转为兼容编码并更新 Secrets，不新建或撤销证书，待重试验证。
+已完成的首次签名上传：
+
+| 项目 | 实际结果 |
+| --- | --- |
+| 版本 / build | `0.1.0 (4.1)` |
+| 源码 | `8e618aae41729a2f507f8f5bfb66dd23394442d3` |
+| [上传任务 41096792817](https://github.com/ithtelab/campus-schedule-native/actions/runs/41096792817) | SUCCESS |
+| Swift Testing | 24 项 / 4 个 suite 通过 |
+| App Store 描述文件 | 主应用与组件的团队、标识、共享组均通过 |
+| 签名归档 | `ARCHIVE SUCCEEDED`，codesign 验证通过 |
+| 实际包检查 | 两个 bundle 的显示名称、版本、隐私清单、签名共享组通过 |
+| Xcode 上传 | `Upload succeeded`、`EXPORT SUCCEEDED` |
+| [同源码 UI 回归 41096767805](https://github.com/ithtelab/campus-schedule-native/actions/runs/41096767805) | SUCCESS，模拟器截图、人物联动、吸顶及本地重启验证 |
+| Apple 处理结果 | `4.1` 为 `VALID` |
+| 内部测试状态 | `IN_BETA_TESTING` |
+| 内部测试资格 | 已将唯一账户持有人加入“本人真机测试”，邀请为 `INVITED` |
+| 分享范围 | 内部组，公开链接关闭；未邀请其他成员 |
+
+上传凭证为本机 `.tool-cache/preview/testflight-first-upload/build/testflight-upload.json`，内测配置凭证为 `.tool-cache/apple/testflight-ready.json`。Apple 已允许内部测试，但尚未收到用户已安装的反馈，不能说真机验收已通过。
+
+`scripts/apple-connect.mjs watch-internal 4.1` 持续查询 Apple 处理结果，只有明确 `VALID` 才将指定 build 分配到内部组，并只添加团队唯一 `ACCOUNT_HOLDER`。如果持有人不能唯一确定则停止，不批量添加团队成员。已为该 build 写入简体中文测试说明，明确首次空课表、学校导入未完成及灵动岛后台行为限制。
+
+手机端安装：安装 Apple TestFlight，使用开发者账号对应的 iCloud 邮箱查看 Apple 内测邀请，点 View in TestFlight 后安装 `0.1.0 (4.1)`。邀请生成不等于已确认邮件送达或用户接受；若未收到邮件，先检查垃圾邮件，再核对该测试者状态。
+
+发布过程中修正了两个实际问题：首次任务 `41095478801` 的 PKCS#12 导入格式；随后任务 `41096034614` 在签名归档成功后被 Apple 拒绝组件缺少 `CFBundleDisplayName`。采用同一证书的兼容编码并补充组件显示名称后，任务 `41096792817` 通过，未撤销其他证书。
 
 真机启动从个人空课表开始，不自动导入演示课程。可手工添加课程验证人物状态、通知、桌面/锁屏组件、数据保存和深浅色。学校导入尚未实现，灵动岛完整后台自动结束与衔接仍是已记录的未完成项。
