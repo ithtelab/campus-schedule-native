@@ -5,7 +5,11 @@ import SwiftUI
 struct CampusScheduleApp: App {
     var body: some Scene {
         WindowGroup {
-            RootView()
+            if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
+                WidgetGalleryView()
+            } else {
+                RootView()
+            }
         }
     }
 }

@@ -17,6 +17,15 @@ xcrun simctl status_bar booted override --time '9:41' --dataNetwork wifi --wifiM
 
 for appearance in light dark; do
   xcrun simctl ui booted appearance "$appearance"
+  for gallery in desktop lock; do
+    SIMCTL_CHILD_CAMPUS_WIDGET_PREVIEW="$gallery" xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+    sleep 3
+    xcrun simctl io booted screenshot "screenshots/widget-${gallery}-${appearance}-preview.png"
+  done
+done
+
+for appearance in light dark; do
+  xcrun simctl ui booted appearance "$appearance"
   for tab in today week settings; do
     SIMCTL_CHILD_CAMPUS_PREVIEW_TAB="$tab" xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
     sleep 3
