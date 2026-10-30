@@ -63,6 +63,7 @@ xcodebuild -project ios/CampusSchedule.xcodeproj -scheme CampusSchedule -configu
 codesign --verify --deep --strict build/CampusSchedule.xcarchive/Products/Applications/CampusSchedule.app
 xcodebuild -exportArchive -archivePath build/CampusSchedule.xcarchive \
   -exportOptionsPlist "$CAMPUS_SIGNING_DIR/ExportOptions.plist" -exportPath build/testflight-export \
+  -allowProvisioningUpdates \
   -authenticationKeyPath "$CAMPUS_SIGNING_DIR/AuthKey_${APPLE_API_KEY_ID}.p8" \
   -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
 
