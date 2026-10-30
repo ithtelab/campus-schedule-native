@@ -1,13 +1,19 @@
 import SwiftUI
 
 enum DesignSystem {
-    static let accent = Color.blue
+    static let accent = Color.primary
     static let toolbarTint = Color.primary
-    static let background = Color(uiColor: .systemGroupedBackground)
-    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
+    static let background = Color(uiColor: .systemBackground)
+    static let surface = Color(uiColor: .secondarySystemBackground)
+    static let paper = Color(uiColor: .systemBackground)
+    static let inverse = Color(uiColor: .systemBackground)
+    static let rule = Color.primary.opacity(0.16)
     static let muted = Color.secondary
     static let spacing: CGFloat = 20
     static let cornerRadius: CGFloat = 18
+    static func hand(_ size: CGFloat, relativeTo style: Font.TextStyle = .title2) -> Font {
+        .custom("MaShanZheng-Regular", size: size, relativeTo: style)
+    }
 }
 
 enum CourseColor: String, CaseIterable, Codable {
@@ -56,7 +62,7 @@ struct CourseCard: View {
             .frame(minWidth: 48, alignment: .leading)
 
             RoundedRectangle(cornerRadius: 2)
-                .fill(course.color.tint)
+                .fill(Color.primary)
                 .frame(width: 3)
 
             VStack(alignment: .leading, spacing: 9) {

@@ -64,7 +64,13 @@ final class PreviewStore {
     var clockDate = Date()
     var timeText: String { time(now) }
     func time(_ date: Date) -> String { let f = DateFormatter(); f.timeZone = ScheduleRules.calendar.timeZone; f.dateFormat = "HH:mm"; return f.string(from: date) }
-    var now: Date { isPreview ? ScheduleRules.date(day: date(week: 8), time: "09:41")! : clockDate }
+    var now: Date {
+        if isPreview {
+            let time = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TIME"] ?? "09:41"
+            return ScheduleRules.date(day: date(week: 8), time: time) ?? ScheduleRules.date(day: date(week: 8), time: "09:41")!
+        }
+        return clockDate
+    }
     var currentWeek: Int { ScheduleRules.week(on: now, semesterStart: semesterStart) }
     var todayCourses: [DemoCourse] {
         occurrences.filter { ScheduleRules.calendar.isDate($0.start, inSameDayAs: now) }.compactMap { occurrence in
@@ -90,6 +96,26 @@ final class PreviewStore {
         var liveEnabled: Bool; var exceptions: [CourseException]
     }
     init() {
+        if isPreview && ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] == "long" {
+            courses[3] = .init(id: "layout-long", title: "大学英语视听说与学术交流", room: "第二教学楼北区 · 1205", teacher: "王老师", weekday: 1,
+                startPeriod: 3, endPeriod: 4, startTime: "10:00", endTime: "11:35", color: .green)
+            courses.append(.init(id: "layout-single", title: "学术写作", room: "图书馆 · 201", teacher: "李老师", weekday: 6,
+                startPeriod: 9, endPeriod: 9, startTime: "19:00", endTime: "19:45", color: .blue))
+        }
+        if isPreview {
+            switch ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] {
+            case "dense":
+                courses.append(.init(id: "layout-afternoon", title: "线性代数", room: "教学楼 A · 206", teacher: "李老师", weekday: 0,
+                    startPeriod: 5, endPeriod: 6, startTime: "14:00", endTime: "15:35", color: .blue))
+                courses.append(.init(id: "layout-evening", title: "学术写作", room: "图书馆 · 201", teacher: "张老师", weekday: 0,
+                    startPeriod: 9, endPeriod: 10, startTime: "19:00", endTime: "20:35", color: .blue))
+            case "focus-long":
+                courses[1] = .init(id: "layout-focus", title: "大学英语视听说与学术交流", room: "第二教学楼北区 · 1205", teacher: "林老师", weekday: 0,
+                    startPeriod: 3, endPeriod: 4, startTime: "10:00", endTime: "11:35", color: .purple)
+            case "empty": courses = []
+            default: break
+            }
+        }
         if !isPreview {
             courses = []; reminderPreview = false
             do {

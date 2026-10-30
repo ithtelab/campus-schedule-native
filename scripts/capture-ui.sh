@@ -47,6 +47,38 @@ xcrun simctl io booted screenshot screenshots/week-seven-days.png
 SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=week SIMCTL_CHILD_CAMPUS_PREVIEW_ACCESSIBILITY=1 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
 sleep 3
 xcrun simctl io booted screenshot screenshots/week-accessibility.png
+SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_ACCESSIBILITY=1 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+sleep 3
+xcrun simctl io booted screenshot screenshots/today-accessibility.png
+SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=10:30 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+sleep 3
+xcrun simctl io booted screenshot screenshots/today-ongoing.png
+SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=week SIMCTL_CHILD_CAMPUS_PREVIEW_WEEKEND=1 SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=long xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+sleep 3
+xcrun simctl io booted screenshot screenshots/week-long-text.png
+
+# 读取原生打包资源，并通过实际滚动验证 Section 吸顶，而非只截一张静态卡片。
+data_path=$(xcrun simctl get_app_container booted com.example.CampusSchedule data)
+cp "$data_path/Documents/campus-assets-smoke.txt" screenshots/campus-assets-test.txt
+grep -q '^PASS' screenshots/campus-assets-test.txt
+for appearance in light dark; do
+  xcrun simctl ui booted appearance "$appearance"
+  SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=dense SIMCTL_CHILD_CAMPUS_PREVIEW_SCROLL=1 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+  sleep 3
+  grep -q '^PASS' "$data_path/Documents/today-sticky-smoke.txt"
+  cp "$data_path/Documents/today-sticky-smoke.txt" "screenshots/today-sticky-${appearance}-test.txt"
+  xcrun simctl io booted screenshot "screenshots/today-sticky-${appearance}.png"
+done
+xcrun simctl ui booted appearance light
+SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=focus-long xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+sleep 3
+xcrun simctl io booted screenshot screenshots/today-long-text.png
+SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=21:00 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+sleep 3
+xcrun simctl io booted screenshot screenshots/today-finished.png
+SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=empty SIMCTL_CHILD_CAMPUS_PREVIEW_REDUCE_MOTION=1 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+sleep 3
+xcrun simctl io booted screenshot screenshots/today-empty.png
 
 # 使用独立的个人数据模式检查 SwiftData 写入及进程重启后读回。
 SIMCTL_CHILD_CAMPUS_SMOKE_TEST=seed xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule

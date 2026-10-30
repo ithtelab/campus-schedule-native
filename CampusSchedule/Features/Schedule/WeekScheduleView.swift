@@ -7,8 +7,8 @@ struct WeekScheduleView: View {
     @State private var showingWeeks = false
     @State private var showingEditor = false
     private let days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-    private let rowHeight: CGFloat = 48
-    private let groupGap: CGFloat = 26
+    private let rowHeight: CGFloat = 46
+    private let groupGap: CGFloat = 22
     private var dayCount: Int { store.showsWeekend ? 7 : 5 }
     private var courses: [DemoCourse] { store.courses(in: store.selectedWeek) }
     private var totalHeight: CGFloat { rowHeight * 10 + groupGap * 2 }
@@ -33,6 +33,9 @@ struct WeekScheduleView: View {
             .background(DesignSystem.background)
             .navigationTitle("课表").navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("这一周的课").font(DesignSystem.hand(23)).accessibilityAddTraits(.isHeader)
+                }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Menu {
                         Button(store.showsWeekend ? "显示五天" : "显示七天", systemImage: "calendar") { store.showsWeekend.toggle() }
@@ -65,46 +68,46 @@ struct WeekScheduleView: View {
                     }
                     Text("\(store.date(week: store.selectedWeek).formatted(.dateTime.month().day())) — \(store.date(week: store.selectedWeek, day: 6).formatted(.dateTime.month().day()))")
                         .font(.caption).foregroundStyle(.secondary)
-                    Text("\(courses.count) 次课").font(.caption).foregroundStyle(.secondary)
+                    if store.selectedWeek != store.currentWeek {
+                        Button("回到本周") { returnToCurrentWeek() }.font(.subheadline)
+                    }
+                    if hasHiddenWeekendCourses {
+                        Button("周末有课 · 显示七天") { store.showsWeekend = true }.font(.subheadline)
+                    }
                 }
                 .padding(20)
             } else {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
                     Button { showingWeeks = true } label: {
                         HStack(spacing: 7) {
-                            Text("第 \(store.selectedWeek) 周").font(.title2.weight(.bold))
+                            Text("第 \(store.selectedWeek) 周").font(.title3.weight(.bold))
                             Image(systemName: "chevron.down").font(.caption.weight(.bold))
                         }
                         .foregroundStyle(.primary)
                     }
-                    Text("\(store.date(week: store.selectedWeek).formatted(.dateTime.month().day())) — \(store.date(week: store.selectedWeek, day: 6).formatted(.dateTime.month().day()))")
+                    Text("\(store.date(week: store.selectedWeek).formatted(.dateTime.month().day())) — \(store.date(week: store.selectedWeek, day: 6).formatted(.dateTime.month().day())) · \(courses.count) 次课")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if store.selectedWeek != store.currentWeek {
-                    Button("回到本周") { store.selectedWeek = min(store.totalWeeks, max(1, store.currentWeek)) }.font(.caption.weight(.medium))
-                } else {
-                    Text(store.showsWeekend ? "七天视图" : "工作日").font(.caption).foregroundStyle(.secondary)
+                    Button("回到本周") { returnToCurrentWeek() }.font(.caption.weight(.medium))
                 }
-                HStack(spacing: 16) {
-                    Button("上一周", systemImage: "chevron.left") { changeWeek(-1) }.disabled(store.selectedWeek <= 1)
-                    Button("下一周", systemImage: "chevron.right") { changeWeek(1) }.disabled(store.selectedWeek >= store.totalWeeks)
+                HStack(spacing: 0) {
+                    Button("上一周", systemImage: "chevron.left") { changeWeek(-1) }
+                        .frame(width: 44, height: 44).disabled(store.selectedWeek <= 1)
+                    Button("下一周", systemImage: "chevron.right") { changeWeek(1) }
+                        .frame(width: 44, height: 44).disabled(store.selectedWeek >= store.totalWeeks)
                 }
                 .labelStyle(.iconOnly).font(.subheadline.weight(.semibold)).padding(.leading, 8)
             }
-            HStack(spacing: 5) {
-                Circle().fill(.secondary).frame(width: 5, height: 5)
-                Text("\(courses.count) 门课程安排")
-                Spacer()
-                if !store.showsWeekend && courses.contains(where: { $0.weekday >= 5 }) {
-                    Button("周末有课") { store.showsWeekend = true }
-                } else { Text(store.isPreview ? "演示课表" : store.semesterName) }
+            if hasHiddenWeekendCourses {
+                Button("周末有课 · 显示七天") { store.showsWeekend = true }
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            .font(.caption).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 18)
+        .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 12)
             }
         }
     }
@@ -116,10 +119,10 @@ struct WeekScheduleView: View {
                 let isToday = store.selectedWeek == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7
                 VStack(spacing: 5) {
                     Text(days[day]).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                    Text("\(Calendar.current.component(.day, from: store.date(week: store.selectedWeek, day: day)))")
+                    Text("\(ScheduleRules.calendar.component(.day, from: store.date(week: store.selectedWeek, day: day)))")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .frame(width: 28, height: 28)
-                        .foregroundStyle(isToday ? Color.white : Color.primary)
+                        .foregroundStyle(isToday ? DesignSystem.inverse : Color.primary)
                         .background(isToday ? DesignSystem.accent : Color.clear, in: Circle())
                 }
                 .frame(width: width).accessibilityElement(children: .combine)
@@ -157,26 +160,32 @@ struct WeekScheduleView: View {
 
     private func dayColumn(_ day: Int, width: CGFloat) -> some View {
         ZStack(alignment: .top) {
-            if store.selectedWeek == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7 {
-                RoundedRectangle(cornerRadius: 12).fill(DesignSystem.accent.opacity(0.035))
-            }
             ForEach(1...10, id: \.self) { period in
-                Rectangle().fill(Color.primary.opacity(0.035)).frame(height: 0.5).offset(y: offset(period))
+                Rectangle().fill(Color.primary.opacity(0.045)).frame(height: 0.5).offset(y: offset(period))
             }
             ForEach(courses.filter { $0.weekday == day }) { course in
+                let height = max(32, position(course.endTime) - position(course.startTime) - 4)
+                let date = store.date(week: store.selectedWeek, day: day)
+                let ended = (ScheduleRules.date(day: date, time: course.endTime) ?? .distantFuture) <= store.now
+                let ongoing = (ScheduleRules.date(day: date, time: course.startTime) ?? .distantFuture) <= store.now && !ended
+                let ink = ongoing ? DesignSystem.inverse : Color.primary
                 Button { selectedCourse = course } label: {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(course.title).font(.system(size: store.showsWeekend ? 10 : 12, weight: .semibold)).lineLimit(3)
-                        Text(course.shortRoom).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(2).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: height < 65 ? 2 : 4) {
+                        Text(course.title).font(.system(size: store.showsWeekend ? 10 : 12, weight: .semibold)).lineLimit(height < 65 ? (store.showsWeekend ? 2 : 1) : 3)
+                        Text(course.shortRoom).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2).foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
                         Spacer(minLength: 0)
+                        if height >= 80 && !store.showsWeekend {
+                            Text(course.startTime).font(.system(size: 9).monospacedDigit())
+                                .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary).lineLimit(1)
+                        }
                     }
-                    .padding(.horizontal, store.showsWeekend ? 4 : 6).padding(.vertical, 9)
+                    .padding(.leading, store.showsWeekend ? 6 : 8)
+                    .padding(.trailing, store.showsWeekend ? 3 : 5).padding(.vertical, height < 65 ? 2 : 7)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: max(32, position(course.endTime) - position(course.startTime) - 4))
-                    .background(course.color.tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(alignment: .topLeading) {
-                        Capsule().fill(course.color.tint.opacity(0.8)).frame(width: 16, height: 2).padding(.leading, 7).padding(.top, 3)
-                    }
+                    .frame(height: height)
+                    .foregroundStyle(ink)
+                    .background(ongoing ? Color.primary : ended ? DesignSystem.paper : Color.primary.opacity(0.065), in: RoundedRectangle(cornerRadius: 7))
+                    .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(Color.primary.opacity(ended ? 0.15 : 0.04), lineWidth: 0.6) }
                 }
                 .buttonStyle(.plain).foregroundStyle(.primary).offset(y: min(totalHeight - 32, position(course.startTime)))
                 .accessibilityLabel("\(days[day])，\(course.title)，\(course.startTime)至\(course.endTime)，\(course.room)")
@@ -186,8 +195,8 @@ struct WeekScheduleView: View {
         .overlay(alignment: .top) {
             if store.selectedWeek == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7 {
                 HStack(spacing: 0) {
-                    Circle().fill(.red).frame(width: 5, height: 5)
-                    Rectangle().fill(.red.opacity(0.7)).frame(height: 1)
+                    Circle().fill(.primary).frame(width: 5, height: 5)
+                    Rectangle().fill(.primary).frame(height: 1)
                 }
                 .offset(y: previewLineOffset - 2).accessibilityHidden(true)
             }
@@ -222,7 +231,7 @@ struct WeekScheduleView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text(course.title).font(.headline).foregroundStyle(.primary)
                                 Text("\(course.startTime)–\(course.endTime)")
-                                    .font(.subheadline.monospacedDigit()).foregroundStyle(course.color.tint)
+                                    .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                                 Text(course.room).font(.subheadline).foregroundStyle(.secondary)
                                 Text("第 \(course.startPeriod)–\(course.endPeriod) 节 · \(course.teacher)")
                                     .font(.caption).foregroundStyle(.secondary)
@@ -276,4 +285,6 @@ struct WeekScheduleView: View {
         return totalHeight
     }
     private func changeWeek(_ delta: Int) { store.selectedWeek = min(store.totalWeeks, max(1, store.selectedWeek + delta)) }
+    private var hasHiddenWeekendCourses: Bool { !store.showsWeekend && courses.contains { $0.weekday >= 5 } }
+    private func returnToCurrentWeek() { store.selectedWeek = min(store.totalWeeks, max(1, store.currentWeek)) }
 }

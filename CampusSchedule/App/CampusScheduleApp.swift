@@ -16,6 +16,7 @@ struct CampusScheduleApp: App {
 
 struct RootView: View {
     @Environment(\.dynamicTypeSize) private var systemTypeSize
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.scenePhase) private var phase
     @State private var linkedCourse: DemoCourse?
     private enum Screen: String {
@@ -55,6 +56,10 @@ struct RootView: View {
             }
         }
         .task {
+            if store.isPreview {
+                let result = CampusArtAssets.available ? "PASS: three isolated campus figures and bundled handwriting font loaded" : "FAIL: campus art or handwriting font missing"
+                try? result.write(to: URL.documentsDirectory.appendingPathComponent("campus-assets-smoke.txt"), atomically: true, encoding: .utf8)
+            }
             if let smoke = ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"], smoke.hasPrefix("live") {
                 let result: String
                 if smoke == "live-audit" {
@@ -103,6 +108,8 @@ struct RootView: View {
         .environment(\.timeZone, ScheduleRules.calendar.timeZone)
         .environment(\.dynamicTypeSize,
             ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_ACCESSIBILITY"] == "1" ? .accessibility3 : systemTypeSize)
+        .environment(\.accessibilityReduceMotion,
+            ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1" || systemReduceMotion)
     }
 }
 

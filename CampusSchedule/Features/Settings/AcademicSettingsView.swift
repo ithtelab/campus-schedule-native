@@ -38,7 +38,7 @@ struct AcademicSettingsView: View {
                     }
                 }
                 Section {
-                    if !valid { Label("请检查：开学日为周一，各节时间先后有序且不重叠", systemImage: "exclamationmark.circle").foregroundStyle(.orange) }
+                    if !valid { Label("请检查：开学日为周一，各节时间先后有序且不重叠", systemImage: "exclamationmark.circle").foregroundStyle(.primary) }
                     Label(store.isPreview ? "演示学期与作息" : "本地学期与作息", systemImage: "info.circle").foregroundStyle(.secondary)
                 } footer: { Text(store.isPreview ? "仅在演示会话生效。" : "保存到本机，并同步更新课程时间、通知和组件。") }
             }

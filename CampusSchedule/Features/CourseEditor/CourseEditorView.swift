@@ -82,22 +82,8 @@ struct CourseEditorView: View {
                 } header: { Text("上课周次") }
                 footer: { Text("已选择 \(weeks.count) 个教学周。指定周次适合短学期课程或集中授课。") }
 
-                Section("课程颜色") {
-                    HStack(spacing: 18) {
-                        ForEach(CourseColor.allCases, id: \.self) { item in
-                            Button { color = item } label: {
-                                Circle().fill(item.tint.opacity(0.18)).frame(width: 40, height: 40)
-                                    .overlay { Circle().fill(item.tint).frame(width: 22, height: 22) }
-                                    .overlay { if color == item { Image(systemName: "checkmark").font(.caption.weight(.bold)).foregroundStyle(.white) } }
-                            }
-                            .buttonStyle(.plain).accessibilityLabel(item.name)
-                            .accessibilityAddTraits(color == item ? [.isSelected] : [])
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
                 Section {
-                    if conflict { Label("与已有课程时间重叠，请调整时间或周次", systemImage: "exclamationmark.circle").foregroundStyle(.orange) }
+                    if conflict { Label("与已有课程时间重叠，请调整时间或周次", systemImage: "exclamationmark.circle").foregroundStyle(.primary) }
                     Label(store.isPreview ? "本次仅为演示" : "课程保存在本机", systemImage: "info.circle").foregroundStyle(.secondary)
                 } footer: { Text(store.isPreview ? "退出后恢复演示数据。" : "设置中可开启上课提醒，组件将使用同一份课表。") }
             }

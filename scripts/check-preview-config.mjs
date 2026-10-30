@@ -28,5 +28,10 @@ for (const folder of ['CampusSchedule', 'Shared', 'Widgets']) countSources(resol
 assert.equal(fileRefs.length, sourceCount, '新增 Swift 文件后须重新生成工程');
 assert.equal(new Set(fileRefs).size, sourceCount);
 for (const ref of fileRefs) readFileSync(resolve(root, 'ios', ref));
+for (const file of ['CampusSchedule/Resources/CampusArtwork.xcassets', 'CampusSchedule/Resources/Fonts/CampusHand.ttf']) {
+  assert.ok(project.includes(`path = "../${file}"`), '插画和字体必须引用到原生工程');
+}
+assert.ok(readFileSync(resolve(root, 'CampusSchedule/Resources/Fonts/CampusHand.ttf')).length > 1000);
+assert.ok(read('ios/CampusSchedule-Info.plist').includes('<string>CampusHand.ttf</string>'));
 console.log(`配置静态检查通过：${sourceCount} 个 Swift 源文件、模拟器目标、Bundle ID 和共享 Scheme 一致。`);
 console.log('这不是 Xcode 编译或运行验证。');

@@ -16,7 +16,7 @@ struct CourseDetailView: View {
                 Section {
                     Toggle("此课程允许提醒", isOn: Binding(get: { original.remindersEnabled }, set: { value in
                         if let index = store.courses.firstIndex(where: { $0.id == original.id }) { store.courses[index].remindersEnabled = value }
-                    })).tint(.blue)
+                    })).tint(DesignSystem.accent)
                     Text(original.title).font(.title.weight(.semibold))
                     LabeledContent("教师", value: original.teacher)
                     LabeledContent("地点", value: original.room)

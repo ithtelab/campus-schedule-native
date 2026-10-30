@@ -1,0 +1,39 @@
+name: Native iOS UI validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-ui:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Generate and check native project
+        run: |
+          node scripts/generate-ios-project.mjs
+          node scripts/check-preview-config.mjs
+      - name: Test shared rules and compile app with widgets
+        run: bash scripts/build-native-simulator.sh 2>&1 | tee native-build.log
+      - name: Capture native UI and verify pinned course header
+        run: bash scripts/github-screenshots.sh 2>&1 | tee native-ui.log
+      - name: Save screenshots, proofs and simulator app
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-ios-ui-proof
+          path: |
+            screenshots/
+            native-build.log
+            native-ui.log
+            build/CampusSchedule.tar.gz
+          retention-days: 3
+          if-no-files-found: warn

@@ -25,6 +25,12 @@ function collect(directory) {
 collect(resolve(root, target));
 collect(resolve(root, "Shared"));
 files.sort();
+const resources = [
+  ['CampusSchedule/Resources/CampusArtwork.xcassets', 'folder.assetcatalog'],
+  ['CampusSchedule/Resources/Fonts/CampusHand.ttf', 'file'],
+  ['CampusSchedule/Resources/Fonts/OFL.txt', 'text'],
+];
+for (const [file] of resources) readFileSync(resolve(root, file.endsWith('.xcassets') ? file + '/Contents.json' : file));
 if (files.length === 0) throw new Error('No Swift sources found');
 
 const objects = [];
@@ -34,12 +40,16 @@ for (const file of files) {
   add(`ref:${file}`, `isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ${quote('../' + file)}; sourceTree = SOURCE_ROOT;`);
   add(`build:${file}`, `isa = PBXBuildFile; fileRef = ${id(`ref:${file}`)};`);
 }
+for (const [file, type] of resources) {
+  add(`ref:${file}`, `isa = PBXFileReference; lastKnownFileType = ${type}; path = ${quote('../' + file)}; sourceTree = SOURCE_ROOT;`);
+  add(`build:${file}`, `isa = PBXBuildFile; fileRef = ${id(`ref:${file}`)};`);
+}
 add('product', `isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ${target}.app; sourceTree = BUILT_PRODUCTS_DIR;`);
 add('products', `isa = PBXGroup; children = ${list(['product'])}; name = Products; sourceTree = "<group>";`);
-add('main', `isa = PBXGroup; children = ${list([...files.map(file => `ref:${file}`), 'products'])}; sourceTree = "<group>";`);
+add('main', `isa = PBXGroup; children = ${list([...files.map(file => `ref:${file}`), ...resources.map(([file]) => `ref:${file}`), 'products'])}; sourceTree = "<group>";`);
 add('sources', `isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ${list(files.map(file => `build:${file}`))}; runOnlyForDeploymentPostprocessing = 0;`);
 add('frameworks', 'isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;');
-add('resources', 'isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;');
+add('resources', `isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ${list(resources.map(([file]) => `build:${file}`))}; runOnlyForDeploymentPostprocessing = 0;`);
 
 for (const mode of ['Debug', 'Release']) {
   add(`project:${mode}`, `isa = XCBuildConfiguration; name = ${mode}; buildSettings = {
