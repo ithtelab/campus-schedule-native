@@ -19,8 +19,11 @@ extension EnvironmentValues {
 @MainActor
 enum CampusArtAssets {
     // Each crop has its own empty margin, so adjacent stool/figure pixels never enter the girl's artwork.
-    static let figures: [CampusPose: UIImage] = {
-        guard let sheet = UIImage(named: "CampusStudents")?.cgImage else { return [:] }
+    static let figures = load("CampusStudents")
+    static let darkFigures = load("CampusStudentsDark")
+
+    private static func load(_ name: String) -> [CampusPose: UIImage] {
+        guard let sheet = UIImage(named: name)?.cgImage else { return [:] }
         let ranges: [(CampusPose, CGFloat, CGFloat)] = [(.reading, 0, 0.36), (.walking, 0.36, 0.69), (.stretching, 0.69, 1)]
         return Dictionary(uniqueKeysWithValues: ranges.compactMap { pose, left, right in
             let rect = CGRect(x: CGFloat(sheet.width) * left, y: 0,
@@ -28,10 +31,11 @@ enum CampusArtAssets {
             guard let image = sheet.cropping(to: rect) else { return nil }
             return (pose, UIImage(cgImage: image))
         })
-    }()
+    }
 
     static var available: Bool {
-        figures.count == CampusPose.allCases.count && UIFont(name: "MaShanZheng-Regular", size: 20) != nil
+        figures.count == CampusPose.allCases.count && darkFigures.count == CampusPose.allCases.count
+            && UIFont(name: "MaShanZheng-Regular", size: 20) != nil
     }
 }
 
@@ -58,12 +62,8 @@ struct CampusFigure: View {
     }
 
     @ViewBuilder private var artwork: some View {
-        if let image = CampusArtAssets.figures[pose] {
-            if colorScheme == .dark {
-                Image(uiImage: image).resizable().scaledToFit().colorInvert()
-            } else {
-                Image(uiImage: image).resizable().scaledToFit()
-            }
+        if let image = (colorScheme == .dark ? CampusArtAssets.darkFigures : CampusArtAssets.figures)[pose] {
+            Image(uiImage: image).resizable().scaledToFit()
         }
     }
 }

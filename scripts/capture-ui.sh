@@ -38,6 +38,14 @@ for appearance in light dark; do
     sleep 3
     xcrun simctl io booted screenshot "screenshots/${screen}-${appearance}.png"
   done
+  if [[ "$appearance" == dark ]]; then
+    SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=10:30 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+    sleep 3
+    xcrun simctl io booted screenshot screenshots/today-ongoing-dark.png
+    SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=21:00 xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
+    sleep 3
+    xcrun simctl io booted screenshot screenshots/today-finished-dark.png
+  fi
 done
 
 xcrun simctl ui booted appearance light
