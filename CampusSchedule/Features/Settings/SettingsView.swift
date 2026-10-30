@@ -18,7 +18,7 @@ struct SettingsView: View {
                         }
                     } icon: {
                         Image(systemName: "calendar")
-                            .foregroundStyle(DesignSystem.accent).font(.title2)
+                            .foregroundStyle(.primary).font(.title2)
                     }
                     .padding(.vertical, 8)
                 }
@@ -37,6 +37,7 @@ struct SettingsView: View {
                 }
                 Section {
                     Toggle("上课提醒（预览）", isOn: $settings.reminderPreview)
+                        .tint(DesignSystem.accent)
                     if settings.reminderPreview {
                         Picker("提前时间", selection: $settings.reminderMinutes) {
                             Text("5 分钟").tag(5)

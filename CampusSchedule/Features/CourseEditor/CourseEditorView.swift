@@ -67,6 +67,7 @@ struct CourseEditorView: View {
                                     else { customWeeks.insert(week) }
                                 } label: {
                                     Text("\(week)").font(.subheadline.monospacedDigit())
+                                        .foregroundStyle(customWeeks.contains(week) ? DesignSystem.accent : Color.primary)
                                         .frame(maxWidth: .infinity).padding(.vertical, 9)
                                         .background(customWeeks.contains(week) ? DesignSystem.accent.opacity(0.15) : Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                                 }

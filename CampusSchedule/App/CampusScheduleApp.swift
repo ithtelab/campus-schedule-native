@@ -25,12 +25,15 @@ struct RootView: View {
         TabView(selection: $selectedScreen) {
             Tab("今日", systemImage: "sun.max", value: Screen.today) {
                 TodayView()
+                    .tint(DesignSystem.toolbarTint)
             }
             Tab("课表", systemImage: "calendar", value: Screen.week) {
                 WeekScheduleView()
+                    .tint(DesignSystem.toolbarTint)
             }
             Tab("设置", systemImage: "slider.horizontal.3", value: Screen.settings) {
                 SettingsView()
+                    .tint(DesignSystem.toolbarTint)
             }
         }
         .tint(DesignSystem.accent)

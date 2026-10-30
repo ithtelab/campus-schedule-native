@@ -95,7 +95,7 @@ struct WeekScheduleView: View {
                 .labelStyle(.iconOnly).font(.subheadline.weight(.semibold)).padding(.leading, 8)
             }
             HStack(spacing: 5) {
-                Circle().fill(DesignSystem.accent).frame(width: 5, height: 5)
+                Circle().fill(.secondary).frame(width: 5, height: 5)
                 Text("\(courses.count) 门课程安排")
                 Spacer()
                 if !store.showsWeekend && courses.contains(where: { $0.weekday >= 5 }) {
@@ -250,6 +250,7 @@ struct WeekScheduleView: View {
                         Spacer()
                         if store.selectedWeek == week { Image(systemName: "checkmark") }
                     }
+                    .foregroundStyle(store.selectedWeek == week ? DesignSystem.accent : Color.primary)
                 }
             }
             .navigationTitle("选择教学周").navigationBarTitleDisplayMode(.inline)
