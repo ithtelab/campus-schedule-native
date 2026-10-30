@@ -2,6 +2,17 @@ name: Native iOS UI validation
 
 on:
   workflow_dispatch:
+  push:
+    branches: [master, 'codex/**']
+    paths:
+      - 'CampusSchedule/**'
+      - 'Shared/**'
+      - 'Widgets/**'
+      - 'Tests/**'
+      - 'ios/**'
+      - 'scripts/**'
+      - 'Package.swift'
+      - '.github/workflows/native-ui.yml'
 
 permissions:
   contents: read
