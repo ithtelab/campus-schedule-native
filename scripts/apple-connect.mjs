@@ -87,7 +87,8 @@ async function certificate() {
   localConfig.p12Password ??= randomBytes(32).toString('hex');
   saveConfig();
   execFileSync(openssl, ['x509', '-inform', 'DER', '-in', der, '-out', pem], { stdio: 'ignore' });
-  execFileSync(openssl, ['pkcs12', '-export', '-inkey', key, '-in', pem, '-out', p12, '-passout', 'env:CAMPUS_P12_PASSWORD'], { stdio: 'ignore', env: { ...process.env, CAMPUS_P12_PASSWORD: localConfig.p12Password } });
+  // Apple's security import requires the interoperable PKCS#12 PBE/MAC encoding.
+  execFileSync(openssl, ['pkcs12', '-export', '-inkey', key, '-in', pem, '-out', p12, '-keypbe', 'PBE-SHA1-3DES', '-certpbe', 'PBE-SHA1-3DES', '-macalg', 'sha1', '-passout', 'env:CAMPUS_P12_PASSWORD'], { stdio: 'ignore', env: { ...process.env, CAMPUS_P12_PASSWORD: localConfig.p12Password } });
   console.log(`Distribution signing material prepared; existing certificates were not revoked. Expires ${cert.validTo}`);
 }
 function secrets() {

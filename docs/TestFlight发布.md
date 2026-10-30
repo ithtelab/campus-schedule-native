@@ -41,7 +41,7 @@ GitHub 发布需要以下 Actions Secrets：
 | APPLE_DISTRIBUTION_P12 | 包含签名私钥的证书包，Base64 只用于传输 |
 | APPLE_DISTRIBUTION_PASSWORD | 证书包保护密码 |
 
-`scripts/apple-connect.mjs secrets` 通过标准输入提交到该仓库的 Secrets，不在命令行参数、聊天或构建产物中打印秘密。本次自动审批明确拒绝了首次存储操作，等待用户明确授权存入该具体仓库；未授权前不执行替代上传途径。
+`scripts/apple-connect.mjs secrets` 通过标准输入提交到该仓库的 Secrets，不在命令行参数、聊天或构建产物中打印秘密。首次存储曾被自动审批拒绝；用户随后明确同意将这批凭据存入该私有仓库并继续上传，七项 Secrets 已实际存储。此授权用于本项目签名上传。
 
 云端在 runner 临时目录使用凭据，结束时删除临时钥匙串及私钥文件；产物只保留普通构建日志和上传状态，不打包凭据目录。
 
@@ -57,6 +57,8 @@ App Store Connect 的应用记录已实际查询到。新 App 记录由用户在
 
 发布配置和标识已准备。[真机架构验证 41094352914](https://github.com/ithtelab/campus-schedule-native/actions/runs/41094352914) 已实际通过共享规则测试与 iOS device 编译；这是未签名构建，尚未上传 TestFlight。
 
-Apple 新生成的主应用和组件描述文件的共享组数组均为空，已请求用户重新检查网页的 Configure/Save 关联。GitHub Secrets 存储等待用户明确授权。以上两项解决后，继续签名、上传并确认 Apple 处理结果和本人内部测试权限。
+用户创建共享组并保存关联后，重新申请的主应用与组件描述文件已在本地解码，均确认包含 `group.com.ithtelab.campusschedule`。
+
+首次上传任务 `41095478801` 在 macOS 导入 PKCS#12 阶段失败，尚未上传；已将同一证书包的 PBE/MAC 转为兼容编码并更新 Secrets，不新建或撤销证书，待重试验证。
 
 真机启动从个人空课表开始，不自动导入演示课程。可手工添加课程验证人物状态、通知、桌面/锁屏组件、数据保存和深浅色。学校导入尚未实现，灵动岛完整后台自动结束与衔接仍是已记录的未完成项。
