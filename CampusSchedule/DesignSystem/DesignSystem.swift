@@ -2,6 +2,10 @@ import SwiftUI
 
 enum DesignSystem {
     static let accent = Color.primary
+    // Keep the native white switch thumb visible in both appearances.
+    static let switchTint = Color(uiColor: UIColor { traits in
+        UIColor(white: traits.userInterfaceStyle == .dark ? 0.58 : 0.12, alpha: 1)
+    })
     static let toolbarTint = Color.primary
     static let background = Color(uiColor: .systemBackground)
     static let surface = Color(uiColor: .secondarySystemBackground)

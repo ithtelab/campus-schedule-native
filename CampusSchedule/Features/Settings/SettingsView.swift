@@ -21,11 +21,11 @@ struct SettingsView: View {
                     LabeledContent("学校", value: "暂不接入教务")
                 }
                 Section {
-                    Toggle("上课提醒", isOn: $settings.reminderPreview).tint(DesignSystem.accent)
+                    Toggle("上课提醒", isOn: $settings.reminderPreview).tint(DesignSystem.switchTint)
                     Picker("提前时间", selection: $settings.reminderMinutes) {
                         ForEach([5, 10, 15, 30], id: \.self) { Text("\($0) 分钟").tag($0) }
                     }
-                    Toggle("下课提醒", isOn: $settings.endReminder).tint(DesignSystem.accent)
+                    Toggle("下课提醒", isOn: $settings.endReminder).tint(DesignSystem.switchTint)
                     if settings.endReminder {
                         Picker("下课提醒时间", selection: $settings.endLead) {
                             Text("下课时").tag(0)
@@ -37,7 +37,7 @@ struct SettingsView: View {
                 } header: { Text("原生通知") }
                 footer: { Text(store.isPreview ? "当前为演示，不发送通知。" : "提醒使用本地通知。首次开启需系统授权；权限、专注模式可能影响显示和声音。仅安排近期提醒，打开 APP 后补充。") }
                 Section {
-                    Toggle("课程实时活动", isOn: $settings.liveEnabled).tint(DesignSystem.accent)
+                    Toggle("课程实时活动", isOn: $settings.liveEnabled).tint(DesignSystem.switchTint)
                 } header: { Text("锁屏与灵动岛") }
                 footer: { Text("启用后尝试按上课提前量预定最近一次活动。后台下课自动结束尚待真机验证；可以在活动内结束本次。通知开关互不影响。") }
                 Section("组件") {

@@ -16,7 +16,7 @@ struct CourseDetailView: View {
                 Section {
                     Toggle("此课程允许提醒", isOn: Binding(get: { original.remindersEnabled }, set: { value in
                         if let index = store.courses.firstIndex(where: { $0.id == original.id }) { store.courses[index].remindersEnabled = value }
-                    })).tint(DesignSystem.accent)
+                    })).tint(DesignSystem.switchTint)
                     Text(original.title).font(.title.weight(.semibold))
                     LabeledContent("教师", value: original.teacher)
                     LabeledContent("地点", value: original.room)
@@ -71,7 +71,7 @@ struct CourseExceptionView: View {
                 Picker("选择一次课程", selection: $selectedID) {
                     ForEach(items) { item in Text(item.start, format: .dateTime.month().day().hour().minute()).tag(item.id) }
                 }
-                Toggle("本次停课", isOn: $cancelled)
+                Toggle("本次停课", isOn: $cancelled).tint(DesignSystem.switchTint)
                 if !cancelled {
                     DatePicker("新的开始时间", selection: $start)
                     DatePicker("新的结束时间", selection: $end)
