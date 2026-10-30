@@ -38,7 +38,9 @@ struct WeekScheduleView: View {
                         Button(store.showsWeekend ? "显示五天" : "显示七天", systemImage: "calendar") { store.showsWeekend.toggle() }
                     } label: { Image(systemName: "ellipsis") }
                     .accessibilityLabel("课表显示选项")
+                    .tint(DesignSystem.toolbarTint)
                     Button("添加课程", systemImage: "plus") { showingEditor = true }
+                        .tint(DesignSystem.toolbarTint)
                 }
             }
             .sheet(item: $selectedCourse) { CourseDetailView(course: $0) }

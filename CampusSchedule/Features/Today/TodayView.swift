@@ -57,6 +57,7 @@ struct TodayView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("添加课程", systemImage: "plus") { showingEditor = true }
+                        .tint(DesignSystem.toolbarTint)
                 }
             }
             .sheet(item: $selectedCourse) { CourseDetailView(course: $0) }

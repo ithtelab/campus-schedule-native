@@ -2,6 +2,7 @@ import SwiftUI
 
 enum DesignSystem {
     static let accent = Color.indigo
+    static let toolbarTint = Color.primary
     static let background = Color(uiColor: .systemGroupedBackground)
     static let surface = Color(uiColor: .secondarySystemGroupedBackground)
     static let muted = Color.secondary
