@@ -5,6 +5,17 @@ enum CampusPose: Int, CaseIterable {
     case reading, walking, stretching
 }
 
+private struct CampusSuppressMotionKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var campusSuppressMotion: Bool {
+        get { self[CampusSuppressMotionKey.self] }
+        set { self[CampusSuppressMotionKey.self] = newValue }
+    }
+}
+
 @MainActor
 enum CampusArtAssets {
     // Each crop has its own empty margin, so adjacent stool/figure pixels never enter the girl's artwork.
@@ -29,11 +40,12 @@ struct CampusFigure: View {
     var animates = true
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.campusSuppressMotion) private var suppressMotion
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
         Group {
-            if animates && !reduceMotion && phase == .active {
+            if animates && !reduceMotion && !suppressMotion && phase == .active {
                 artwork.phaseAnimator([false, true]) { content, raised in
                     content.offset(y: raised ? -2 : 0)
                         .rotationEffect(.degrees(raised ? (pose == .walking ? 1 : -0.6) : 0), anchor: .bottom)

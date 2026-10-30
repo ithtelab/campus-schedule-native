@@ -16,7 +16,6 @@ struct CampusScheduleApp: App {
 
 struct RootView: View {
     @Environment(\.dynamicTypeSize) private var systemTypeSize
-    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.scenePhase) private var phase
     @State private var linkedCourse: DemoCourse?
     private enum Screen: String {
@@ -108,8 +107,8 @@ struct RootView: View {
         .environment(\.timeZone, ScheduleRules.calendar.timeZone)
         .environment(\.dynamicTypeSize,
             ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_ACCESSIBILITY"] == "1" ? .accessibility3 : systemTypeSize)
-        .environment(\.accessibilityReduceMotion,
-            ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1" || systemReduceMotion)
+        .environment(\.campusSuppressMotion,
+            ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1")
     }
 }
 
