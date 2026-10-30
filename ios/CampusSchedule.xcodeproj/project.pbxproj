@@ -14,7 +14,18 @@ AF9270130EFC8B15E84B0DF3 /* ref:CampusSchedule/Features/Settings/AcademicSetting
 B873DD9AD98BB71A681C91F9 /* ref:CampusSchedule/Features/Settings/SettingsView.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../CampusSchedule/Features/Settings/SettingsView.swift"; sourceTree = SOURCE_ROOT; };
 54BADCA5F8E36E1BC3CDF305 /* ref:CampusSchedule/Features/Today/TodayView.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../CampusSchedule/Features/Today/TodayView.swift"; sourceTree = SOURCE_ROOT; };
 7D0100693C5AA198F371258C /* ref:CampusSchedule/PreviewData/PreviewStore.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../CampusSchedule/PreviewData/PreviewStore.swift"; sourceTree = SOURCE_ROOT; };
+FEE3679E77C4755BA9E89A97 /* ref:CampusSchedule/Services/CourseLiveActivities.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../CampusSchedule/Services/CourseLiveActivities.swift"; sourceTree = SOURCE_ROOT; };
+6A2BF36B9FC4D4B7771DF7B2 /* ref:CampusSchedule/Services/CourseNotifications.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../CampusSchedule/Services/CourseNotifications.swift"; sourceTree = SOURCE_ROOT; };
+A07ABBBB3E376F78D728B8A5 /* ref:CampusSchedule/Services/LocalPersistence.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../CampusSchedule/Services/LocalPersistence.swift"; sourceTree = SOURCE_ROOT; };
+9123D87A43ED2CC5774AD58E /* ref:Shared/CourseException.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/CourseException.swift"; sourceTree = SOURCE_ROOT; };
+DB0E56A01E902D652BF7BB2A /* ref:Shared/ScheduleRules.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/ScheduleRules.swift"; sourceTree = SOURCE_ROOT; };
+6EAF4DD3B804F07BAD845986 /* ref:Shared/SystemSnapshot.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/SystemSnapshot.swift"; sourceTree = SOURCE_ROOT; };
 A8792157CB4F27FB949C035F /* product */ = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CampusSchedule.app; sourceTree = BUILT_PRODUCTS_DIR; };
+9210C5B6418706875848DFC0 /* widgetref:Widgets/ScheduleWidgets.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Widgets/ScheduleWidgets.swift"; sourceTree = SOURCE_ROOT; };
+C7C8CA6710C1BD728E76BD6A /* widgetref:Shared/CourseException.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/CourseException.swift"; sourceTree = SOURCE_ROOT; };
+5738491140ED2F5C7DDB0C45 /* widgetref:Shared/ScheduleRules.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/ScheduleRules.swift"; sourceTree = SOURCE_ROOT; };
+FE76D6F074AF179607313F38 /* widgetref:Shared/SystemSnapshot.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/SystemSnapshot.swift"; sourceTree = SOURCE_ROOT; };
+F340BBA9E1CF0E68C148238F /* widgetproduct */ = { isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = CampusWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 /* Begin PBXBuildFile section */
 F366FA6BCC33C9A9AE105605 /* build:CampusSchedule/App/CampusScheduleApp.swift */ = { isa = PBXBuildFile; fileRef = 03B360C4BB62AC58DD2BAAA9; };
@@ -26,13 +37,26 @@ B16D8CF53D9CE2A0349D890C /* build:CampusSchedule/Features/Settings/AcademicSetti
 67BFE4522E04C6297A8AF177 /* build:CampusSchedule/Features/Settings/SettingsView.swift */ = { isa = PBXBuildFile; fileRef = B873DD9AD98BB71A681C91F9; };
 3723418446CC9FC8295732E6 /* build:CampusSchedule/Features/Today/TodayView.swift */ = { isa = PBXBuildFile; fileRef = 54BADCA5F8E36E1BC3CDF305; };
 4AA9A013A27884714B298EE0 /* build:CampusSchedule/PreviewData/PreviewStore.swift */ = { isa = PBXBuildFile; fileRef = 7D0100693C5AA198F371258C; };
+DF2F9CC6F4F7C3835A839802 /* build:CampusSchedule/Services/CourseLiveActivities.swift */ = { isa = PBXBuildFile; fileRef = FEE3679E77C4755BA9E89A97; };
+3E682543E70203CC711AC63B /* build:CampusSchedule/Services/CourseNotifications.swift */ = { isa = PBXBuildFile; fileRef = 6A2BF36B9FC4D4B7771DF7B2; };
+2D73F0EFE831C59A14D11FAF /* build:CampusSchedule/Services/LocalPersistence.swift */ = { isa = PBXBuildFile; fileRef = A07ABBBB3E376F78D728B8A5; };
+41A47BF75BFE65EE24176863 /* build:Shared/CourseException.swift */ = { isa = PBXBuildFile; fileRef = 9123D87A43ED2CC5774AD58E; };
+3D7E1221868F0E2EA3B67A1B /* build:Shared/ScheduleRules.swift */ = { isa = PBXBuildFile; fileRef = DB0E56A01E902D652BF7BB2A; };
+CBD4DEA4D4C18CECCB71A60C /* build:Shared/SystemSnapshot.swift */ = { isa = PBXBuildFile; fileRef = 6EAF4DD3B804F07BAD845986; };
+B4EFF13E644B722278412CE5 /* widgetbuild:Widgets/ScheduleWidgets.swift */ = { isa = PBXBuildFile; fileRef = 9210C5B6418706875848DFC0; };
+0FE1D069C07E93EFC1F6F9B1 /* widgetbuild:Shared/CourseException.swift */ = { isa = PBXBuildFile; fileRef = C7C8CA6710C1BD728E76BD6A; };
+6B0BA2EB2033A4FE27526587 /* widgetbuild:Shared/ScheduleRules.swift */ = { isa = PBXBuildFile; fileRef = 5738491140ED2F5C7DDB0C45; };
+CF742E60D0DACBDB8EB68C23 /* widgetbuild:Shared/SystemSnapshot.swift */ = { isa = PBXBuildFile; fileRef = FE76D6F074AF179607313F38; };
+FAE608D04BA82A38D1FB0D81 /* embedfile */ = { isa = PBXBuildFile; fileRef = F340BBA9E1CF0E68C148238F; settings = { ATTRIBUTES = (RemoveHeadersOnCopy,); }; };
 /* End PBXBuildFile section */
 /* Begin PBXGroup section */
-0A3E27B8CA818264D75C8D81 /* products */ = { isa = PBXGroup; children = (A8792157CB4F27FB949C035F /* product */,); name = Products; sourceTree = "<group>"; };
-0D6E4079E36703EBD37C0072 /* main */ = { isa = PBXGroup; children = (03B360C4BB62AC58DD2BAAA9 /* ref:CampusSchedule/App/CampusScheduleApp.swift */, CC5B19B8A98EAFF686895BA6 /* ref:CampusSchedule/DesignSystem/DesignSystem.swift */, 3B37C219B4861525DE6D2B4F /* ref:CampusSchedule/Features/CourseDetail/CourseDetailView.swift */, 300DDF3FFFFB8CC4E7B32AD5 /* ref:CampusSchedule/Features/CourseEditor/CourseEditorView.swift */, C7B2C9BEE44AD0A7D6FDB225 /* ref:CampusSchedule/Features/Schedule/WeekScheduleView.swift */, AF9270130EFC8B15E84B0DF3 /* ref:CampusSchedule/Features/Settings/AcademicSettingsView.swift */, B873DD9AD98BB71A681C91F9 /* ref:CampusSchedule/Features/Settings/SettingsView.swift */, 54BADCA5F8E36E1BC3CDF305 /* ref:CampusSchedule/Features/Today/TodayView.swift */, 7D0100693C5AA198F371258C /* ref:CampusSchedule/PreviewData/PreviewStore.swift */, 0A3E27B8CA818264D75C8D81 /* products */,); sourceTree = "<group>"; };
+0A3E27B8CA818264D75C8D81 /* products */ = { isa = PBXGroup; children = (A8792157CB4F27FB949C035F /* product */, F340BBA9E1CF0E68C148238F /* widgetproduct */,); name = Products; sourceTree = "<group>"; };
+0D6E4079E36703EBD37C0072 /* main */ = { isa = PBXGroup; children = (03B360C4BB62AC58DD2BAAA9 /* ref:CampusSchedule/App/CampusScheduleApp.swift */, CC5B19B8A98EAFF686895BA6 /* ref:CampusSchedule/DesignSystem/DesignSystem.swift */, 3B37C219B4861525DE6D2B4F /* ref:CampusSchedule/Features/CourseDetail/CourseDetailView.swift */, 300DDF3FFFFB8CC4E7B32AD5 /* ref:CampusSchedule/Features/CourseEditor/CourseEditorView.swift */, C7B2C9BEE44AD0A7D6FDB225 /* ref:CampusSchedule/Features/Schedule/WeekScheduleView.swift */, AF9270130EFC8B15E84B0DF3 /* ref:CampusSchedule/Features/Settings/AcademicSettingsView.swift */, B873DD9AD98BB71A681C91F9 /* ref:CampusSchedule/Features/Settings/SettingsView.swift */, 54BADCA5F8E36E1BC3CDF305 /* ref:CampusSchedule/Features/Today/TodayView.swift */, 7D0100693C5AA198F371258C /* ref:CampusSchedule/PreviewData/PreviewStore.swift */, FEE3679E77C4755BA9E89A97 /* ref:CampusSchedule/Services/CourseLiveActivities.swift */, 6A2BF36B9FC4D4B7771DF7B2 /* ref:CampusSchedule/Services/CourseNotifications.swift */, A07ABBBB3E376F78D728B8A5 /* ref:CampusSchedule/Services/LocalPersistence.swift */, 9123D87A43ED2CC5774AD58E /* ref:Shared/CourseException.swift */, DB0E56A01E902D652BF7BB2A /* ref:Shared/ScheduleRules.swift */, 6EAF4DD3B804F07BAD845986 /* ref:Shared/SystemSnapshot.swift */, D587DDFA1155CD8BDF719B2B /* Widgets */, 0A3E27B8CA818264D75C8D81 /* products */,); sourceTree = "<group>"; };
+D587DDFA1155CD8BDF719B2B /* widgetgroup */ = { isa = PBXGroup; children = (9210C5B6418706875848DFC0 /* widgetref:Widgets/ScheduleWidgets.swift */, C7C8CA6710C1BD728E76BD6A /* widgetref:Shared/CourseException.swift */, 5738491140ED2F5C7DDB0C45 /* widgetref:Shared/ScheduleRules.swift */, FE76D6F074AF179607313F38 /* widgetref:Shared/SystemSnapshot.swift */,); name = Widgets; sourceTree = "<group>"; };
 /* End PBXGroup section */
 /* Begin PBXSourcesBuildPhase section */
-878A52FC5FF6A57D50B7B870 /* sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (F366FA6BCC33C9A9AE105605 /* build:CampusSchedule/App/CampusScheduleApp.swift */, 2969F1F36089FD5A93230302 /* build:CampusSchedule/DesignSystem/DesignSystem.swift */, E825CC69C1F0C96983C6B7BC /* build:CampusSchedule/Features/CourseDetail/CourseDetailView.swift */, AA0EA165F2FA9D5CE7017C7D /* build:CampusSchedule/Features/CourseEditor/CourseEditorView.swift */, C130024CD1A18F1C514C8CE5 /* build:CampusSchedule/Features/Schedule/WeekScheduleView.swift */, B16D8CF53D9CE2A0349D890C /* build:CampusSchedule/Features/Settings/AcademicSettingsView.swift */, 67BFE4522E04C6297A8AF177 /* build:CampusSchedule/Features/Settings/SettingsView.swift */, 3723418446CC9FC8295732E6 /* build:CampusSchedule/Features/Today/TodayView.swift */, 4AA9A013A27884714B298EE0 /* build:CampusSchedule/PreviewData/PreviewStore.swift */,); runOnlyForDeploymentPostprocessing = 0; };
+878A52FC5FF6A57D50B7B870 /* sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (F366FA6BCC33C9A9AE105605 /* build:CampusSchedule/App/CampusScheduleApp.swift */, 2969F1F36089FD5A93230302 /* build:CampusSchedule/DesignSystem/DesignSystem.swift */, E825CC69C1F0C96983C6B7BC /* build:CampusSchedule/Features/CourseDetail/CourseDetailView.swift */, AA0EA165F2FA9D5CE7017C7D /* build:CampusSchedule/Features/CourseEditor/CourseEditorView.swift */, C130024CD1A18F1C514C8CE5 /* build:CampusSchedule/Features/Schedule/WeekScheduleView.swift */, B16D8CF53D9CE2A0349D890C /* build:CampusSchedule/Features/Settings/AcademicSettingsView.swift */, 67BFE4522E04C6297A8AF177 /* build:CampusSchedule/Features/Settings/SettingsView.swift */, 3723418446CC9FC8295732E6 /* build:CampusSchedule/Features/Today/TodayView.swift */, 4AA9A013A27884714B298EE0 /* build:CampusSchedule/PreviewData/PreviewStore.swift */, DF2F9CC6F4F7C3835A839802 /* build:CampusSchedule/Services/CourseLiveActivities.swift */, 3E682543E70203CC711AC63B /* build:CampusSchedule/Services/CourseNotifications.swift */, 2D73F0EFE831C59A14D11FAF /* build:CampusSchedule/Services/LocalPersistence.swift */, 41A47BF75BFE65EE24176863 /* build:Shared/CourseException.swift */, 3D7E1221868F0E2EA3B67A1B /* build:Shared/ScheduleRules.swift */, CBD4DEA4D4C18CECCB71A60C /* build:Shared/SystemSnapshot.swift */,); runOnlyForDeploymentPostprocessing = 0; };
+298BFCBB4EB10C217178601F /* widgetsources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B4EFF13E644B722278412CE5 /* widgetbuild:Widgets/ScheduleWidgets.swift */, 0FE1D069C07E93EFC1F6F9B1 /* widgetbuild:Shared/CourseException.swift */, 6B0BA2EB2033A4FE27526587 /* widgetbuild:Shared/ScheduleRules.swift */, CF742E60D0DACBDB8EB68C23 /* widgetbuild:Shared/SystemSnapshot.swift */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 /* Begin PBXFrameworksBuildPhase section */
 E2AA269EB967A8853A258BFA /* frameworks */ = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
@@ -57,6 +81,8 @@ EDDA600A3F771F810A8065C9 /* target:Debug */ = { isa = XCBuildConfiguration; name
     MARKETING_VERSION = "0.1.0";
     CURRENT_PROJECT_VERSION = 1;
     GENERATE_INFOPLIST_FILE = YES;
+    INFOPLIST_FILE = CampusSchedule-Info.plist;
+    CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements;
     INFOPLIST_KEY_CFBundleDisplayName = "课表";
     INFOPLIST_KEY_UILaunchScreen_Generation = YES;
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -85,6 +111,8 @@ EDDA600A3F771F810A8065C9 /* target:Debug */ = { isa = XCBuildConfiguration; name
     MARKETING_VERSION = "0.1.0";
     CURRENT_PROJECT_VERSION = 1;
     GENERATE_INFOPLIST_FILE = YES;
+    INFOPLIST_FILE = CampusSchedule-Info.plist;
+    CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements;
     INFOPLIST_KEY_CFBundleDisplayName = "课表";
     INFOPLIST_KEY_UILaunchScreen_Generation = YES;
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -97,17 +125,30 @@ EDDA600A3F771F810A8065C9 /* target:Debug */ = { isa = XCBuildConfiguration; name
     ENABLE_PREVIEWS = YES;
     LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
   }; };
+08A61F5766A4B1EA744B5402 /* widget:Debug */ = { isa = XCBuildConfiguration; name = Debug; buildSettings = { PRODUCT_NAME = CampusWidgets; PRODUCT_BUNDLE_IDENTIFIER = "com.example.CampusSchedule.widgets"; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = Widgets-Info.plist; CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements; SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_VERSION = 6.0; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = "0.1.0"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; }; };
+D1C453D2296F5D2EA0C5432E /* widget:Release */ = { isa = XCBuildConfiguration; name = Release; buildSettings = { PRODUCT_NAME = CampusWidgets; PRODUCT_BUNDLE_IDENTIFIER = "com.example.CampusSchedule.widgets"; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = Widgets-Info.plist; CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements; SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_VERSION = 6.0; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = "0.1.0"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; }; };
 /* End XCBuildConfiguration section */
 /* Begin XCConfigurationList section */
 FB7322C6EF0D899F04056893 /* project:configurations */ = { isa = XCConfigurationList; buildConfigurations = (2B23A31EEC75B029432F2445 /* project:Debug */, 07CA1E69F6068DEA30A4DA6B /* project:Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 44B1B73054E186E2607B4CBE /* target:configurations */ = { isa = XCConfigurationList; buildConfigurations = (EDDA600A3F771F810A8065C9 /* target:Debug */, 594BCDCC96599D88EF772A08 /* target:Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+BD8AC1C6E818972B9977F090 /* widgetconfigs */ = { isa = XCConfigurationList; buildConfigurations = (08A61F5766A4B1EA744B5402 /* widget:Debug */, D1C453D2296F5D2EA0C5432E /* widget:Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 /* Begin PBXNativeTarget section */
-34A04005BCAF206EEC990BD9 /* target */ = { isa = PBXNativeTarget; buildConfigurationList = 44B1B73054E186E2607B4CBE; buildPhases = (878A52FC5FF6A57D50B7B870 /* sources */, E2AA269EB967A8853A258BFA /* frameworks */, 41D311A605520FC7B8B9A980 /* resources */,); buildRules = (); dependencies = (); name = CampusSchedule; productName = CampusSchedule; productReference = A8792157CB4F27FB949C035F; productType = "com.apple.product-type.application"; };
+34A04005BCAF206EEC990BD9 /* target */ = { isa = PBXNativeTarget; buildConfigurationList = 44B1B73054E186E2607B4CBE; buildPhases = (878A52FC5FF6A57D50B7B870 /* sources */, E2AA269EB967A8853A258BFA /* frameworks */, 41D311A605520FC7B8B9A980 /* resources */, 8A1EED22144C3F04485A69EE /* embed */,); buildRules = (); dependencies = (F26350DAFE3F19AABFD69AC4 /* dependency */,); name = CampusSchedule; productName = CampusSchedule; productReference = A8792157CB4F27FB949C035F; productType = "com.apple.product-type.application"; };
+AF28F26037B1690E0AD08158 /* widgettarget */ = { isa = PBXNativeTarget; buildConfigurationList = BD8AC1C6E818972B9977F090; buildPhases = (298BFCBB4EB10C217178601F /* widgetsources */,); buildRules = (); dependencies = (); name = CampusWidgets; productName = CampusWidgets; productReference = F340BBA9E1CF0E68C148238F; productType = "com.apple.product-type.app-extension"; };
 /* End PBXNativeTarget section */
 /* Begin PBXProject section */
-244210E48437B6556980A702 /* project */ = { isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2700; }; buildConfigurationList = FB7322C6EF0D899F04056893; compatibilityVersion = "Xcode 14.0"; developmentRegion = "zh-Hans"; hasScannedForEncodings = 0; knownRegions = ("zh-Hans", en, Base,); mainGroup = 0D6E4079E36703EBD37C0072; productRefGroup = 0A3E27B8CA818264D75C8D81; projectDirPath = ""; projectRoot = ""; targets = (34A04005BCAF206EEC990BD9 /* target */,); };
+244210E48437B6556980A702 /* project */ = { isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2700; }; buildConfigurationList = FB7322C6EF0D899F04056893; compatibilityVersion = "Xcode 14.0"; developmentRegion = "zh-Hans"; hasScannedForEncodings = 0; knownRegions = ("zh-Hans", en, Base,); mainGroup = 0D6E4079E36703EBD37C0072; productRefGroup = 0A3E27B8CA818264D75C8D81; projectDirPath = ""; projectRoot = ""; targets = (34A04005BCAF206EEC990BD9 /* target */, AF28F26037B1690E0AD08158 /* widgettarget */,); };
 /* End PBXProject section */
+/* Begin PBXCopyFilesBuildPhase section */
+8A1EED22144C3F04485A69EE /* embed */ = { isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (FAE608D04BA82A38D1FB0D81 /* embedfile */,); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
+/* Begin PBXContainerItemProxy section */
+1241936D4DD3AAD68FE7BFBD /* proxy */ = { isa = PBXContainerItemProxy; containerPortal = 244210E48437B6556980A702; proxyType = 1; remoteGlobalIDString = AF28F26037B1690E0AD08158; remoteInfo = CampusWidgets; };
+/* End PBXContainerItemProxy section */
+/* Begin PBXTargetDependency section */
+F26350DAFE3F19AABFD69AC4 /* dependency */ = { isa = PBXTargetDependency; target = AF28F26037B1690E0AD08158; targetProxy = 1241936D4DD3AAD68FE7BFBD; };
+/* End PBXTargetDependency section */
 };
 rootObject = 244210E48437B6556980A702;
 }

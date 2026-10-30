@@ -23,6 +23,7 @@ function collect(directory) {
   }
 }
 collect(resolve(root, target));
+collect(resolve(root, "Shared"));
 files.sort();
 if (files.length === 0) throw new Error('No Swift sources found');
 
@@ -57,6 +58,8 @@ for (const mode of ['Debug', 'Release']) {
     MARKETING_VERSION = ${quote(config.version)};
     CURRENT_PROJECT_VERSION = 1;
     GENERATE_INFOPLIST_FILE = YES;
+    INFOPLIST_FILE = CampusSchedule-Info.plist;
+    CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements;
     INFOPLIST_KEY_CFBundleDisplayName = "课表";
     INFOPLIST_KEY_UILaunchScreen_Generation = YES;
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -79,6 +82,29 @@ add('project', `isa = PBXProject; attributes = { BuildIndependentTargetsInParall
 const projectDir = resolve(root, 'ios', `${target}.xcodeproj`);
 const schemeDir = resolve(projectDir, 'xcshareddata', 'xcschemes');
 mkdirSync(schemeDir, { recursive: true });
+const widgetFiles = ['Widgets/ScheduleWidgets.swift', ...files.filter(file => file.startsWith('Shared/'))];
+for (const file of widgetFiles) {
+  add('widgetref:' + file, 'isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ' + quote('../' + file) + '; sourceTree = SOURCE_ROOT;');
+  add('widgetbuild:' + file, 'isa = PBXBuildFile; fileRef = ' + id('widgetref:' + file) + ';');
+}
+add('widgetproduct', 'isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = CampusWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR;');
+add('widgetgroup', 'isa = PBXGroup; children = ' + list(widgetFiles.map(file => 'widgetref:' + file)) + '; name = Widgets; sourceTree = "<group>";');
+add('widgetsources', 'isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ' + list(widgetFiles.map(file => 'widgetbuild:' + file)) + '; runOnlyForDeploymentPostprocessing = 0;');
+add('embedfile', 'isa = PBXBuildFile; fileRef = ' + id('widgetproduct') + '; settings = { ATTRIBUTES = (RemoveHeadersOnCopy,); };');
+add('embed', 'isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = ' + list(['embedfile']) + '; name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0;');
+add('proxy', 'isa = PBXContainerItemProxy; containerPortal = ' + id('project') + '; proxyType = 1; remoteGlobalIDString = ' + id('widgettarget') + '; remoteInfo = CampusWidgets;');
+add('dependency', 'isa = PBXTargetDependency; target = ' + id('widgettarget') + '; targetProxy = ' + id('proxy') + ';');
+for (const mode of ['Debug', 'Release']) {
+  add('widget:' + mode, 'isa = XCBuildConfiguration; name = ' + mode + '; buildSettings = { PRODUCT_NAME = CampusWidgets; PRODUCT_BUNDLE_IDENTIFIER = ' + quote(bundleID + '.widgets') + '; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = Widgets-Info.plist; CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements; SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_VERSION = 6.0; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = ' + quote(config.version) + '; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; };');
+}
+add('widgetconfigs', 'isa = XCConfigurationList; buildConfigurations = ' + list(['widget:Debug', 'widget:Release']) + '; defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;');
+add('widgettarget', 'isa = PBXNativeTarget; buildConfigurationList = ' + id('widgetconfigs') + '; buildPhases = ' + list(['widgetsources']) + '; buildRules = (); dependencies = (); name = CampusWidgets; productName = CampusWidgets; productReference = ' + id('widgetproduct') + '; productType = "com.apple.product-type.app-extension";');
+for (const object of objects) {
+  if (object.text.startsWith(id('main') + ' ')) object.text = object.text.replace(id('products') + ' /* products */,', id('widgetgroup') + ' /* Widgets */, ' + id('products') + ' /* products */,');
+  if (object.text.startsWith(id('products') + ' ')) object.text = object.text.replace(id('product') + ' /* product */,', id('product') + ' /* product */, ' + id('widgetproduct') + ' /* widgetproduct */,');
+  if (object.text.startsWith(id('project') + ' ')) object.text = object.text.replace('targets = ' + list(['target']), 'targets = ' + list(['target', 'widgettarget']));
+  if (object.text.startsWith(id('target') + ' ')) object.text = object.text.replace('dependencies = ();', 'dependencies = ' + list(['dependency']) + ';').replace('buildPhases = ' + list(['sources','frameworks','resources']), 'buildPhases = ' + list(['sources','frameworks','resources','embed']));
+}
 const sections = [...new Set(objects.map(object => object.type))].map(type =>
   `/* Begin ${type} section */\n${objects.filter(object => object.type === type).map(object => object.text).join('\n').replace(/[ \t]+$/gm, '')}\n/* End ${type} section */`
 ).join('\n');

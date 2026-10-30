@@ -3,70 +3,59 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
     @State private var showingAcademicSettings = false
-
     var body: some View {
         @Bindable var settings = store
-
         NavigationStack {
             Form {
-                Section {
-                    Label {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("你的校园，井井有条").font(.headline)
-                            Text("本地优先 · 简单看课表")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "calendar")
-                            .foregroundStyle(.primary).font(.title2)
-                    }
-                    .padding(.vertical, 8)
-                }
                 Section("课表") {
-                    Button { showingAcademicSettings = true } label: {
-                        HStack {
-                            Label("学期与作息", systemImage: "calendar.badge.clock")
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                        }
-                        .foregroundStyle(.primary)
-                    }
-                    LabeledContent("当前课表", value: store.semesterName)
-                    LabeledContent("学校", value: "尚未连接")
-                    LabeledContent("教务导入", value: "后续接入")
+                    Button("学期与作息", systemImage: "calendar.badge.clock") { showingAcademicSettings = true }
+                    LabeledContent("当前学期", value: store.semesterName)
+                    LabeledContent("学校", value: "暂不接入教务")
                 }
                 Section {
-                    Toggle("上课提醒（预览）", isOn: $settings.reminderPreview)
-                        .tint(DesignSystem.accent)
-                    if settings.reminderPreview {
-                        Picker("提前时间", selection: $settings.reminderMinutes) {
-                            Text("5 分钟").tag(5)
-                            Text("10 分钟").tag(10)
-                            Text("15 分钟").tag(15)
-                            Text("30 分钟").tag(30)
+                    Toggle("上课提醒", isOn: $settings.reminderPreview).tint(.blue)
+                    Picker("提前时间", selection: $settings.reminderMinutes) {
+                        ForEach([5, 10, 15, 30], id: \.self) { Text("\($0) 分钟").tag($0) }
+                    }
+                    Toggle("下课提醒", isOn: $settings.endReminder).tint(.blue)
+                    if settings.endReminder {
+                        Picker("下课提醒时间", selection: $settings.endLead) {
+                            Text("下课时").tag(0)
+                            Text("提前 1 分钟").tag(1)
+                            Text("提前 3 分钟").tag(3)
+                            Text("提前 5 分钟").tag(5)
                         }
                     }
-                } header: {
-                    Text("提醒")
-                } footer: {
-                    Text("此处仅预览设置交互，不申请通知权限、不发送提醒。退出应用后设置不保留。")
-                }
-                Section("外观") {
-                    LabeledContent("显示模式", value: "跟随系统")
-                    LabeledContent("设计", value: "原生系统材质")
-                }
+                } header: { Text("原生通知") }
+                footer: { Text(store.isPreview ? "当前为演示，不发送通知。" : "提醒使用本地通知。首次开启需系统授权；权限、专注模式可能影响显示和声音。仅安排近期提醒，打开 APP 后补充。") }
                 Section {
-                    Label("本阶段没有云端连接", systemImage: "iphone")
-                    Label("没有收集教务账号", systemImage: "lock.shield")
-                } header: {
-                    Text("数据与隐私")
-                } footer: {
-                    Text("当前为 UI 原型，课程均为演示数据。正式名称待定。")
+                    Toggle("课程实时活动", isOn: $settings.liveEnabled).tint(.blue)
+                } header: { Text("锁屏与灵动岛") }
+                footer: { Text("启用后尝试按上课提前量预定最近一次活动。后台下课自动结束尚待真机验证；可以在活动内结束本次。通知开关互不影响。") }
+                Section("组件") {
+                    Text("在桌面或锁屏编辑模式中搜索“课表”，添加当前与下一节课组件。")
+                    Text("个人课表存储在本机；共享给组件的只有课程安排，不包含账号密码。")
+                        .foregroundStyle(.secondary)
                 }
+                if let message = store.errorMessage {
+                    Section("需要处理") { Text(message).foregroundStyle(.red) }
+                }
+                Section("外观") { LabeledContent("显示模式", value: "跟随系统") }
             }
             .navigationTitle("设置")
             .sheet(isPresented: $showingAcademicSettings) { AcademicSettingsView() }
             .task { showingAcademicSettings = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "academic" }
+            .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications() } }
+            .onChange(of: settings.endReminder) { _, enabled in if enabled { authorizeNotifications() } }
+        }
+    }
+    private func authorizeNotifications() {
+        guard !store.isPreview else { return }
+        Task {
+            do {
+                if try await CourseNotifications.shared.authorize() { store.synchronize() }
+                else { store.errorMessage = "通知权限未开启，请到系统设置中允许通知。" }
+            } catch { store.errorMessage = error.localizedDescription }
         }
     }
 }

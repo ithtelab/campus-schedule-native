@@ -2,6 +2,7 @@
 set -euo pipefail
 
 xcodebuild -version
+swift test
 sdk_version=$(xcrun --sdk iphonesimulator --show-sdk-version)
 if [[ "${sdk_version%%.*}" -lt 27 ]]; then
   echo "An iOS 27 or newer SDK is required; found ${sdk_version}." >&2

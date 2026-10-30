@@ -2,6 +2,8 @@
 .tool-cache/
 node_modules/
 /build/
+.build/
+.swiftpm/
 ios/build/
 screenshots/
 DerivedData/

@@ -24,7 +24,7 @@ struct AcademicSettingsView: View {
                 Section {
                     TextField("学期名称", text: $name)
                     DatePicker("第一周周一", selection: $start, displayedComponents: .date)
-                    Stepper("共 \(weeks) 个教学周", value: $weeks, in: 8...30)
+                    Stepper("共 \(weeks) 个教学周", value: $weeks, in: 1...30)
                 } header: { Text("学期") }
                 footer: { Text("第一周从周一开始。设置后，课表的日期与教学周会一起调整。") }
 
@@ -39,8 +39,8 @@ struct AcademicSettingsView: View {
                 }
                 Section {
                     if !valid { Label("请检查：开学日为周一，各节时间先后有序且不重叠", systemImage: "exclamationmark.circle").foregroundStyle(.orange) }
-                    Label("仅预览学期与作息设置", systemImage: "info.circle").foregroundStyle(.secondary)
-                } footer: { Text("保存后在当前演示会话内生效，课程时间同步调整；尚未接入本地持久化。") }
+                    Label(store.isPreview ? "演示学期与作息" : "本地学期与作息", systemImage: "info.circle").foregroundStyle(.secondary)
+                } footer: { Text(store.isPreview ? "仅在演示会话生效。" : "保存到本机，并同步更新课程时间、通知和组件。") }
             }
             .navigationTitle("学期与作息").navigationBarTitleDisplayMode(.inline)
             .toolbar {

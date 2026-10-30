@@ -12,6 +12,8 @@ struct CourseEditorView: View {
     @State private var color = CourseColor.blue
     @State private var frequency = "每周"
     @State private var customWeeks: Set<Int> = [8]
+    var editing: DemoCourse? = nil
+    var template: DemoCourse? = nil
     private let weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
     private var weeks: Set<Int> {
@@ -26,7 +28,7 @@ struct CourseEditorView: View {
 
     private var conflict: Bool {
         store.courses.contains {
-            $0.weekday == weekday && !$0.weeks.isDisjoint(with: weeks)
+            $0.id != editing?.id && $0.weekday == weekday && !$0.weeks.isDisjoint(with: weeks)
                 && $0.startPeriod <= endPeriod && $0.endPeriod >= startPeriod
         }
     }
@@ -96,19 +98,29 @@ struct CourseEditorView: View {
                 }
                 Section {
                     if conflict { Label("与已有课程时间重叠，请调整时间或周次", systemImage: "exclamationmark.circle").foregroundStyle(.orange) }
-                    Label("仅在本次演示中添加", systemImage: "info.circle").foregroundStyle(.secondary)
-                } footer: { Text("目前不保存到设备。关闭 APP 后会恢复演示数据，不会安排通知。") }
+                    Label(store.isPreview ? "本次仅为演示" : "课程保存在本机", systemImage: "info.circle").foregroundStyle(.secondary)
+                } footer: { Text(store.isPreview ? "退出后恢复演示数据。" : "设置中可开启上课提醒，组件将使用同一份课表。") }
             }
-            .navigationTitle("添加课程").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(editing == nil ? "添加课程" : "编辑课程").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("添加") { addCourse() }
+                    Button(editing == nil ? "添加" : "保存") { addCourse() }
                         .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || weeks.isEmpty || conflict)
                 }
             }
             .onChange(of: startPeriod) { _, value in endPeriod = max(endPeriod, value) }
             .task {
+                if let template {
+                    title = template.title; room = template.room; teacher = template.teacher
+                    startPeriod = template.startPeriod; endPeriod = template.endPeriod; color = template.color
+                    frequency = "指定"; customWeeks = [min(store.totalWeeks, max(1, store.currentWeek))]
+                }
+                if let editing {
+                    title = editing.title; room = editing.room; teacher = editing.teacher; weekday = editing.weekday
+                    startPeriod = editing.startPeriod; endPeriod = editing.endPeriod; color = editing.color
+                    customWeeks = editing.weeks; frequency = "指定"
+                }
                 if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "course" {
                     title = "线性代数"; room = "教学楼 A · 206"; teacher = "李老师"; frequency = "双周"
                 }
@@ -119,13 +131,16 @@ struct CourseEditorView: View {
 
     private func addCourse() {
         guard !conflict, !weeks.isEmpty else { return }
-        store.courses.append(DemoCourse(
-            id: UUID().uuidString, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+        var value = DemoCourse(
+            id: editing?.id ?? UUID().uuidString, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             room: room.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "地点待定" : room,
             teacher: teacher.isEmpty ? "教师待定" : teacher, weekday: weekday,
             startPeriod: startPeriod, endPeriod: endPeriod,
             startTime: store.periods[startPeriod - 1].start, endTime: store.periods[endPeriod - 1].end,
-            color: color, weeks: weeks))
+            color: color, weeks: weeks)
+        value.remindersEnabled = editing?.remindersEnabled ?? true
+        if let editing { store.courses.removeAll { $0.id == editing.id } }
+        store.courses.append(value)
         dismiss()
     }
 }

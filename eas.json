@@ -13,6 +13,10 @@
         "resourceClass": "medium"
       }
     },
+    "native-check": {
+      "extends": "simulator",
+      "config": "native-check.yml"
+    },
     "ui-screenshots": {
       "extends": "simulator",
       "config": "ui-screenshots.yml"

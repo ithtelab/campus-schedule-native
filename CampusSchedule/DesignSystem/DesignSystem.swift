@@ -10,7 +10,7 @@ enum DesignSystem {
     static let cornerRadius: CGFloat = 18
 }
 
-enum CourseColor: String, CaseIterable {
+enum CourseColor: String, CaseIterable, Codable {
     case blue, purple, orange, green
 
     var name: String {
@@ -33,13 +33,14 @@ enum CourseColor: String, CaseIterable {
 }
 
 struct DemoNotice: View {
+    @Environment(PreviewStore.self) private var store
     var body: some View {
-        Label("演示课表 · 尚未连接学校", systemImage: "info.circle")
+        Label(store.isPreview ? "演示课表 · 尚未连接学校" : "本地课表 · 离线可查看", systemImage: "info.circle")
             .font(.caption)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
-            .accessibilityLabel("当前为演示课表，尚未连接学校，所有课程均为示例")
+            .accessibilityLabel(store.isPreview ? "当前为演示课表" : "当前为个人本地课表")
     }
 }
 

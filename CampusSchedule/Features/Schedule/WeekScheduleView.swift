@@ -65,7 +65,7 @@ struct WeekScheduleView: View {
                     }
                     Text("\(store.date(week: store.selectedWeek).formatted(.dateTime.month().day())) — \(store.date(week: store.selectedWeek, day: 6).formatted(.dateTime.month().day()))")
                         .font(.caption).foregroundStyle(.secondary)
-                    Text("\(courses.count) 次课 · 演示课表").font(.caption).foregroundStyle(.secondary)
+                    Text("\(courses.count) 次课").font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(20)
             } else {
@@ -83,8 +83,8 @@ struct WeekScheduleView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if store.selectedWeek != 8 {
-                    Button("回到示例周") { store.selectedWeek = 8 }.font(.caption.weight(.medium))
+                if store.selectedWeek != store.currentWeek {
+                    Button("回到本周") { store.selectedWeek = min(store.totalWeeks, max(1, store.currentWeek)) }.font(.caption.weight(.medium))
                 } else {
                     Text(store.showsWeekend ? "七天视图" : "工作日").font(.caption).foregroundStyle(.secondary)
                 }
@@ -100,7 +100,7 @@ struct WeekScheduleView: View {
                 Spacer()
                 if !store.showsWeekend && courses.contains(where: { $0.weekday >= 5 }) {
                     Button("周末有课") { store.showsWeekend = true }
-                } else { Text("演示课表") }
+                } else { Text(store.isPreview ? "演示课表" : store.semesterName) }
             }
             .font(.caption).foregroundStyle(.secondary)
         }
@@ -113,7 +113,7 @@ struct WeekScheduleView: View {
         HStack(spacing: 4) {
             Text("节次").font(.system(size: 9)).foregroundStyle(.secondary).frame(width: 33)
             ForEach(0..<dayCount, id: \.self) { day in
-                let isToday = store.selectedWeek == 8 && day == 0
+                let isToday = store.selectedWeek == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7
                 VStack(spacing: 5) {
                     Text(days[day]).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                     Text("\(Calendar.current.component(.day, from: store.date(week: store.selectedWeek, day: day)))")
@@ -157,7 +157,7 @@ struct WeekScheduleView: View {
 
     private func dayColumn(_ day: Int, width: CGFloat) -> some View {
         ZStack(alignment: .top) {
-            if store.selectedWeek == 8 && day == 0 {
+            if store.selectedWeek == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7 {
                 RoundedRectangle(cornerRadius: 12).fill(DesignSystem.accent.opacity(0.035))
             }
             ForEach(1...10, id: \.self) { period in
@@ -172,19 +172,19 @@ struct WeekScheduleView: View {
                     }
                     .padding(.horizontal, store.showsWeekend ? 4 : 6).padding(.vertical, 9)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: offset(course.endPeriod) + rowHeight - offset(course.startPeriod) - 4)
+                    .frame(height: max(32, position(course.endTime) - position(course.startTime) - 4))
                     .background(course.color.tint.opacity(0.13), in: RoundedRectangle(cornerRadius: 10))
                     .overlay(alignment: .topLeading) {
                         Capsule().fill(course.color.tint.opacity(0.8)).frame(width: 16, height: 2).padding(.leading, 7).padding(.top, 3)
                     }
                 }
-                .buttonStyle(.plain).foregroundStyle(.primary).offset(y: offset(course.startPeriod))
+                .buttonStyle(.plain).foregroundStyle(.primary).offset(y: min(totalHeight - 32, position(course.startTime)))
                 .accessibilityLabel("\(days[day])，\(course.title)，\(course.startTime)至\(course.endTime)，\(course.room)")
             }
         }
         .frame(width: width, height: totalHeight, alignment: .top)
         .overlay(alignment: .top) {
-            if store.selectedWeek == 8 && day == 0 {
+            if store.selectedWeek == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7 {
                 HStack(spacing: 0) {
                     Circle().fill(.red).frame(width: 5, height: 5)
                     Rectangle().fill(.red.opacity(0.7)).frame(height: 1)
@@ -199,7 +199,7 @@ struct WeekScheduleView: View {
             let pieces = value.split(separator: ":").compactMap { Int($0) }
             return pieces[0] * 60 + pieces[1]
         }
-        let now = 9 * 60 + 41
+        let now = minutes(store.timeText)
         for period in store.periods {
             let start = minutes(period.start)
             let end = minutes(period.end)
@@ -261,6 +261,19 @@ struct WeekScheduleView: View {
 
     private func offset(_ period: Int) -> CGFloat {
         CGFloat(period - 1) * rowHeight + (period >= 5 ? groupGap : 0) + (period >= 9 ? groupGap : 0)
+    }
+    private func position(_ time: String) -> CGFloat {
+        func minutes(_ text: String) -> Int {
+            let parts = text.split(separator: ":").compactMap { Int($0) }
+            return parts.count == 2 ? parts[0] * 60 + parts[1] : 0
+        }
+        let value = minutes(time)
+        for period in store.periods {
+            let start = minutes(period.start), end = minutes(period.end)
+            if value < start { return offset(period.id) }
+            if value <= end { return offset(period.id) + rowHeight * CGFloat(value - start) / CGFloat(max(1, end - start)) }
+        }
+        return totalHeight
     }
     private func changeWeek(_ delta: Int) { store.selectedWeek = min(store.totalWeeks, max(1, store.selectedWeek + delta)) }
 }

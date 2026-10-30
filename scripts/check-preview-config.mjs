@@ -16,7 +16,7 @@ assert.ok(project.includes(`PRODUCT_BUNDLE_IDENTIFIER = "${app.ios.bundleIdentif
 assert.ok(project.includes(`IPHONEOS_DEPLOYMENT_TARGET = "${app.extra.nativePreview.minimumIOSVersion}";`));
 assert.ok(read('ios/Podfile').includes(`platform :ios, '${app.extra.nativePreview.minimumIOSVersion}'`));
 assert.ok(scheme.includes('BlueprintName="CampusSchedule"'));
-const fileRefs = [...project.matchAll(/path = "(\.\.\/CampusSchedule\/[^"\n]+\.swift)";/g)].map(match => match[1]);
+const fileRefs = [...new Set([...project.matchAll(/path = "(\.\.\/(?:CampusSchedule|Shared|Widgets)\/[^"\n]+\.swift)";/g)].map(match => match[1]))];
 let sourceCount = 0;
 function countSources(path) {
   for (const entry of readdirSync(path, { withFileTypes: true })) {
@@ -24,7 +24,7 @@ function countSources(path) {
     else if (entry.name.endsWith('.swift')) sourceCount++;
   }
 }
-countSources(resolve(root, 'CampusSchedule'));
+for (const folder of ['CampusSchedule', 'Shared', 'Widgets']) countSources(resolve(root, folder));
 assert.equal(fileRefs.length, sourceCount, '新增 Swift 文件后须重新生成工程');
 assert.equal(new Set(fileRefs).size, sourceCount);
 for (const ref of fileRefs) readFileSync(resolve(root, 'ios', ref));

@@ -4,7 +4,7 @@ struct TodayView: View {
     @Environment(PreviewStore.self) private var store
     @State private var selectedCourse: DemoCourse?
     @State private var showingEditor = false
-    private let previewTime = "09:41"
+    private var previewTime: String { store.timeText }
     private var nextCourse: DemoCourse? { store.todayCourses.first { $0.endTime > previewTime } }
 
     var body: some View {
@@ -13,13 +13,13 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(store.date(week: 8), format: .dateTime.month(.wide).day().weekday(.wide))
+                            Text(store.now, format: .dateTime.month(.wide).day().weekday(.wide))
                                 .font(.title2.weight(.bold))
-                            Text("\(store.semesterName) · 第 8 周")
+                            Text("\(store.semesterName) · 第 \(store.currentWeek) 周")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text("演示 \(previewTime)")
+                        Text(store.isPreview ? "演示 \(previewTime)" : previewTime)
                             .font(.caption.weight(.medium).monospacedDigit())
                             .padding(.horizontal, 10).padding(.vertical, 7)
                             .background(DesignSystem.surface, in: Capsule()).foregroundStyle(.secondary)
