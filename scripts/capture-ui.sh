@@ -96,7 +96,7 @@ xcrun simctl ui booted appearance dark
 SIMCTL_CHILD_CAMPUS_CHARACTER_PREVIEW=smoke xcrun simctl launch --terminate-running-process booted com.example.CampusSchedule
 xcrun simctl io booted recordVideo --codec=h264 screenshots/campus-interactions.mp4 &
 record_pid=$!
-sleep 24
+sleep 48
 kill -INT "$record_pid"
 wait "$record_pid" || true
 cp "$data_path/Documents/campus-interaction-smoke.txt" screenshots/campus-interaction-test.txt

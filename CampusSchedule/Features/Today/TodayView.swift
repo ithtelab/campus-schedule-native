@@ -5,20 +5,21 @@ struct TodayView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.campusSuppressMotion) private var suppressMotion
+    @Environment(\.scenePhase) private var scenePhase
     @ScaledMetric(relativeTo: .largeTitle) private var focusSize: CGFloat = 34
     @ScaledMetric(relativeTo: .body) private var timeColumn: CGFloat = 72
     @State private var selectedCourse: DemoCourse?
     @State private var showingEditor = false
     @State private var pinnedY: CGFloat = .infinity
-    @State private var reader = CampusCharacterPlayer(style: .boy)
-    @State private var walker = CampusCharacterPlayer(style: .girl, state: .standingEmpty)
-    @State private var relaxing = CampusCharacterPlayer(style: .boy, state: .standingEmpty, frame: 15)
+    @State private var character = CampusCharacterPlayer(style: .girl)
     @State private var detailCharacter: CampusCharacterPlayer?
     @State private var courseFeedback = 0
     private var time: String { store.timeText }
     private var daily: [DemoCourse] { store.todayCourses }
     private var next: DemoCourse? { daily.first { $0.endTime > time } }
-    private var activeCharacter: CampusCharacterPlayer { (next?.startTime ?? "99:99") <= time ? walker : reader }
+    private var characterContext: CampusScheduleContext {
+        CampusScheduleContext.make(items: store.occurrences, now: store.now, leadMinutes: store.reminderMinutes)
+    }
 
     var body: some View {
         NavigationStack {
@@ -71,6 +72,12 @@ struct TodayView: View {
                 if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "detail", let next { openCourse(next) }
             }
             .sensoryFeedback(.selection, trigger: courseFeedback)
+            .onChange(of: characterContext, initial: true) { _, context in
+                character.synchronize(context, animated: scenePhase == .active && !reduceMotion && !suppressMotion)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { character.stop() }
+            }
         }
     }
 
@@ -115,7 +122,7 @@ struct TodayView: View {
                     }
                     .buttonStyle(CampusPressStyle()).accessibilityHint("查看课程详情")
                     if !typeSize.isAccessibilitySize {
-                        CampusCharacter(player: activeCharacter).frame(width: 78, height: 150)
+                        CampusCharacter(player: character, contextDriven: true).frame(width: 78, height: 150)
                     }
                 }
                 Text(course.startTime <= time ? "\(course.endTime) 下课" : "\(minutesUntil(course.startTime)) 分钟后上课")
@@ -188,7 +195,7 @@ struct TodayView: View {
     private var closingNote: some View {
         HStack(spacing: 16) {
             if next == nil {
-                CampusCharacter(player: relaxing).frame(width: 88, height: 176)
+                CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176)
                 VStack(alignment: .leading, spacing: 8) {
                     Text(daily.isEmpty ? "暂时没有课程" : "把时间留给自己").font(DesignSystem.hand(24))
                     Text(daily.isEmpty ? "从添加第一门课开始。" : "今天的课程结束了，休息一下。")
@@ -204,10 +211,11 @@ struct TodayView: View {
     }
 
     private func openCourse(_ course: DemoCourse) {
-        let player = activeCharacter
         courseFeedback += 1
-        detailCharacter = player
-        player.request(course.endTime <= time ? .stretch : .prepareCourse, reducedMotion: reduceMotion || suppressMotion)
+        // Inspecting a past/future lesson never changes today's character context.
+        let relevant = characterContext.occurrenceID == course.id
+        detailCharacter = relevant ? character : nil
+        if relevant { character.respondToContext(reducedMotion: reduceMotion || suppressMotion) }
         selectedCourse = course
     }
 

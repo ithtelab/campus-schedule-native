@@ -16,7 +16,7 @@ enum CampusCharacterState: String, CaseIterable, Sendable {
 }
 
 enum CampusCharacterAction: String, CaseIterable, Sendable {
-    case stand, sit, pickUpBook, putDownBook, walk, stretch, prepareCourse
+    case stand, sit, pickUpBook, putDownBook, walk, stretch, prepareCourse, turnPage, rest
     var title: String {
         switch self {
         case .stand: "站起来"
@@ -26,6 +26,8 @@ enum CampusCharacterAction: String, CaseIterable, Sendable {
         case .walk: "走一走"
         case .stretch: "伸个懒腰"
         case .prepareCourse: "准备上课"
+        case .turnPage: "翻一页"
+        case .rest: "歇一歇"
         }
     }
 }
@@ -56,6 +58,10 @@ struct CampusAnimationPlan: Equatable, Sendable {
         case .prepareCourse:
             // Course taps are a visual response; they never complete, mute or reschedule a lesson.
             return .init(frames: state == .standingReading ? [9, 8, 9] : stand + [6, 7, 8, 9], destination: .standingReading)
+        case .turnPage:
+            return .init(frames: state == .seatedReading ? [0, 1, 0] : state == .standingReading ? [9, 8, 9] : [], destination: state)
+        case .rest:
+            return .init(frames: state == .seatedEmpty ? [3, 14, 3] : [], destination: state)
         }
     }
 }

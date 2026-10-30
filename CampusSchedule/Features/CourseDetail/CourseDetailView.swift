@@ -20,7 +20,7 @@ struct CourseDetailView: View {
                     })).tint(DesignSystem.switchTint)
                     HStack(spacing: 16) {
                         Text(original.title).font(.title.weight(.semibold))
-                        if let character { CampusCharacter(player: character).frame(width: 88, height: 176) }
+                        if let character { CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176) }
                     }
                     LabeledContent("教师", value: original.teacher)
                     LabeledContent("地点", value: original.room)
