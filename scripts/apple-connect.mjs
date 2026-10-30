@@ -32,6 +32,7 @@ async function api(path, { method = 'GET', data, query } = {}) {
   const url = new URL(path, 'https://api.appstoreconnect.apple.com');
   if (query) url.search = new URLSearchParams(query).toString();
   const result = await fetch(url, { method, headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' }, body: data ? JSON.stringify({ data }) : undefined, signal: AbortSignal.timeout(60000) });
+  if (result.status === 204) return { data: [] };
   const body = await result.json();
   if (!result.ok) throw new Error(`Apple ${result.status}: ${(body.errors ?? []).map(item => `${item.code}: ${item.detail ?? item.title}`).join('; ')}`);
   return body;
@@ -133,6 +134,55 @@ async function status() {
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, sort: '-uploadedDate', limit: '5' } })).data;
   console.log(JSON.stringify(builds.map(item => ({ id: item.id, build: item.attributes.version, processing: item.attributes.processingState, uploaded: item.attributes.uploadedDate })), null, 2));
 }
+function maskedEmail(email) {
+  const [name, domain] = email.split('@');
+  return `${name.slice(0, 2)}***@${domain}`;
+}
+async function internalStatus() {
+  const record = need(await findApp(), 'App Store Connect app');
+  const owners = (await api('/v1/users', { query: { 'filter[roles]': 'ACCOUNT_HOLDER', limit: '2' } })).data;
+  console.log(`Account holders: ${owners.length}`);
+  if (owners.length === 1) console.log(`Owner testing account: ${maskedEmail(owners[0].attributes.username)}`);
+  const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
+  for (const group of groups.filter(item => item.attributes.isInternalGroup)) {
+    const testers = (await api(`/v1/betaGroups/${group.id}/betaTesters`)).data;
+    const builds = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
+    console.log(JSON.stringify({ group: group.attributes.name, internal: true, publicLink: group.attributes.publicLinkEnabled ?? false, testers: testers.map(item => ({ email: maskedEmail(item.attributes.email), state: item.attributes.state })), builds: builds.map(item => ({ build: item.attributes.version, processing: item.attributes.processingState })) }));
+  }
+}
+async function enableInternal(buildNumber) {
+  need(buildNumber, 'specific build number');
+  const record = need(await findApp(), 'App Store Connect app');
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': buildNumber, limit: '10' } })).data;
+  const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID');
+  if (!build) throw new Error(`Build ${buildNumber} has not completed Apple processing`);
+  const owners = (await api('/v1/users', { query: { 'filter[roles]': 'ACCOUNT_HOLDER', limit: '2' } })).data;
+  if (owners.length !== 1) throw new Error('Cannot uniquely identify the account holder; choose the testing account explicitly');
+  const owner = owners[0].attributes;
+  const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
+  let group = groups.find(item => item.attributes.name === '本人真机测试' && item.attributes.isInternalGroup);
+  if (!group) group = (await api('/v1/betaGroups', { method: 'POST', data: { type: 'betaGroups', attributes: { name: '本人真机测试', isInternalGroup: true }, relationships: { app: { data: { type: 'apps', id: record.id } } } } })).data;
+  if (group.attributes.publicLinkEnabled) throw new Error('Refusing to use a public testing group');
+  const testers = (await api(`/v1/betaGroups/${group.id}/betaTesters`, { query: { limit: '200' } })).data;
+  if (!testers.some(item => item.attributes.email.toLowerCase() === owner.username.toLowerCase())) {
+    const existing = (await api('/v1/betaTesters', { query: { 'filter[email]': owner.username, limit: '10' } })).data[0];
+    if (existing) {
+      await api(`/v1/betaGroups/${group.id}/relationships/betaTesters`, { method: 'POST', data: [{ type: 'betaTesters', id: existing.id }] });
+    } else {
+      await api('/v1/betaTesters', { method: 'POST', data: { type: 'betaTesters', attributes: { email: owner.username, firstName: owner.firstName, lastName: owner.lastName }, relationships: { betaGroups: { data: [{ type: 'betaGroups', id: group.id }] } } } });
+    }
+    console.log(`Added only the account holder to internal testing: ${maskedEmail(owner.username)}`);
+  }
+  const notes = (await api(`/v1/builds/${build.id}/betaBuildLocalizations`)).data;
+  if (!notes.some(item => item.attributes.locale === 'zh-Hans')) {
+    await api('/v1/betaBuildLocalizations', { method: 'POST', data: { type: 'betaBuildLocalizations', attributes: { locale: 'zh-Hans', whatsNew: '请测试：手动添加课程、本地保存、深浅色、课表联动人物、上下课提醒、桌面与锁屏组件。学校导入未实现；灵动岛完整后台自动结束和多节自动衔接尚待完善。初次启动为空课表。' }, relationships: { build: { data: { type: 'builds', id: build.id } } } } });
+  }
+  const assigned = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
+  if (!assigned.some(item => item.id === build.id)) await api(`/v1/betaGroups/${group.id}/relationships/builds`, { method: 'POST', data: [{ type: 'builds', id: build.id }] });
+  const detail = (await api(`/v1/builds/${build.id}/buildBetaDetail`)).data;
+  console.log(`Internal build state: ${detail.attributes.internalBuildState}`);
+  await internalStatus();
+}
 try {
   switch (process.argv[2]) {
     case 'check-key': await api('/v1/bundleIds', { query: { limit: '1' } }); console.log('Apple team API key authenticated'); break;
@@ -141,6 +191,8 @@ try {
     case 'secrets': secrets(); break;
     case 'profiles': await profiles(); break;
     case 'status': await status(); break;
+    case 'internal-status': await internalStatus(); break;
+    case 'enable-internal': await enableInternal(process.argv[3]); break;
     default: throw new Error('Use check-key, setup, certificate, secrets, profiles or status');
   }
 } catch (error) {

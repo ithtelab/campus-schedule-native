@@ -61,13 +61,32 @@ xcodebuild -project ios/CampusSchedule.xcodeproj -scheme CampusSchedule -configu
   CURRENT_PROJECT_VERSION="$build_number" archive
 
 codesign --verify --deep --strict build/CampusSchedule.xcarchive/Products/Applications/CampusSchedule.app
+export CAMPUS_PUBLISHED_BUILD="$build_number"
+python3 - <<'PY'
+import json, os, pathlib, plistlib, subprocess
+config = json.loads(pathlib.Path('app.json').read_text())['expo']
+app = pathlib.Path('build/CampusSchedule.xcarchive/Products/Applications/CampusSchedule.app')
+for bundle, identifier in [(app, config['ios']['bundleIdentifier']), (app / 'PlugIns/CampusWidgets.appex', config['ios']['bundleIdentifier'] + '.widgets')]:
+    info = plistlib.loads((bundle / 'Info.plist').read_bytes())
+    for key in ['CFBundleDisplayName', 'CFBundleIdentifier', 'CFBundleVersion', 'CFBundleShortVersionString']:
+        assert info.get(key), 'Missing packaged ' + key + ' in ' + bundle.name
+    assert info['CFBundleIdentifier'] == identifier, 'Wrong packaged identifier'
+    assert info['CFBundleVersion'] == os.environ['CAMPUS_PUBLISHED_BUILD'], 'App and extension build numbers must match'
+    assert info['CFBundleShortVersionString'] == config['version'], 'Wrong marketing version'
+    assert info['CampusAppGroup'] == config['extra']['nativeAppGroup'], 'Unexpanded shared group build setting'
+    assert (bundle / 'PrivacyInfo.xcprivacy').is_file(), 'Missing privacy manifest'
+    result = subprocess.run(['codesign', '-d', '--entitlements', ':-', str(bundle)], check=True, capture_output=True)
+    entitlements = plistlib.loads(result.stdout)
+    assert config['extra']['nativeAppGroup'] in entitlements.get('com.apple.security.application-groups', []), 'Signed App Group missing'
+    assert not entitlements.get('get-task-allow', False), 'Unexpected development signing'
+    print('PASS: packaged metadata, version, privacy manifest and signed App Group for ' + bundle.name)
+PY
 xcodebuild -exportArchive -archivePath build/CampusSchedule.xcarchive \
   -exportOptionsPlist "$CAMPUS_SIGNING_DIR/ExportOptions.plist" -exportPath build/testflight-export \
   -allowProvisioningUpdates \
   -authenticationKeyPath "$CAMPUS_SIGNING_DIR/AuthKey_${APPLE_API_KEY_ID}.p8" \
   -authenticationKeyID "$APPLE_API_KEY_ID" -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
 
-export CAMPUS_PUBLISHED_BUILD="$build_number"
 node --input-type=module - <<'JS'
 import fs from 'node:fs';
 const app = JSON.parse(fs.readFileSync('app.json','utf8')).expo;
