@@ -327,6 +327,20 @@ async function enableExternalLink(buildNumber) {
   console.log(JSON.stringify({ group: result.attributes.name, publicLinkEnabled: result.attributes.publicLinkEnabled, publicLink: result.attributes.publicLink, limit: result.attributes.publicLinkLimit }));
   writeFileSync(resolve(local, 'external-public-link.json'), JSON.stringify({ appID: record.id, groupID: group.id, build: buildNumber, publicLink: result.attributes.publicLink, publicLinkEnabled: result.attributes.publicLinkEnabled, limit: result.attributes.publicLinkLimit, verifiedAt: new Date().toISOString() }, null, 2));
 }
+async function resetExternalAssignment(buildNumber) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
+  const group = need(groups.find(item => item.attributes.name === '公开外部测试' && !item.attributes.isInternalGroup), 'specific external group');
+  const builds = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
+  const build = need(builds.find(item => item.attributes.version === need(buildNumber, 'build number') && !item.attributes.expired), 'specific active assigned build');
+  const detail = (await api(`/v1/builds/${build.id}/buildBetaDetail`)).data;
+  if (detail.attributes.externalBuildState !== 'READY_FOR_BETA_SUBMISSION') throw new Error('Only an unsubmitted external assignment can be reset');
+  await api(`/v1/betaGroups/${group.id}/relationships/builds`, { method: 'DELETE', data: [{ type: 'builds', id: build.id }] });
+  const remaining = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
+  if (remaining.some(item => item.id === build.id)) throw new Error('External association removal not confirmed');
+  await auditBuild(buildNumber);
+  console.log('Removed only the unsubmitted external group association. Re-add the same build through the Apple website Add Builds wizard to reach Submit Review.');
+}
 try {
   switch (process.argv[2]) {
     case 'check-key': await api('/v1/bundleIds', { query: { limit: '1' } }); console.log('Apple team API key authenticated'); break;
@@ -347,6 +361,7 @@ try {
     case 'configure-external': await configureExternal(); break;
     case 'submit-external': await submitExternal(process.argv[3]); break;
     case 'external-link': await enableExternalLink(process.argv[3]); break;
+    case 'reset-external-assignment': await resetExternalAssignment(process.argv[3]); break;
     default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, audit-build BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
   }
 } catch (error) {
