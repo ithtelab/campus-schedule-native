@@ -2,17 +2,14 @@
   "expo": {
     "name": "CampusSchedule",
     "slug": "campus-schedule-native",
-    "version": "0.1.1",
+    "version": "0.1.0",
     "ios": {
-      "bundleIdentifier": "com.ithtelab.campusschedule"
+      "bundleIdentifier": "com.ithtelab.campustimetable"
     },
     "extra": {
-      "nativeAppGroup": "group.com.ithtelab.campusschedule",
+      "nativeAppGroup": "group.com.ithtelab.campustimetable",
       "nativePreview": {
         "minimumIOSVersion": "27.0"
-      },
-      "eas": {
-        "projectId": "7ff78bf0-9088-4084-a76c-0615b1903ed3"
       }
     }
   }

@@ -145,6 +145,62 @@ async function status() {
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, sort: '-uploadedDate', limit: '5' } })).data;
   console.log(JSON.stringify(builds.map(item => ({ id: item.id, build: item.attributes.version, processing: item.attributes.processingState, uploaded: item.attributes.uploadedDate, expirationDate: item.attributes.expirationDate, expired: item.attributes.expired })), null, 2));
 }
+async function retirementPlan(expectedAppID) {
+  const record = need(await findApp(), 'App Store Connect app');
+  if (record.id !== need(expectedAppID, 'exact app ID') || record.attributes.bundleId !== bundle) throw new Error('Retirement target differs from the requested app');
+  const all = async (path, query = {}) => {
+    const rows = [];
+    let result = await api(path, { query: { limit: '200', ...query } });
+    while (true) {
+      rows.push(...result.data);
+      if (!result.links?.next) return rows;
+      const next = new URL(result.links.next);
+      if (next.origin !== 'https://api.appstoreconnect.apple.com') throw new Error('Unexpected pagination origin');
+      result = await api(next.pathname, { query: Object.fromEntries(next.searchParams) });
+    }
+  };
+  const [builds, groups, profiles] = await Promise.all([
+    all('/v1/builds', { 'filter[app]': record.id }),
+    all(`/v1/apps/${record.id}/betaGroups`),
+    all('/v1/profiles', { include: 'bundleId', 'fields[profiles]': 'name,uuid,bundleId', 'fields[bundleIds]': 'identifier' }),
+  ]);
+  const bundleIDs = (await Promise.all([findBundle(bundle), findBundle(bundle + '.widgets')])).filter(Boolean).map(item => item.id);
+  const plan = {
+    createdAt: new Date().toISOString(), appID: record.id, bundleID: bundle,
+    builds: builds.map(item => ({ id: item.id, version: item.attributes.version, expired: item.attributes.expired })),
+    groups: groups.map(item => ({ id: item.id, name: item.attributes.name, publicLinkEnabled: item.attributes.publicLinkEnabled })),
+    profiles: profiles.filter(item => bundleIDs.includes(item.relationships?.bundleId?.data?.id)).map(item => ({ id: item.id, name: item.attributes.name, bundleIDResource: item.relationships.bundleId.data.id })),
+    limits: 'App record removal and new record creation require the Apple website. Uploaded bundle identifiers cannot be reused. Team certificate, API keys and global tester records are not retired.',
+  };
+  mkdirSync(local, { recursive: true });
+  writeFileSync(resolve(local, `retirement-${record.id}.json`), JSON.stringify(plan, null, 2), { mode: 0o600 });
+  return plan;
+}
+async function retireApp(expectedAppID) {
+  const plan = await retirementPlan(expectedAppID);
+  writeFileSync(resolve(local, `retirement-inventory-${plan.appID}.json`), JSON.stringify(plan, null, 2), { mode: 0o600 });
+  const report = { appID: plan.appID, bundleID: plan.bundleID, expiredBuilds: [], deletedGroups: [], deletedProfiles: [], appRecordRemoval: 'REQUIRES_APPLE_WEBSITE' };
+  const save = () => writeFileSync(resolve(local, `retirement-result-${plan.appID}.json`), JSON.stringify(report, null, 2), { mode: 0o600 });
+  save();
+  for (const build of plan.builds.filter(item => !item.expired)) {
+    await api(`/v1/builds/${build.id}`, { method: 'PATCH', data: { type: 'builds', id: build.id, attributes: { expired: true } } });
+    report.expiredBuilds.push(build.version); save();
+  }
+  for (const group of plan.groups) {
+    if (group.publicLinkEnabled) await api(`/v1/betaGroups/${group.id}`, { method: 'PATCH', data: { type: 'betaGroups', id: group.id, attributes: { publicLinkEnabled: false } } });
+    await api(`/v1/betaGroups/${group.id}`, { method: 'DELETE' });
+    report.deletedGroups.push(group.name); save();
+  }
+  for (const profile of plan.profiles) {
+    await api(`/v1/profiles/${profile.id}`, { method: 'DELETE' });
+    report.deletedProfiles.push(profile.name); save();
+  }
+  const remaining = await retirementPlan(expectedAppID);
+  report.verified = remaining.builds.every(item => item.expired) && remaining.groups.length === 0 && remaining.profiles.length === 0;
+  report.verifiedAt = new Date().toISOString(); save();
+  console.log(JSON.stringify(report, null, 2));
+  if (!report.verified) throw new Error('Retirement verification incomplete');
+}
 async function auditBuild(buildNumber) {
   const record = need(await findApp(), 'App Store Connect app');
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
@@ -408,6 +464,8 @@ try {
     case 'secrets': secrets(); break;
     case 'profiles': await profiles(); break;
     case 'status': await status(); break;
+    case 'retirement-plan': console.log(JSON.stringify(await retirementPlan(process.argv[3]), null, 2)); break;
+    case 'retire-app': await retireApp(process.argv[3]); break;
     case 'audit-build': await auditBuild(process.argv[3]); break;
     case 'diagnose-install': await diagnoseInstall(process.argv[3]); break;
     case 'resume-build': await resumeBuild(process.argv[3]); break;
@@ -422,7 +480,7 @@ try {
     case 'submit-external': await submitExternal(process.argv[3]); break;
     case 'external-link': await enableExternalLink(process.argv[3]); break;
     case 'reset-external-assignment': await resetExternalAssignment(process.argv[3]); break;
-    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, audit-build BUILD, diagnose-install BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
+    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, retirement-plan APP_ID, retire-app APP_ID, audit-build BUILD, diagnose-install BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
   }
 } catch (error) {
   // Do not print subprocess buffers, request headers, tokens or private key content.
