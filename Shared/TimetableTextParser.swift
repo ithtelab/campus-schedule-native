@@ -177,36 +177,71 @@ public enum TimetableTextParser {
     /// 含「周」的行是周次，含「楼/室/馆/教室」或数字+字母组合的是教室，
     /// 含「老师/教授/讲师」或 2–4 个汉字且不像课程名的是教师，剩下的第一行是课程名。
     public static func parseCourseCell(_ raw: String, totalWeeks: Int = 20) -> ParsedCourse? {
-        let lines = raw
+        // 单元格既可能换行分隔，也可能用空格分隔（例如从整行复制的文本）。
+        // 统一按行和多余空白切开，再逐片分类。
+        let tokens = raw
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
-            .split(separator: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        guard !lines.isEmpty else { return nil }
+            .replacingOccurrences(of: "\t", with: "\n")
+            .split(whereSeparator: { $0.isNewline })
+            .flatMap { line -> [String] in
+                let text = String(line).trimmingCharacters(in: .whitespaces)
+                guard !text.isEmpty else { return [] }
+                // 一行里若是「高等数学 陈老师 A302 1-16周」这种空格串联，拆开才能分类；
+                // 只有两片时不拆，避免把「大学 英语」这类正常课程名切断。
+                let pieces = text.split(whereSeparator: \.isWhitespace).map(String.init)
+                return pieces.count >= 3 ? pieces : [text]
+            }
+        guard !tokens.isEmpty else { return nil }
 
         var weeks: Set<Int> = []
         var hasWeeks = false
         var room = ""
         var teacher = ""
-        var title = ""
+        var titleParts: [String] = []
+        var remainder: [String] = []
 
-        for line in lines {
-            if let parsed = parseWeeks(line, totalWeeks: totalWeeks) {
-                if !parsed.isEmpty { weeks = parsed; hasWeeks = true }
+        // 先分离周次；周次片段可能同时包含节次信息（如「1-16周(单)」）。
+        for token in tokens {
+            if let parsed = parseWeeks(token, totalWeeks: totalWeeks) {
+                if !parsed.isEmpty {
+                    // 同一门课可能有多段周次（单双周分开写），合并而不是覆盖。
+                    if hasWeeks { weeks.formUnion(parsed) } else { weeks = parsed; hasWeeks = true }
+                }
                 continue
             }
-            if room.isEmpty, looksLikeRoom(line) { room = line; continue }
-            if teacher.isEmpty, line.hasSuffix("老师") || line.hasSuffix("教师") || line.hasSuffix("教授") {
-                teacher = line; continue
-            }
-            if title.isEmpty { title = line } else if room.isEmpty { room = line }
+            remainder.append(token)
         }
 
+        for token in remainder {
+            if room.isEmpty, looksLikeRoom(token) { room = token; continue }
+            if teacher.isEmpty, isTeacherName(token) { teacher = token; continue }
+            titleParts.append(token)
+        }
+
+        guard !titleParts.isEmpty else { return nil }
+        // 课程名可能含空格（如「大学英语视听说」），因此只取第一片作为标题，
+        // 其余无归属的片段仅在房间仍为空时补充为房间。
+        let title = titleParts[0]
+        if room.isEmpty, titleParts.count > 1, looksLikeRoom(titleParts[1]) { room = titleParts[1] }
         guard !title.isEmpty else { return nil }
         return ParsedCourse(title: title, teacher: teacher, room: room,
                             weekday: 0, startPeriod: 1, endPeriod: 1,
                             weeks: hasWeeks ? weeks : [])
+    }
+
+    /// 教师名的常见形态：「X老师」「X教授」，或 2–4 个汉字且不含课程常见词。
+    static func isTeacherName(_ text: String) -> Bool {
+        if text.hasSuffix("老师") || text.hasSuffix("教师") || text.hasSuffix("教授") || text.hasSuffix("讲师") {
+            return true
+        }
+        // 用 Unicode 标量区间判断是否全为汉字，避免依赖可能不存在的字符属性。
+        let allHan = text.unicodeScalars.allSatisfy { (0x4E00...0x9FFF).contains($0.value) }
+        guard allHan, (2...4).contains(text.count) else { return false }
+        // 「数学」「英语」这类也由 2 个汉字组成，但它们通常作为课程名出现。
+        let courseHints = ["数学", "英语", "物理", "化学", "体育", "思政", "历史", "地理", "生物",
+                           "程序", "设计", "写作", "导论", "实验", "原理", "分析", "概论"]
+        return !courseHints.contains { text.contains($0) }
     }
 
     static func looksLikeRoom(_ text: String) -> Bool {
@@ -258,8 +293,10 @@ public enum TimetableTextParser {
                 guard let weekday = columnWeekdays[column] else { continue }
                 // 单元格里若自带星期与节次，优先采用单元格自己的信息。
                 let cellDay = parseWeekday(cell) ?? weekday
-                let cellPeriod = parsePeriods(cell) ?? rowPeriod
-                guard let period = cellPeriod, let course = parseCourseCell(cell, totalWeeks: totalWeeks) else {
+                // 只接受带「节」字的节次说明，否则「1-16周」里的数字会被当成节次。
+                let cellPeriod = cellContainsPeriod(cell) ? parsePeriods(cell) : nil
+                let period = cellPeriod ?? rowPeriod
+                guard let period, let course = parseCourseCell(cell, totalWeeks: totalWeeks) else {
                     skipped += 1
                     continue
                 }
@@ -278,6 +315,11 @@ public enum TimetableTextParser {
         }
         if skipped > 0 { warnings.append("有 \(skipped) 个单元格无法识别，已跳过。") }
         return ParseOutcome(courses: deduplicate(courses), warnings: warnings)
+    }
+
+    /// 单元格里是否明确写了节次。用于区分「第3-4节」与周次「3-4周」。
+    static func cellContainsPeriod(_ cell: String) -> Bool {
+        cell.contains("节")
     }
 
     /// 同一门课可能出现在多个单元格（如单双周分开写），合并完全相同的条目。
