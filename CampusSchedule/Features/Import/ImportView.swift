@@ -18,6 +18,7 @@ struct ImportView: View {
     @State private var outcome: ParseOutcome?
     @State private var plan: ImportPlanner.Plan?
     @State private var mode: Mode = .school
+    @State private var selectedSchool: SchoolEntry?
 
     enum Mode: String, CaseIterable, Identifiable {
         case school = "学校"
@@ -54,6 +55,9 @@ struct ImportView: View {
                     apply(finalPlan)
                 } onCancel: { self.plan = nil }
             }
+            .sheet(item: $selectedSchool) { school in
+                AcademicLoginView(school: school)
+            }
             .task { loadDirectory() }
         }
     }
@@ -86,24 +90,30 @@ struct ImportView: View {
     }
 
     private func row(_ entry: SchoolEntry) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(entry.name)
-            HStack(spacing: 6) {
-                if let system = entry.system {
-                    Text(system.displayName).font(.caption2)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(DesignSystem.accent.opacity(0.12), in: Capsule())
+        Button {
+            selectedSchool = entry
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.name)
+                HStack(spacing: 6) {
+                    if let system = entry.system {
+                        Text(system.displayName).font(.caption2)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(DesignSystem.accent.opacity(0.12), in: Capsule())
+                    }
+                    Text(entry.confidenceText).font(.caption2).foregroundStyle(.secondary)
                 }
-                Text(entry.confidenceText).font(.caption2).foregroundStyle(.secondary)
+                if !entry.url.isEmpty {
+                    Text(entry.url).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                }
             }
-            if !entry.url.isEmpty {
-                Text(entry.url).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
-            }
+            .contentShape(Rectangle())
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            UIPasteboard.general.string = entry.url
-            mode = .paste
+        .buttonStyle(.plain)
+        .swipeActions {
+            Button("复制地址", systemImage: "doc.on.doc") {
+                UIPasteboard.general.string = entry.url
+            }
         }
     }
 
