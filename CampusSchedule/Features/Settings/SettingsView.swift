@@ -135,7 +135,16 @@ struct SettingsView: View {
             } message: {
                 Text("两台设备各自修改了课表，无法自动合并。选择要保留的那一份，另一份会被覆盖。")
             }
-            .task { showingAcademicSettings = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "academic" }
+            .task {
+                // 截图与云端验证通过环境变量直接打开某个二级页面。
+                switch ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] {
+                case "academic": showingAcademicSettings = true
+                case "terms": showingTermList = true
+                case "import": showingImport = true
+                case "exams": path.append(SettingsRoute.exams)
+                default: break
+                }
+            }
             .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications() } }
             .onChange(of: settings.endReminder) { _, enabled in if enabled { authorizeNotifications() } }
         }
