@@ -23,7 +23,10 @@ struct ExamPlanTests {
 
     @Test func malformedTimeHasNoStartDate() {
         #expect(ExamPlan.startDate(exam("x", date(2026, 12, 20), "9:00", "11:00")) == nil)
-        #expect(ExamPlan.startDate(exam("x", date(2026, 12, 20), "09:00", "25:00")) == nil)
+        // 结束时间非法时开始时间仍然有效，但整场考试必须判定为无效。
+        let badEnd = exam("x", date(2026, 12, 20), "09:00", "25:00")
+        #expect(ExamPlan.endDate(badEnd) == nil)
+        #expect(ExamPlan.validate(badEnd) == .malformedTime("25:00"))
     }
 
     // MARK: 未来考试
