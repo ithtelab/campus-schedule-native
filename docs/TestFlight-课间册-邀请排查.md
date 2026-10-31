@@ -25,10 +25,10 @@ Apple 于北京时间 **2026-10-31 19:11:34** 成功受理重发请求，邀请�
 
 ## 用户待核对事项与公开测试边界
 
-`ch***@icloud.com` 已由用户确认是本人邮箱，不再反复要求确认地址。用户已反馈仍未收到邀请，当前只读查询仍为 INVITED。已进一步询问该邮箱能否收到其他普通邮件，用于区分邮箱收信和 TestFlight 邀请投递；此项尚未得到回答，不能自行假定其他邮件正常。
+`ch***@icloud.com` 已由用户确认是本人邮箱，不再反复要求确认地址。用户确认其他普通邮件可以正常收到，只有 TestFlight 邀请没有收到；当前只读查询仍为 INVITED。因此不再要求用户重复检查普通邮箱收信，也不能仅凭其他邮件正常就断言具体 Apple 故障根因。
 
 已直接读取 Apple DocC 官方 JSON 结构，确认现有请求使用的 type / relationships 格式正确。[BetaTesterInvitation](https://developer.apple.com/documentation/appstoreconnectapi/betatesterinvitation) 响应只有 id、type 和导航 links，没有用户可兑换的邀请 URL 或兑换码；导航 self-link 不能当作用户邀请链接使用。当前公开接口也未提供邮箱实际送达日志。不重复发信、不删除测试者、不编造替代邀请链接。
 
 公开测试需要新 App 的外测组和通过 Beta App Review 的构建。[Apple TestFlight 说明](https://developer.apple.com/testflight/) 当前条件均不满足，本次未擅自重新创建外测组、启用链接或提交审核。
 
-重发后用户仍未收到，已保存事实并准备 [邮件邀请故障报告](Apple-课间册-内测邀请未收到.md)。尚未发送给 Apple。现阶段没有证据认定用户设备、邮箱过滤或 Apple 后台中的哪一项是根因；若普通邮件也收不到，应先处理邮箱收信，若其他邮件正常，再将具体邀请编号交 Apple 核查投递链路。
+重发后用户仍未收到，已保存事实并准备 [邮件邀请故障报告](Apple-课间册-内测邀请未收到.md)。尚未发送给 Apple。其他邮件正常后，可将具体邀请编号交 Apple 核查 TestFlight 专项投递链路；同时已准备 [新 App 15.1 公开测试方案](课间册-15.1-公开测试方案.md)，申请通过后可使用公开链接加入，不依赖邀请邮件。尚未实际建立外测组或提交该构建审核。

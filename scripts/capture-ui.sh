@@ -45,6 +45,16 @@ for appearance in light dark; do
     sleep 3
     xcrun simctl io booted screenshot "screenshots/${screen}-${appearance}.png"
   done
+  # 今日页收尾的三种状态：有课未上完、全部上完、当天无课。
+  SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=10:30 SIMCTL_CHILD_CAMPUS_PREVIEW_SCROLL=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
+  sleep 3
+  xcrun simctl io booted screenshot "screenshots/today-ending-pending-${appearance}.png"
+  SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=21:00 SIMCTL_CHILD_CAMPUS_PREVIEW_SCROLL=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
+  sleep 3
+  xcrun simctl io booted screenshot "screenshots/today-ending-done-${appearance}.png"
+  SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=empty SIMCTL_CHILD_CAMPUS_PREVIEW_SCROLL=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
+  sleep 3
+  xcrun simctl io booted screenshot "screenshots/today-ending-empty-${appearance}.png"
   if [[ "$appearance" == dark ]]; then
     SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=10:30 xcrun simctl launch --terminate-running-process booted "$bundle_id"
     sleep 3

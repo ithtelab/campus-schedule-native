@@ -1,6 +1,6 @@
 # TestFlight internal invitation resend accepted, but the account holder receives no email — 课间册
 
-Please investigate the TestFlight invitation delivery associated with the invitation resource below. The recipient has confirmed the address is correct and still has not received the invitation after a resend. The cause is not established. We have not yet confirmed whether unrelated ordinary messages arrive in this iCloud mailbox.
+Please investigate the TestFlight invitation delivery associated with the invitation resource below. The recipient has confirmed the address is correct, other ordinary emails arrive normally in this iCloud mailbox, and only the TestFlight invitation is missing after a resend. The specific cause is not established.
 
 ## App, build and recipient
 
@@ -23,7 +23,7 @@ One resend was made using the documented POST /v1/betaTesterInvitations endpoint
 - Invitation resource ID: 0d9e7199-fd38-4425-bcf8-2874cb098e0b
 - Resend accepted at: 2026-10-31 11:11:34 UTC / 19:11:34 Asia/Shanghai
 
-The user subsequently confirmed this is their mailbox, but the invitation still has not arrived. There is no confirmed acceptance or installation. We have not repeatedly resent invitations, deleted/re-added the tester, or expired the build during this investigation.
+The user subsequently confirmed this is their mailbox and other ordinary emails arrive normally, but the TestFlight invitation still has not arrived. There is no confirmed acceptance or installation. We have not repeatedly resent invitations, deleted/re-added the tester, or expired the build during this investigation.
 
 ## Expected result and request
 
@@ -31,4 +31,4 @@ The existing authorized internal tester should receive the TestFlight invitation
 
 The public invitation response does not contain a redeem URL/code or mailbox delivery log, so the API response alone cannot confirm email delivery. The separate old app and its disabled public link are not the subject of this report. The current app has no active external testing group; this report concerns the missing internal invitation only.
 
-This report is prepared locally and has not been submitted to Apple. Ordinary mailbox delivery remains to be checked before assigning the fault to TestFlight rather than the mailbox.
+This report is prepared locally and has not been submitted to Apple. Ordinary mailbox delivery is confirmed to work; please investigate the specific TestFlight delivery or account/app eligibility outcome without treating the successful resend response as proof that the email arrived.

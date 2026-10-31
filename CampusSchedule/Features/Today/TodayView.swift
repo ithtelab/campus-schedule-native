@@ -192,20 +192,76 @@ struct TodayView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// 列表收尾：三种状态各自说明今天的情况，并附本周与本月统计。
+    ///
+    /// 居中排版，不带图标与手写字，避免看起来像可点的入口。
     private var closingNote: some View {
-        HStack(spacing: 16) {
-            if next == nil {
-                CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(daily.isEmpty ? "暂时没有课程" : "把时间留给自己").font(DesignSystem.hand(24))
-                    Text(daily.isEmpty ? "从添加第一门课开始。" : "今天的课程结束了，休息一下。")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
+        let summary = ScheduleSummary.make(occurrences: store.occurrences, now: store.now,
+                                           semesterStart: store.semesterStart)
+        let state = ClosingState(daily: daily, remaining: summary.todayRemaining,
+                                 completed: summary.todayCompleted, now: store.now)
+        return VStack(spacing: 14) {
+            VStack(spacing: 5) {
+                Text(state.title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Text(state.detail)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+
+            if summary.weekSessions > 0 || summary.monthSessions > 0 {
+                statsRow(summary)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func statsRow(_ summary: ScheduleSummary) -> some View {
+        HStack(spacing: 0) {
+            statItem(value: "\(summary.weekSessions)", label: "本周")
+            divider
+            statItem(value: "\(summary.monthCompleted)/\(summary.monthSessions)", label: "本月已上")
+        }
+        .padding(.vertical, 10)
+        .background(DesignSystem.paper, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12).strokeBorder(DesignSystem.rule, lineWidth: 0.75)
+        }
+    }
+
+    private func statItem(value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.callout.weight(.semibold)).monospacedDigit()
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(DesignSystem.rule).frame(width: 0.75, height: 26)
+    }
+
+    /// 今日页收尾的三种状态。
+    private struct ClosingState {
+        let title: String
+        let detail: String
+
+        init(daily: [DemoCourse], remaining: Int, completed: Int, now: Date) {
+            if daily.isEmpty {
+                title = "今天没有课"
+                detail = "从添加第一门课开始，或到设置里导入课表。"
+            } else if remaining > 0 {
+                title = "今天的课程到这里"
+                detail = "还有 \(remaining) 节没上。"
             } else {
-                CampusNotebook().stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                    .frame(width: 34, height: 38).rotationEffect(.degrees(-5)).accessibilityHidden(true)
-                Text("校园日常").font(DesignSystem.hand(23))
-                Spacer()
+                title = "今天的课都上完了"
+                detail = completed > 0 ? "共 \(completed) 节，休息一下。" : "休息一下。"
             }
         }
     }
