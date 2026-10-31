@@ -136,7 +136,25 @@ async function status() {
   if (!record) { console.log(`APP_RECORD_MISSING: ${bundle}`); return; }
   console.log(`App Store Connect: https://appstoreconnect.apple.com/apps/${record.id}/testflight/ios`);
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, sort: '-uploadedDate', limit: '5' } })).data;
-  console.log(JSON.stringify(builds.map(item => ({ id: item.id, build: item.attributes.version, processing: item.attributes.processingState, uploaded: item.attributes.uploadedDate })), null, 2));
+  console.log(JSON.stringify(builds.map(item => ({ id: item.id, build: item.attributes.version, processing: item.attributes.processingState, uploaded: item.attributes.uploadedDate, expirationDate: item.attributes.expirationDate, expired: item.attributes.expired })), null, 2));
+}
+async function auditBuild(buildNumber) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
+  const build = need(builds.find(item => item.attributes.version === buildNumber), 'matching build');
+  const detail = (await api(`/v1/builds/${build.id}/buildBetaDetail`)).data;
+  let review;
+  try { review = (await api(`/v1/builds/${build.id}/betaAppReviewSubmission`)).data; }
+  catch (error) { if (error.httpStatus !== 404) throw error; }
+  console.log(JSON.stringify({ id: build.id, ...build.attributes, beta: detail.attributes, review: review?.attributes ?? null }, null, 2));
+}
+async function resumeBuild(buildNumber) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
+  const build = need(builds.find(item => item.attributes.version === buildNumber), 'matching build');
+  if (Date.now() - new Date(build.attributes.uploadedDate).getTime() >= 90 * 86400000) throw new Error('Build is beyond its normal TestFlight lifetime; do not attempt restoration');
+  if (build.attributes.expired) await api(`/v1/builds/${build.id}`, { method: 'PATCH', data: { type: 'builds', id: build.id, attributes: { expired: false } } });
+  await auditBuild(buildNumber);
 }
 function maskedEmail(email) {
   const [name, domain] = email.split('@');
@@ -163,7 +181,7 @@ async function enableInternal(buildNumber) {
   need(buildNumber, 'specific build number');
   const record = need(await findApp(), 'App Store Connect app');
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': buildNumber, limit: '10' } })).data;
-  const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID');
+  const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID' && !item.attributes.expired);
   if (!build) throw new Error(`Build ${buildNumber} has not completed Apple processing`);
   const owners = (await api('/v1/users', { query: { 'filter[roles]': 'ACCOUNT_HOLDER', limit: '2' } })).data;
   if (owners.length !== 1) throw new Error('Cannot uniquely identify the account holder; choose the testing account explicitly');
@@ -203,7 +221,7 @@ async function watchInternal(buildNumber) {
     if (state !== previous) { console.log(`Apple build ${buildNumber}: ${state}`); previous = state; }
     if (state === 'FAILED') throw new Error(`Apple processing failed: ${JSON.stringify(upload.attributes.state.errors)}`);
     const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': buildNumber, limit: '10' } })).data;
-    const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID');
+    const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID' && !item.attributes.expired);
     if (build) {
       await enableInternal(buildNumber);
       writeFileSync(resolve(local, 'testflight-ready.json'), JSON.stringify({ appID: record.id, buildID: build.id, build: buildNumber, verifiedAt: new Date().toISOString(), status: 'INTERNAL_ACCESS_CONFIGURED' }, null, 2));
@@ -231,7 +249,7 @@ async function externalStatus() {
 async function prepareExternal(buildNumber) {
   const record = need(await findApp(), 'App Store Connect app');
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
-  const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID');
+  const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID' && !item.attributes.expired);
   if (!build || build.attributes.buildAudienceType === 'INTERNAL_ONLY') throw new Error('This build is not eligible for external beta testing');
   const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
   let group = groups.find(item => item.attributes.name === '公开外部测试' && !item.attributes.isInternalGroup);
@@ -268,7 +286,7 @@ async function configureExternal() {
 async function submitExternal(buildNumber) {
   const record = need(await findApp(), 'App Store Connect app');
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
-  const build = need(builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID'), 'eligible processed build');
+  const build = need(builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID' && !item.attributes.expired), 'eligible processed build');
   if (build.attributes.buildAudienceType === 'INTERNAL_ONLY') throw new Error('Internal-only build cannot be submitted externally');
   let submission;
   try { submission = (await api(`/v1/builds/${build.id}/betaAppReviewSubmission`)).data; }
@@ -283,7 +301,7 @@ async function enableExternalLink(buildNumber) {
   const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
   const group = need(groups.find(item => item.attributes.name === '公开外部测试' && !item.attributes.isInternalGroup), 'prepared external group');
   const builds = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
-  if (!builds.some(item => item.attributes.version === need(buildNumber, 'build number') && item.attributes.processingState === 'VALID')) throw new Error('Specific processed build must be associated before enabling link');
+  if (!builds.some(item => item.attributes.version === need(buildNumber, 'build number') && item.attributes.processingState === 'VALID' && !item.attributes.expired)) throw new Error('Specific processed build must be associated before enabling link');
   const result = (await api(`/v1/betaGroups/${group.id}`, { method: 'PATCH', data: { type: 'betaGroups', id: group.id, attributes: { publicLinkEnabled: true, publicLinkLimitEnabled: true, publicLinkLimit: 100 } } })).data;
   console.log(JSON.stringify({ group: result.attributes.name, publicLinkEnabled: result.attributes.publicLinkEnabled, publicLink: result.attributes.publicLink, limit: result.attributes.publicLinkLimit }));
   writeFileSync(resolve(local, 'external-public-link.json'), JSON.stringify({ appID: record.id, groupID: group.id, build: buildNumber, publicLink: result.attributes.publicLink, publicLinkEnabled: result.attributes.publicLinkEnabled, limit: result.attributes.publicLinkLimit, verifiedAt: new Date().toISOString() }, null, 2));
@@ -296,6 +314,8 @@ try {
     case 'secrets': secrets(); break;
     case 'profiles': await profiles(); break;
     case 'status': await status(); break;
+    case 'audit-build': await auditBuild(process.argv[3]); break;
+    case 'resume-build': await resumeBuild(process.argv[3]); break;
     case 'internal-status': await internalStatus(); break;
     case 'upload-status': await uploadStatus(); break;
     case 'enable-internal': await enableInternal(process.argv[3]); break;
