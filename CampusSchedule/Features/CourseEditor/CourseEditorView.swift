@@ -57,6 +57,34 @@ struct CourseEditorView: View {
                 }
 
                 Section {
+                    // 颜色用于在课表里区分课程，不选也能保存（默认按名称稳定分配）。
+                    HStack(spacing: 10) {
+                        Text("颜色")
+                        Spacer()
+                        ForEach(CourseColor.allCases, id: \.self) { option in
+                            Button {
+                                color = option
+                            } label: {
+                                Circle()
+                                    .fill(option.accentColor)
+                                    .frame(width: 24, height: 24)
+                                    .overlay {
+                                        if color == option {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(option.name)
+                            .accessibilityAddTraits(color == option ? [.isSelected] : [])
+                        }
+                    }
+                }
+                header: { Text("外观") }
+
+                Section {
                     Picker("重复", selection: $frequency) {
                         ForEach(["每周", "单周", "双周", "指定"], id: \.self) { Text($0).tag($0) }
                     }
@@ -108,6 +136,11 @@ struct CourseEditorView: View {
                 }
                 if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "course" {
                     title = "线性代数"; room = "教学楼 A · 206"; teacher = "李老师"; frequency = "双周"
+                }
+                // 新建课程按已用颜色轮换，避免所有新课程都是同一种颜色。
+                if editing == nil && template == nil {
+                    let palette = CourseColor.allCases
+                    color = palette[store.courses.count % palette.count]
                 }
             }
         }

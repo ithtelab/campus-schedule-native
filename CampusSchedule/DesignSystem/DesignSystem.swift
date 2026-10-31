@@ -20,8 +20,13 @@ enum DesignSystem {
     }
 }
 
+/// 课程配色。
+///
+/// 课表整体是黑白手绘风格，因此颜色只作为**识别辅助**而不是主色：
+/// 卡片用很低的透明度着色，左侧一条窄色条承担区分，正文始终用主文字色。
+/// 这样深浅色模式下对比度都够，也不会把界面变成色块拼贴。
 enum CourseColor: String, CaseIterable, Codable {
-    case blue, purple, orange, green
+    case blue, purple, orange, green, pink, indigo, brown, teal
 
     var name: String {
         switch self {
@@ -29,17 +34,44 @@ enum CourseColor: String, CaseIterable, Codable {
         case .purple: "鸢紫"
         case .orange: "暖橙"
         case .green: "青绿"
+        case .pink: "玫粉"
+        case .indigo: "靛蓝"
+        case .brown: "赭石"
+        case .teal: "湖蓝"
         }
     }
 
-    var tint: Color {
+    /// 左侧色条与进行中状态使用的高饱和色。
+    var accentColor: Color {
         switch self {
-        case .blue: .blue
-        case .purple: .purple
-        case .orange: .orange
-        case .green: .teal
+        case .blue: Color(red: 0.29, green: 0.56, blue: 0.89)
+        case .purple: Color(red: 0.58, green: 0.44, blue: 0.86)
+        case .orange: Color(red: 0.91, green: 0.58, blue: 0.24)
+        case .green: Color(red: 0.35, green: 0.71, blue: 0.46)
+        case .pink: Color(red: 0.89, green: 0.48, blue: 0.60)
+        case .indigo: Color(red: 0.42, green: 0.47, blue: 0.85)
+        case .brown: Color(red: 0.69, green: 0.54, blue: 0.42)
+        case .teal: Color(red: 0.28, green: 0.68, blue: 0.70)
         }
     }
+
+    /// 卡片底色。透明度按外观调整：浅色下需要更淡，深色下需要更亮才看得出。
+    func fill(for scheme: ColorScheme) -> Color {
+        accentColor.opacity(scheme == .dark ? 0.26 : 0.14)
+    }
+
+    /// 卡片描边，跟随底色但稍强一点。
+    func border(for scheme: ColorScheme) -> Color {
+        accentColor.opacity(scheme == .dark ? 0.42 : 0.30)
+    }
+
+    /// 已结束课程的底色：进一步压暗，弱化但不消失。
+    func endedFill(for scheme: ColorScheme) -> Color {
+        accentColor.opacity(scheme == .dark ? 0.12 : 0.06)
+    }
+
+    /// 兼容旧调用点。
+    var tint: Color { accentColor }
 }
 
 struct CourseCard: View {

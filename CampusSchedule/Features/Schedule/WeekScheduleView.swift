@@ -4,6 +4,7 @@ struct WeekScheduleView: View {
     @Environment(PreviewStore.self) private var store
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
     @State private var selectedCourse: DemoCourse?
     @State private var showingWeeks = false
     @State private var showingEditor = false
@@ -191,23 +192,37 @@ struct WeekScheduleView: View {
                 let ended = (ScheduleRules.date(day: date, time: course.endTime) ?? .distantFuture) <= store.now
                 let ongoing = (ScheduleRules.date(day: date, time: course.startTime) ?? .distantFuture) <= store.now && !ended
                 let ink = ongoing ? DesignSystem.inverse : Color.primary
+                // 颜色只作识别辅助：进行中用色条实色，已结束压淡，其余用低饱和底色。
+                let cardFill = ongoing ? course.color.accentColor
+                    : ended ? course.color.endedFill(for: scheme) : course.color.fill(for: scheme)
+                let borderColor = ongoing ? course.color.accentColor : course.color.border(for: scheme)
                 Button { selectedCourse = course } label: {
-                    VStack(alignment: .leading, spacing: height < 65 ? 2 : 4) {
-                        Text(course.title).font(.system(size: store.showsWeekend ? 12 : 14, weight: .bold)).lineLimit(height < 65 ? 2 : 4)
-                        Text(course.shortRoom).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2).foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
-                        Spacer(minLength: 0)
-                        if height >= 80 && !store.showsWeekend {
-                            Text(course.startTime).font(.system(size: 9).monospacedDigit())
-                                .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary).lineLimit(1)
+                    HStack(spacing: 0) {
+                        // 左侧窄色条：即使卡片很矮也能靠颜色分辨课程。
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(ongoing ? DesignSystem.inverse.opacity(0.85) : course.color.accentColor)
+                            .frame(width: 3)
+                            .padding(.vertical, height < 65 ? 3 : 6)
+                            .padding(.leading, store.showsWeekend ? 4 : 5)
+                        VStack(alignment: .leading, spacing: height < 65 ? 2 : 4) {
+                            Text(course.title).font(.system(size: store.showsWeekend ? 12 : 14, weight: .bold)).lineLimit(height < 65 ? 2 : 4)
+                            Text(course.shortRoom).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2)
+                                .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
+                            Spacer(minLength: 0)
+                            if height >= 80 && !store.showsWeekend {
+                                Text(course.startTime).font(.system(size: 9).monospacedDigit())
+                                    .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary).lineLimit(1)
+                            }
                         }
+                        .padding(.leading, store.showsWeekend ? 4 : 6)
+                        .padding(.trailing, store.showsWeekend ? 3 : 5)
+                        .padding(.vertical, height < 65 ? 2 : 7)
                     }
-                    .padding(.leading, store.showsWeekend ? 6 : 8)
-                    .padding(.trailing, store.showsWeekend ? 3 : 5).padding(.vertical, height < 65 ? 2 : 7)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: height)
                     .foregroundStyle(ink)
-                    .background(ongoing ? Color.primary : ended ? DesignSystem.paper : Color.primary.opacity(0.11), in: RoundedRectangle(cornerRadius: 9))
-                    .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(ended ? 0.2 : 0.25), lineWidth: 0.8) }
+                    .background(cardFill, in: RoundedRectangle(cornerRadius: 9))
+                    .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(borderColor, lineWidth: 0.8) }
                 }
                 .buttonStyle(.plain).foregroundStyle(.primary)
                 .courseTossSource(course, courses: courses, reaction: toss)
