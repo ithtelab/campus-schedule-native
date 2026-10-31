@@ -23,5 +23,14 @@ import Testing
         #expect(rect.maxY <= 1288)
         #expect(CampusSpriteLayout.rect(index: 15, girl: true, width: 887, height: 1774)!.minY >= 1295)
         #expect(CampusSpriteLayout.rect(index: 16, girl: true, width: 887, height: 1774) == nil)
+        // The leaning hat and walking toes extend past an equal-width column.
+        #expect(CampusSpriteLayout.rect(index: 4, girl: true, width: 887, height: 1774)!.maxX >= 250)
+        #expect(CampusSpriteLayout.rect(index: 12, girl: false, width: 887, height: 1774)!.maxX >= 234)
+        for girl in [false, true] {
+            for index in 0..<16 {
+                let scaled = CampusSpriteLayout.rect(index: index, girl: girl, width: 1774, height: 3548)!
+                #expect(CGRect(x: 0, y: 0, width: 1774, height: 3548).contains(scaled))
+            }
+        }
     }
 }
