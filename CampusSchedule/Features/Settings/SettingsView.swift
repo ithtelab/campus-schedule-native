@@ -34,6 +34,7 @@ struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
     @State private var showingAcademicSettings = false
     @State private var showingTermList = false
+    @State private var showingImport = false
     @State private var path = NavigationPath()
     @State private var showingExporter = false
     @State private var showingImporter = false
@@ -55,6 +56,7 @@ struct SettingsView: View {
                 Section("课表") {
                     Button("学期与作息", systemImage: "calendar.badge.clock") { showingAcademicSettings = true }
                     Button("全部学期", systemImage: "list.bullet.rectangle") { showingTermList = true }
+                    Button("导入课表", systemImage: "square.and.arrow.down.on.square") { showingImport = true }
                     NavigationLink("考试安排", value: SettingsRoute.exams)
                     LabeledContent("当前学期", value: store.semesterName)
                 }
@@ -106,6 +108,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingAcademicSettings) { AcademicSettingsView() }
             .sheet(isPresented: $showingTermList) { TermListView() }
+            .sheet(isPresented: $showingImport) { ImportView() }
             .fileExporter(isPresented: $showingExporter, document: backupDocument,
                           contentType: .json, defaultFilename: backupDocument?.filename ?? "课间册.json") { result in
                 if case .failure(let error) = result {

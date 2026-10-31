@@ -661,4 +661,54 @@ final class PreviewStore {
         content.name = trimmed
         termContents[id] = content
     }
+
+    // MARK: - 导入
+
+    /// 把导入的课程合并进当前学期。
+    ///
+    /// 同名同时间的课程覆盖原条目而不是重复添加；其余追加。
+    /// 时间标签根据节次从作息表推导，保证导入后立即显示正确时刻。
+    func applyImport(_ imported: [ParsedCourse]) {
+        guard !imported.isEmpty else { return }
+        let byIndex = Dictionary(uniqueKeysWithValues: periods.map { ($0.id, $0) })
+        var result = courses
+        for parsed in imported {
+            guard let start = byIndex[parsed.startPeriod], let end = byIndex[parsed.endPeriod] else { continue }
+            let course = DemoCourse(
+                id: "import-\(UUID().uuidString)",
+                title: parsed.title,
+                room: parsed.room,
+                teacher: parsed.teacher,
+                weekday: parsed.weekday,
+                startPeriod: parsed.startPeriod,
+                endPeriod: parsed.endPeriod,
+                startTime: start.start,
+                endTime: end.end,
+                color: Self.color(for: parsed.title),
+                weeks: parsed.weeks.isEmpty ? Set(1...totalWeeks) : parsed.weeks
+            )
+            // 同名同节次同天视为同一门课，替换以保留用户之后的手动修改位置。
+            if let index = result.firstIndex(where: {
+                $0.title == course.title && $0.weekday == course.weekday
+                    && $0.startPeriod == course.startPeriod && $0.endPeriod == course.endPeriod
+            }) {
+                var replacement = course
+                replacement.remindersEnabled = result[index].remindersEnabled
+                result[index] = replacement
+            } else {
+                result.append(course)
+            }
+        }
+        courses = result
+        errorMessage = nil
+        save()
+    }
+
+    /// 按课程名稳定地分配颜色，使同一门课在多次导入后保持一致。
+    static func color(for title: String) -> CourseColor {
+        let palette = CourseColor.allCases
+        var hash = 5381
+        for byte in title.utf8 { hash = (hash &* 33) &+ Int(byte) }
+        return palette[abs(hash) % palette.count]
+    }
 }
