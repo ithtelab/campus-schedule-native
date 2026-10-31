@@ -83,3 +83,15 @@ xcodebuild -project ios/CampusSchedule.xcodeproj -scheme CampusSchedule -sdk iph
 
 需要商业授权请另行联系版权持有人。
 
+
+## 隐私与提交保护
+
+仓库为公开状态，因此真实手机号、个人邮箱、签名密钥等不得进入版本历史。`.githooks/pre-commit` 会在每次提交前扫描新增内容，命中后拒绝提交并提示改用 `.tool-cache/`（已被忽略）。
+
+首次克隆后需启用一次：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+App ID、Team ID、构建编号等元数据不属于隐私，可正常记录。
