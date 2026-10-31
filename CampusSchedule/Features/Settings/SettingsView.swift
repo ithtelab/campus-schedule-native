@@ -37,7 +37,7 @@ struct SettingsView: View {
                 Section {
                     Toggle("课程实时活动", isOn: $settings.liveEnabled).tint(DesignSystem.switchTint)
                 } header: { Text("锁屏与灵动岛") }
-                footer: { Text("在锁屏与灵动岛查看课程安排，也可以结束本次活动。") }
+                footer: { Text("在锁屏与灵动岛查看课程安排。") }
                 Section("组件") {
                     Text("在桌面或锁屏编辑模式中搜索“课表”，添加当前与下一节课组件。")
                 }

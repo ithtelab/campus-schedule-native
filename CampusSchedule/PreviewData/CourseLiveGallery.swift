@@ -28,10 +28,8 @@ struct CourseLiveGallery: View {
         }
     }
     private func card(title: String, room: String) -> some View {
-        HStack(spacing: 0) {
-            CourseLiveCard(title: title, room: room, start: start, end: end, nextRoom: "A楼 302")
-            Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 32, height: 44).padding(.trailing, 6)
-        }.background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 24)).environment(\.colorScheme, .dark)
+        CourseLiveCard(title: title, room: room, start: start, end: end, nextRoom: "A楼 302")
+            .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 24)).environment(\.colorScheme, .dark)
     }
     @MainActor private func verifyLayout() async {
         var results: [String] = []

@@ -36,14 +36,8 @@ struct TimetableWidget: Widget {
 struct CourseLiveWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CourseActivityAttributes.self) { context in
-            HStack(spacing: 0) {
-                CourseLiveCard(title: context.attributes.title, room: context.attributes.room,
-                    start: context.attributes.start, end: context.state.end, nextRoom: context.state.nextRoom, stale: context.isStale)
-                Button(intent: EndCourseIntent(id: context.attributes.occurrenceID)) {
-                    Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 32, height: 44)
-                }
-                .buttonStyle(.plain).accessibilityLabel("结束本次实时活动").padding(.trailing, 6)
-            }
+            CourseLiveCard(title: context.attributes.title, room: context.attributes.room,
+                start: context.attributes.start, end: context.state.end, nextRoom: context.state.nextRoom, stale: context.isStale)
             .environment(\.colorScheme, .dark)
             .activityBackgroundTint(Color(white: 0.07))
             .activitySystemActionForegroundColor(.white)
@@ -51,10 +45,6 @@ struct CourseLiveWidget: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Text(context.isStale ? "已结束" : "课程安排").font(.caption).foregroundStyle(.secondary)
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    Button(intent: EndCourseIntent(id: context.attributes.occurrenceID)) { Image(systemName: "xmark") }
-                        .buttonStyle(.plain).accessibilityLabel("结束本次实时活动")
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     CourseIslandExpanded(title: context.attributes.title, room: context.attributes.room,
