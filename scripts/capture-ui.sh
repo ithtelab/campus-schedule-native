@@ -153,3 +153,7 @@ if grep -q '^PASS' screenshots/activity-start-test.txt; then
   sleep 3
   cp "$data_path/Documents/activity-smoke.txt" screenshots/activity-end-audit.txt
 fi
+SIMCTL_CHILD_CAMPUS_SMOKE_TEST=live-intent xcrun simctl launch --terminate-running-process booted "$bundle_id"
+sleep 3
+cp "$data_path/Documents/activity-smoke.txt" screenshots/activity-end-intent-test.txt
+if grep -q '^FAIL' screenshots/activity-end-intent-test.txt; then exit 1; fi

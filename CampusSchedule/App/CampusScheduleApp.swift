@@ -59,12 +59,13 @@ struct RootView: View {
         }
         .task {
             if store.isPreview, ProcessInfo.processInfo.environment["CAMPUS_TOSS_SMOKE"] == "1", let first = store.todayCourses.first {
-                let before = try? JSONEncoder().encode(store.courses)
+                let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+                let before = try? encoder.encode(store.courses)
                 let occurrences = store.occurrences
                 let reaction = CourseTossReaction()
                 let accepted = reaction.accept([CourseTossReaction.payload(first)], courses: store.todayCourses)
                 let rejected = !reaction.accept(["foreign-payload"], courses: store.todayCourses)
-                let after = try? JSONEncoder().encode(store.courses)
+                let after = try? encoder.encode(store.courses)
                 let passed = accepted && rejected && reaction.count == 1 && reaction.title == first.title && before != nil && before == after && occurrences == store.occurrences
                 try? (passed ? "PASS: toss reaction accepts known course, rejects foreign payload, preserves complete course and reminder instances" : "FAIL: toss mutated course data")
                     .write(to: URL.documentsDirectory.appendingPathComponent("course-toss-smoke.txt"), atomically: true, encoding: .utf8)
@@ -79,6 +80,16 @@ struct RootView: View {
                     let remaining = Activity<CourseActivityAttributes>.activities
                     result = remaining.isEmpty ? "REMOVED" : "STILL_PRESENT_AFTER_END"
                     for activity in remaining { await CourseLiveActivities.shared.finish(activity, suppress: false) }
+                } else if smoke == "live-intent" {
+                    do {
+                        let item = CourseOccurrence(id: "cloud-intent-smoke", courseID: "cloud-intent", title: "结束动作验证", room: "A302", start: Date().addingTimeInterval(5), end: Date().addingTimeInterval(20))
+                        try CourseLiveActivities.shared.start(item)
+                        _ = try await EndCourseIntent(id: item.id).perform()
+                        let stillActive = Activity<CourseActivityAttributes>.activities.contains { $0.attributes.occurrenceID == item.id && $0.activityState != .ended && $0.activityState != .dismissed }
+                        let defaults = UserDefaults(suiteName: SystemSnapshot.group) ?? .standard
+                        let suppressed = (defaults.stringArray(forKey: "endedOccurrences") ?? []).contains(item.id)
+                        result = !stillActive && suppressed ? "PASS: shared LiveActivityIntent ends matching activity and suppresses restart" : "FAIL: end intent did not finish or suppress"
+                    } catch { result = "UNAVAILABLE: \(error.localizedDescription)" }
                 } else {
                     do {
                         let item = CourseOccurrence(id: "cloud-live-smoke", courseID: "cloud-test", title: "云端课程验证", room: "A302",
