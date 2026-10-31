@@ -2,7 +2,9 @@
 
 2026-10-31 状态变更：4.1 已被提前标记为 EXPIRED，当前不可安装。Apple 返回失效时间为北京时间 03:13:44，包处理仍为 VALID，原 Beta 审核记录已不可查询。用户确认未操作停止测试；现有发布脚本未执行 expired=true，触发来源未能从 Apple API 确定，不归因于用户或审核拒绝。尝试 expired=false 被 Apple 409 拒绝（不允许恢复已失效构建），将重新上传替代构建。下文首次发布成功状态为历史记录。
 
-替代版本 `0.1.0 (5.1)` 已由 [上传任务 41164506639](https://github.com/ithtelab/campus-schedule-native/actions/runs/41164506639) 成功签名上传，源码 `8a86b48`，当前 Apple PROCESSING。一次性检查脚本正在等待该 build 处理为 VALID 且未失效，之后按顺序恢复本人内部测试、关联同一外测组、重新提交 Beta 审核并保留原公开链接。尚不能称 5.1 可安装或外测审核通过。
+替代版本 `0.1.0 (5.1)` 已由 [上传任务 41164506639](https://github.com/ithtelab/campus-schedule-native/actions/runs/41164506639) 成功签名上传，源码 `8a86b48`。Apple 最终确认 VALID、expired=false、内部状态 IN_BETA_TESTING，正常到期日为北京时间 2027-01-29 11:31:13。已重新关联本人内部测试组，可通过现有内测资格更新。构建 ID 为 `679a3052-bd18-4b15-9aa6-cb9745ef4ec1`。
+
+同一公开外测组已关联 5.1，原链接仍启用、限额 100 人。但 Beta 提审连续返回 Apple 422 `ENTITY_UNPROCESSABLE: Please try again later.`，间隔后重试仍未受理；5.1 外部状态为 READY_FOR_BETA_SUBMISSION，审核记录为空。不得称已重新排队或外部用户可安装。此问题不影响已恢复的本人内部测试。
 
 此次补充 `expired` / `expirationDate` 状态输出和 `audit-build` 只读诊断；测试分配、外测提审及处理检查现同时排除 expired=true，防止将处理结果 VALID 误认为可测试。
 
