@@ -1,5 +1,17 @@
 # TestFlight 真机测试
 
+## 最新可用内部版本：0.1.0（6.1）
+
+2026-10-31，按用户要求上传本轮修复后的演示版。源码 `b5c56b89885d619d96fbd7d57bda12731a699f3b`，签名上传任务 [41169998165](https://github.com/ithtelab/campus-schedule-native/actions/runs/41169998165) 成功，主应用与组件的描述文件、共享组、包内元数据和代码签名检查通过，实际返回 `ARCHIVE SUCCEEDED`、`Upload succeeded`、`EXPORT SUCCEEDED`。
+
+Apple 已读回确认：build `6.1`，构建 ID `b57b164c-cbb6-45b2-befa-9ced382ba235`，处理 `VALID`，`expired=false`，内部状态 `IN_BETA_TESTING`。已关联“本人真机测试”组，账号持有人已有测试资格；组内 `INSTALLED` 是测试者既有状态，不代表已安装本次 6.1。有效期至北京时间 2027-01-29 12:51:22。
+
+手机 TestFlight → 校园课表 → 更新，核对 `0.1.0 (6.1)`。本轮仅本人内部测试，未提交新的外测审核。内测说明来自 [6.1 测试说明](TestFlight-6.1-测试说明.md)，准确描述演示会话、切周、纸篓和未完成的后台自动结束。上传凭证位于 `.tool-cache/preview/testflight-6-1/build/testflight-upload.json`，处理及内部测试资格凭证位于 `.tool-cache/apple/testflight-ready.json`。
+
+下文 4.1、5.1 及外测排查为历史记录，不能据其判断当前 6.1 是否可安装。4.1 由用户手动设为过期；6.1 当前未过期。
+
+## 之前的发布记录
+
 用户后续确认：4.1 是本人手动设为过期，原因已明确；此前“触发来源不明”的调查记录仅保留历史上下文。当前用户暂停外测排查，先修首轮真机反馈，见《首轮真机反馈修复》。
 
 2026-10-31 状态变更：4.1 已被提前标记为 EXPIRED，当前不可安装。Apple 返回失效时间为北京时间 03:13:44，包处理仍为 VALID，原 Beta 审核记录已不可查询。用户确认未操作停止测试；现有发布脚本未执行 expired=true，触发来源未能从 Apple API 确定，不归因于用户或审核拒绝。尝试 expired=false 被 Apple 409 拒绝（不允许恢复已失效构建），将重新上传替代构建。下文首次发布成功状态为历史记录。

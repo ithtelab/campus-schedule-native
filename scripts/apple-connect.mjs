@@ -222,10 +222,12 @@ async function enableInternal(buildNumber) {
   }
   const notes = (await api(`/v1/builds/${build.id}/betaBuildLocalizations`)).data;
   const note = notes.find(item => item.attributes.locale === 'zh-Hans');
-  const whatsNew = '请测试：手动添加课程、本地保存、深浅色、课表联动人物、上下课提醒、桌面与锁屏组件。学校导入未实现；灵动岛完整后台自动结束和多节自动衔接尚待完善。初次启动为空课表。';
+  const notesFile = process.env.CAMPUS_BETA_NOTES_FILE;
+  const whatsNew = notesFile ? readFileSync(resolve(root, notesFile), 'utf8').trim() : '请测试：手动添加课程、本地保存、深浅色、课表联动人物、上下课提醒、桌面与锁屏组件。学校导入未实现；灵动岛完整后台自动结束和多节自动衔接尚待完善。初次启动为空课表。';
+  if (!whatsNew || whatsNew.length > 4000) throw new Error('Build testing notes must contain 1–4000 characters');
   if (!note) {
     await api('/v1/betaBuildLocalizations', { method: 'POST', data: { type: 'betaBuildLocalizations', attributes: { locale: 'zh-Hans', whatsNew }, relationships: { build: { data: { type: 'builds', id: build.id } } } } });
-  } else if (!note.attributes.whatsNew?.trim()) {
+  } else if (!note.attributes.whatsNew?.trim() || (notesFile && note.attributes.whatsNew !== whatsNew)) {
     await api(`/v1/betaBuildLocalizations/${note.id}`, { method: 'PATCH', data: { type: 'betaBuildLocalizations', id: note.id, attributes: { whatsNew } } });
   }
   const assigned = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
