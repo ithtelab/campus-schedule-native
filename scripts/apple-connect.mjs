@@ -54,7 +54,10 @@ function saveConfig() {
   writeFileSync(configFile, JSON.stringify(localConfig, null, 2) + '\n', { mode: 0o600 });
 }
 async function findBundle(identifier) {
-  return (await api('/v1/bundleIds', { query: { 'filter[identifier]': identifier } })).data[0];
+  // filter[identifier] is a prefix match, so "com.example.app" also returns
+  // "com.example.app.widgets". Select the exact identifier only.
+  const rows = (await api('/v1/bundleIds', { query: { 'filter[identifier]': identifier, limit: '200' } })).data;
+  return rows.find(item => item.attributes.identifier === identifier);
 }
 async function findApp() {
   return (await api('/v1/apps', { query: { 'filter[bundleId]': bundle, limit: '1' } })).data[0];
@@ -71,6 +74,30 @@ async function setup() {
   }
   saveConfig();
   console.log(`Website setup required: associate ${app.extra.nativeAppGroup} with BOTH identifiers, and create the App Store Connect app record for ${bundle}.`);
+}
+async function tidyIdentifiers() {
+  const retired = 'com.ithtelab.campusschedule';
+  if (bundle !== 'com.ithtelab.campustimetable') throw new Error('Unexpected active bundle; refuse identifier cleanup');
+  const report = { active: [], retired: [] };
+  for (const [identifier, name] of [[bundle, 'KeJianCe App'], [bundle + '.widgets', 'KeJianCe Widgets']]) {
+    const record = need(await findBundle(identifier), 'registered active identifier');
+    await api(`/v1/bundleIds/${record.id}`, { method: 'PATCH', data: { type: 'bundleIds', id: record.id, attributes: { name } } });
+    report.active.push({ identifier, name });
+  }
+  for (const [identifier, archivedName] of [[retired, 'Retired CampusSchedule App'], [retired + '.widgets', 'Retired CampusSchedule Widgets']]) {
+    const record = await findBundle(identifier);
+    if (!record) { report.retired.push({ identifier, removed: true, wasAbsent: true }); continue; }
+    try {
+      await api(`/v1/bundleIds/${record.id}`, { method: 'DELETE' });
+      report.retired.push({ identifier, removed: !(await findBundle(identifier)) });
+    } catch (error) {
+      report.retired.push({ identifier, removed: false, status: error.httpStatus, reason: error.message });
+      // A used identifier may be retained by Apple. Label it clearly rather than claiming it was deleted.
+      await api(`/v1/bundleIds/${record.id}`, { method: 'PATCH', data: { type: 'bundleIds', id: record.id, attributes: { name: archivedName } } });
+    }
+  }
+  writeFileSync(resolve(local, 'identifier-cleanup.json'), JSON.stringify(report, null, 2), { mode: 0o600 });
+  console.log(JSON.stringify(report, null, 2));
 }
 async function certificate() {
   mkdirSync(local, { recursive: true });
@@ -118,6 +145,26 @@ function secrets() {
     console.log(`Stored GitHub secret ${name}`);
   }
 }
+// The CMS payload embeds an unsigned XML plist. Read the two values we must verify
+// without pulling in a PKCS#7 dependency.
+function profileEntitlements(content) {
+  const start = content.indexOf('<?xml');
+  const end = content.indexOf('</plist>');
+  if (start < 0 || end < 0) throw new Error('Decoded profile has no plist payload');
+  const plist = content.subarray(start, end + '</plist>'.length).toString('utf8');
+  const valueAfter = (key, pattern) => {
+    const index = plist.indexOf(`<key>${key}</key>`);
+    if (index < 0) return null;
+    const match = pattern.exec(plist.slice(index));
+    return match ? match[1] : null;
+  };
+  const groupBlock = valueAfter('com.apple.security.application-groups', /<array>([\s\S]*?)<\/array>/);
+  return {
+    applicationIdentifier: valueAfter('application-identifier', /<string>([^<]*)<\/string>/),
+    applicationGroups: groupBlock ? [...groupBlock.matchAll(/<string>([^<]*)<\/string>/g)].map(item => item[1]) : [],
+    getTaskAllow: /<key>get-task-allow<\/key>\s*<true\/>/.test(plist),
+  };
+}
 async function profiles() {
   const appRecord = await findApp();
   if (!appRecord) throw new Error(`Create the App Store Connect app record for ${bundle} before uploading`);
@@ -127,14 +174,21 @@ async function profiles() {
   const manifest = { appID: appRecord.id, teamID: metadata.teamID, appGroup: app.extra.nativeAppGroup, profiles: [] };
   for (const [identifier, target] of [[bundle, 'app'], [bundle + '.widgets', 'widget']]) {
     const record = await findBundle(identifier);
-    if (!record) throw new Error(`Unregistered bundle ID ${identifier}`);
+    if (!record || record.attributes.identifier !== identifier) throw new Error(`Unregistered bundle ID ${identifier}`);
     const profile = (await api('/v1/profiles', { method: 'POST', data: {
       type: 'profiles', attributes: { name: `CampusSchedule-${target}-${process.env.GITHUB_RUN_ID ?? Date.now()}-${process.env.GITHUB_RUN_ATTEMPT ?? 1}`, profileType: 'IOS_APP_STORE' },
       relationships: { bundleId: { data: { type: 'bundleIds', id: record.id } }, certificates: { data: [{ type: 'certificates', id: need(metadata.certificateID, 'certificate ID') }] } },
     } })).data;
-    writeFileSync(resolve(output, `${target}.mobileprovision`), Buffer.from(profile.attributes.profileContent, 'base64'), { mode: 0o600 });
-    manifest.profiles.push({ target, identifier, uuid: profile.attributes.uuid });
-    console.log(`Created App Store profile for ${identifier}`);
+    const content = Buffer.from(profile.attributes.profileContent, 'base64');
+    writeFileSync(resolve(output, `${target}.mobileprovision`), content, { mode: 0o600 });
+    const entitlements = profileEntitlements(content);
+    if (!entitlements.applicationIdentifier?.endsWith('.' + identifier)) throw new Error(`${identifier}: profile entitles ${entitlements.applicationIdentifier}; regenerate from the exact bundle ID`);
+    if (entitlements.getTaskAllow) throw new Error(`${identifier}: profile allows development signing`);
+    if (!entitlements.applicationGroups.includes(app.extra.nativeAppGroup)) {
+      throw new Error(`${identifier}: shared group ${app.extra.nativeAppGroup} is NOT associated. On developer.apple.com open this App ID, App Groups → Configure, tick the group, then Save. Observed groups: ${JSON.stringify(entitlements.applicationGroups)}`);
+    }
+    manifest.profiles.push({ target, identifier, uuid: profile.attributes.uuid, applicationGroups: entitlements.applicationGroups });
+    console.log(`Created App Store profile for ${identifier} (${app.extra.nativeAppGroup} verified)`);
   }
   writeFileSync(resolve(output, 'manifest.json'), JSON.stringify(manifest, null, 2));
 }
@@ -142,6 +196,7 @@ async function status() {
   const record = await findApp();
   if (!record) { console.log(`APP_RECORD_MISSING: ${bundle}`); return; }
   console.log(`App Store Connect: https://appstoreconnect.apple.com/apps/${record.id}/testflight/ios`);
+  console.log(JSON.stringify({ appID: record.id, name: record.attributes.name, bundleID: record.attributes.bundleId, sku: record.attributes.sku, primaryLocale: record.attributes.primaryLocale }));
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, sort: '-uploadedDate', limit: '5' } })).data;
   console.log(JSON.stringify(builds.map(item => ({ id: item.id, build: item.attributes.version, processing: item.attributes.processingState, uploaded: item.attributes.uploadedDate, expirationDate: item.attributes.expirationDate, expired: item.attributes.expired })), null, 2));
 }
@@ -460,6 +515,7 @@ try {
   switch (process.argv[2]) {
     case 'check-key': await api('/v1/bundleIds', { query: { limit: '1' } }); console.log('Apple team API key authenticated'); break;
     case 'setup': await setup(); break;
+    case 'tidy-identifiers': await tidyIdentifiers(); break;
     case 'certificate': await certificate(); break;
     case 'secrets': secrets(); break;
     case 'profiles': await profiles(); break;
@@ -480,7 +536,7 @@ try {
     case 'submit-external': await submitExternal(process.argv[3]); break;
     case 'external-link': await enableExternalLink(process.argv[3]); break;
     case 'reset-external-assignment': await resetExternalAssignment(process.argv[3]); break;
-    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, retirement-plan APP_ID, retire-app APP_ID, audit-build BUILD, diagnose-install BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
+    default: throw new Error('Use check-key, setup, tidy-identifiers, certificate, secrets, profiles, status, retirement-plan APP_ID, retire-app APP_ID, audit-build BUILD, diagnose-install BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
   }
 } catch (error) {
   // Do not print subprocess buffers, request headers, tokens or private key content.

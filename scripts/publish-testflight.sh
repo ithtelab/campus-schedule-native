@@ -71,6 +71,7 @@ for bundle, identifier in [(app, config['ios']['bundleIdentifier']), (app / 'Plu
     for key in ['CFBundleDisplayName', 'CFBundleIdentifier', 'CFBundleVersion', 'CFBundleShortVersionString']:
         assert info.get(key), 'Missing packaged ' + key + ' in ' + bundle.name
     assert info['CFBundleIdentifier'] == identifier, 'Wrong packaged identifier'
+    assert info['CFBundleDisplayName'] == (config['name'] if bundle == app else config['name'] + '组件'), 'Packaged display name must match the confirmed product name'
     assert info['CFBundleVersion'] == os.environ['CAMPUS_PUBLISHED_BUILD'], 'App and extension build numbers must match'
     assert info['CFBundleShortVersionString'] == config['version'], 'Wrong marketing version'
     assert info['CampusAppGroup'] == config['extra']['nativeAppGroup'], 'Unexpanded shared group build setting'

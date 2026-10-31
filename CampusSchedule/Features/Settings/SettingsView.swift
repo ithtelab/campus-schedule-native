@@ -39,7 +39,7 @@ struct SettingsView: View {
                 } header: { Text("锁屏与灵动岛") }
                 footer: { Text("在锁屏与灵动岛查看课程安排。") }
                 Section("组件") {
-                    Text("在桌面或锁屏编辑模式中搜索“课表”，添加当前与下一节课组件。")
+                    Text("在桌面或锁屏编辑模式中搜索“课间册”，添加当前与下一节课组件。")
                 }
                 if let message = store.errorMessage {
                     Section("需要处理") { Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.primary) }

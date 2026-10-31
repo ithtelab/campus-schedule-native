@@ -76,7 +76,7 @@ for (const mode of ['Debug', 'Release']) {
     GENERATE_INFOPLIST_FILE = YES;
     INFOPLIST_FILE = CampusSchedule-Info.plist;
     CODE_SIGN_ENTITLEMENTS = CampusSchedule.entitlements;
-    INFOPLIST_KEY_CFBundleDisplayName = "课表";
+    INFOPLIST_KEY_CFBundleDisplayName = ${quote(config.name)};
     INFOPLIST_KEY_UILaunchScreen_Generation = YES;
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
     INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
