@@ -1,7 +1,7 @@
 import Foundation
 
 /// 一门被解析出来的课程，尚未绑定到具体学期。
-public struct ParsedCourse: Equatable, Sendable {
+public struct ParsedCourse: Equatable, Hashable, Sendable {
     public var title: String
     public var teacher: String
     public var room: String
