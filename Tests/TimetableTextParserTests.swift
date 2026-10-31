@@ -197,8 +197,12 @@ struct TimetableTextParserTests {
         """
         let outcome = TimetableTextParser.parseLines(text)
         #expect(outcome.courses.count == 2)
-        #expect(outcome.courses[0].weekday == 0)
-        #expect(outcome.courses[1].weekday == 2)
+        let math = outcome.courses.first { $0.title == "高等数学" }
+        #expect(math?.weekday == 0)
+        #expect(math?.startPeriod == 1)
+        let algebra = outcome.courses.first { $0.title == "线性代数" }
+        #expect(algebra?.weekday == 2)
+        #expect(algebra?.startPeriod == 3)
     }
 
     @Test func ignoresLinesWithoutWeekdayOrPeriod() {

@@ -90,6 +90,7 @@ public enum TimetableTextParser {
         let body = normalized
             .replacingOccurrences(of: "第", with: "")
             .replacingOccurrences(of: "周", with: "")
+        let upperBound = min(max(totalWeeks, 1), 53)
         var result: Set<Int> = []
         // 单双周标记作用于整段，例如「1-16单」或「(单)」。
         let isOddOnly = body.contains("单")
@@ -104,7 +105,8 @@ public enum TimetableTextParser {
             let piece = String(segment)
             guard !piece.isEmpty else { continue }
             if let range = parseRange(piece) {
-                for week in range where week >= 1 && week <= max(totalWeeks, 53) {
+                // 严格限制在学期范围内，越界周次丢弃而不是保留。
+                for week in range where week >= 1 && week <= upperBound {
                     if isOddOnly && week % 2 == 0 { continue }
                     if isEvenOnly && week % 2 == 1 { continue }
                     result.insert(week)
@@ -301,14 +303,13 @@ public enum TimetableTextParser {
             let line = String(rawLine).trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty else { continue }
             guard let day = parseWeekday(line), let period = parsePeriods(line) else { continue }
-            // 去掉星期与节次片段，剩下的作为课程描述。
+            // 先整段去掉节次写法，再移除星期名，避免「第1-2节」被拆散后残留数字。
             var remainder = line
-            for (marker, _) in weekdayMarkers { remainder = remainder.replacingOccurrences(of: marker, with: " ") }
-            remainder = remainder
-                .replacingOccurrences(of: "第", with: " ")
-                .replacingOccurrences(of: "节", with: " ")
-            if let periodText = extractPeriodText(line) {
-                remainder = remainder.replacingOccurrences(of: periodText, with: " ")
+            if let periodRange = line.range(of: "第?[0-9]{1,2}(-[0-9]{1,2})?节", options: .regularExpression) {
+                remainder.replaceSubrange(periodRange, with: " ")
+            }
+            for (marker, _) in weekdayMarkers {
+                remainder = remainder.replacingOccurrences(of: marker, with: " ")
             }
             guard let course = parseCourseCell(remainder, totalWeeks: totalWeeks) else {
                 skipped += 1; continue
@@ -327,11 +328,5 @@ public enum TimetableTextParser {
         var warnings: [String] = []
         if skipped > 0 { warnings.append("有 \(skipped) 行无法识别，已跳过。") }
         return ParseOutcome(courses: deduplicate(courses), warnings: warnings)
-    }
-
-    private static func extractPeriodText(_ line: String) -> String? {
-        let pattern = "第?[0-9]{1,2}(-[0-9]{1,2})?节"
-        guard let range = line.range(of: pattern, options: .regularExpression) else { return nil }
-        return String(line[range])
     }
 }
