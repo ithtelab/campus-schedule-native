@@ -195,32 +195,36 @@ struct TodayView: View {
     /// 列表收尾：三种状态各自说明今天的情况，并附本周与本月统计。
     ///
     /// 居中排版，不带图标与手写字，避免看起来像可点的入口。
-    private var closingNote: some View {
+    @ViewBuilder private var closingNote: some View {
         let summary = ScheduleSummary.make(occurrences: store.occurrences, now: store.now,
                                            semesterStart: store.semesterStart)
         let state = ClosingState(daily: daily, remaining: summary.todayRemaining,
-                                 completed: summary.todayCompleted, now: store.now)
-        return VStack(spacing: 14) {
-            VStack(spacing: 5) {
-                Text(state.title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Text(state.detail)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
+                                 completed: summary.todayCompleted)
+        // 没有课时中间已有空状态说明，底部再写一次就是重复文案。
+        if !(daily.isEmpty && summary.weekSessions == 0 && summary.monthSessions == 0) {
+            VStack(spacing: 14) {
+                VStack(spacing: 5) {
+                    Text(state.title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Text(state.detail)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
 
-            if summary.weekSessions > 0 || summary.monthSessions > 0 {
-                statsRow(summary)
-                    .frame(maxWidth: .infinity)
+                if summary.weekSessions > 0 || summary.monthSessions > 0 {
+                    statsRow(summary)
+                        .frame(maxWidth: .infinity)
+                }
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+            .accessibilityElement(children: .combine)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 8)
-        .accessibilityElement(children: .combine)
     }
+
 
     private func statsRow(_ summary: ScheduleSummary) -> some View {
         HStack(spacing: 0) {
@@ -252,7 +256,7 @@ struct TodayView: View {
         let title: String
         let detail: String
 
-        init(daily: [DemoCourse], remaining: Int, completed: Int, now: Date) {
+        init(daily: [DemoCourse], remaining: Int, completed: Int) {
             if daily.isEmpty {
                 title = "今天没有课"
                 detail = "从添加第一门课开始，或到设置里导入课表。"
