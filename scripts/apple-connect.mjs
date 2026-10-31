@@ -153,6 +153,47 @@ async function auditBuild(buildNumber) {
   catch (error) { if (error.httpStatus !== 404) throw error; }
   console.log(JSON.stringify({ id: build.id, ...build.attributes, beta: detail.attributes, review: review?.attributes ?? null }, null, 2));
 }
+async function diagnoseInstall(buildNumber) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
+  const build = need(builds.find(item => item.attributes.version === buildNumber), 'matching build');
+  const optional = async (path, summarize) => {
+    try { return { querySucceeded: true, ...summarize((await api(path)).data) }; }
+    catch (error) { return { querySucceeded: false, httpStatus: error.httpStatus ?? null, error: error.message }; }
+  };
+  const [detail, owners, groups, license, availability, bundles] = await Promise.all([
+    api(`/v1/builds/${build.id}/buildBetaDetail`),
+    api('/v1/users', { query: { 'filter[roles]': 'ACCOUNT_HOLDER', limit: '2' } }),
+    api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } }),
+    optional(`/v1/apps/${record.id}/betaLicenseAgreement`, data => ({ resourceExists: Boolean(data), agreementTextPresent: Boolean(data?.attributes.agreementText?.trim()) })),
+    optional(`/v1/apps/${record.id}/appAvailabilityV2`, data => ({ resourceExists: Boolean(data), attributes: data?.attributes ?? null })),
+    optional(`/v1/builds/${build.id}/buildBundles`, data => ({ bundles: data.map(item => ({ id: item.id, ...item.attributes })) })),
+  ]);
+  const owner = owners.data.length === 1 ? owners.data[0] : null;
+  const internalGroups = await Promise.all(groups.data.filter(item => item.attributes.isInternalGroup).map(async group => {
+    const [testersResult, assigned] = await Promise.all([
+      api(`/v1/betaGroups/${group.id}/betaTesters`, { query: { limit: '200' } }),
+      api(`/v1/betaGroups/${group.id}/builds`, { query: { limit: '200' } }),
+    ]);
+    const testers = testersResult.data;
+    const tester = owner && testers.find(item => item.attributes.email?.toLowerCase() === owner.attributes.username.toLowerCase());
+    const apps = tester ? await optional(`/v1/betaTesters/${tester.id}/apps`, data => ({ hasApp: data.some(item => item.id === record.id) })) : null;
+    return { name: group.attributes.name, buildAssigned: assigned.data.some(item => item.id === build.id), ownerAssigned: Boolean(tester),
+      tester: tester ? { email: maskedEmail(tester.attributes.email), state: tester.attributes.state, inviteType: tester.attributes.inviteType, apps } : null };
+  }));
+  const report = {
+    observedAt: new Date().toISOString(), appID: record.id, bundleID: bundle, buildID: build.id,
+    build: build.attributes.version, processingState: build.attributes.processingState, expired: build.attributes.expired,
+    uploadedDate: build.attributes.uploadedDate, expirationDate: build.attributes.expirationDate,
+    minimumOS: build.attributes.minOsVersion, usesNonExemptEncryption: build.attributes.usesNonExemptEncryption,
+    beta: detail.data.attributes, owner: owner ? { roles: owner.attributes.roles, allAppsVisible: owner.attributes.allAppsVisible } : null,
+    internalGroups, betaLicense: license, appAvailability: availability, buildBundles: bundles,
+    limitation: 'Read-only API eligibility evidence does not prove device download availability. Agreement text presence does not establish account contract validation.',
+  };
+  mkdirSync(local, { recursive: true });
+  writeFileSync(resolve(local, `install-diagnostic-${buildNumber}.json`), JSON.stringify(report, null, 2), { mode: 0o600 });
+  console.log(JSON.stringify(report, null, 2));
+}
 async function resumeBuild(buildNumber) {
   const record = need(await findApp(), 'App Store Connect app');
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
@@ -250,7 +291,7 @@ async function watchInternal(buildNumber) {
     const build = builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID' && !item.attributes.expired);
     if (build) {
       await enableInternal(buildNumber);
-      writeFileSync(resolve(local, 'testflight-ready.json'), JSON.stringify({ appID: record.id, buildID: build.id, build: buildNumber, verifiedAt: new Date().toISOString(), status: 'INTERNAL_ACCESS_CONFIGURED' }, null, 2));
+      writeFileSync(resolve(local, 'testflight-ready.json'), JSON.stringify({ appID: record.id, buildID: build.id, build: buildNumber, verifiedAt: new Date().toISOString(), status: 'INTERNAL_ACCESS_CONFIGURED', deviceInstallation: 'UNVERIFIED' }, null, 2));
       return;
     }
     await new Promise(done => setTimeout(done, 20000));
@@ -357,6 +398,7 @@ try {
     case 'profiles': await profiles(); break;
     case 'status': await status(); break;
     case 'audit-build': await auditBuild(process.argv[3]); break;
+    case 'diagnose-install': await diagnoseInstall(process.argv[3]); break;
     case 'resume-build': await resumeBuild(process.argv[3]); break;
     case 'diagnose-review': await diagnoseReview(); break;
     case 'internal-status': await internalStatus(); break;
@@ -369,7 +411,7 @@ try {
     case 'submit-external': await submitExternal(process.argv[3]); break;
     case 'external-link': await enableExternalLink(process.argv[3]); break;
     case 'reset-external-assignment': await resetExternalAssignment(process.argv[3]); break;
-    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, audit-build BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
+    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, audit-build BUILD, diagnose-install BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
   }
 } catch (error) {
   // Do not print subprocess buffers, request headers, tokens or private key content.

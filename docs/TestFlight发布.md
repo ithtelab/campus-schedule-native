@@ -1,6 +1,8 @@
 # TestFlight 真机测试
 
-## 最新可用内部版本：0.1.0（6.1）
+## 最新上传内部版本：0.1.0（6.1），实际安装失败待排查
+
+用户随后提供 iPhone 截图：6.1 可见、有安装按钮，但点击提示“所请求的 App 不可用或者不存在”，切换网络仍失败。只读检查确认版本未过期、组内构建和本人权限均存在；不能再把 API 的 IN_BETA_TESTING 写成“已可实际安装”。当前根因未确定，记录及可提交 Apple 的材料见 [6.1 安装故障](TestFlight-6.1-安装故障.md)。
 
 2026-10-31，按用户要求上传本轮修复后的演示版。源码 `b5c56b89885d619d96fbd7d57bda12731a699f3b`，签名上传任务 [41169998165](https://github.com/ithtelab/campus-schedule-native/actions/runs/41169998165) 成功，主应用与组件的描述文件、共享组、包内元数据和代码签名检查通过，实际返回 `ARCHIVE SUCCEEDED`、`Upload succeeded`、`EXPORT SUCCEEDED`。
 
