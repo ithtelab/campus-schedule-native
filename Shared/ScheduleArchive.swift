@@ -263,7 +263,7 @@ public extension ScheduleArchive {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         encoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
-            try container.encode(iso8601.string(from: date))
+            try container.encode(iso8601Formatter(fractional: true).string(from: date))
         }
         return encoder
     }
@@ -273,24 +273,21 @@ public extension ScheduleArchive {
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let text = try container.decode(String.self)
-            if let date = iso8601.date(from: text) { return date }
-            if let date = iso8601NoFraction.date(from: text) { return date }
+            if let date = iso8601Formatter(fractional: true).date(from: text) { return date }
+            if let date = iso8601Formatter(fractional: false).date(from: text) { return date }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "无法解析时间 \(text)")
         }
         return decoder
     }
 
-    static let iso8601: ISO8601DateFormatter = {
+    /// ISO8601DateFormatter 不是 Sendable，不能在并发域共享实例，因此按需构造。
+    static func iso8601Formatter(fractional: Bool) -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.formatOptions = fractional
+            ? [.withInternetDateTime, .withFractionalSeconds]
+            : [.withInternetDateTime]
         return formatter
-    }()
-
-    static let iso8601NoFraction: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
+    }
 
     func encoded() throws -> Data { try Self.encoder().encode(self) }
 
