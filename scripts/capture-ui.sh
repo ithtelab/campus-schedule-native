@@ -89,13 +89,12 @@ xcrun simctl io booted screenshot screenshots/week-long-text.png
 data_path=$(xcrun simctl get_app_container booted "$bundle_id" data)
 cp "$data_path/Documents/campus-assets-smoke.txt" screenshots/campus-assets-test.txt
 grep -q '^PASS' screenshots/campus-assets-test.txt
+# 课程卡片不再吸顶，改为验证长列表滚动到底部的排版。
 for appearance in light dark; do
   xcrun simctl ui booted appearance "$appearance"
   SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=dense SIMCTL_CHILD_CAMPUS_PREVIEW_SCROLL=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
   sleep 3
-  grep -q '^PASS' "$data_path/Documents/today-sticky-smoke.txt"
-  cp "$data_path/Documents/today-sticky-smoke.txt" "screenshots/today-sticky-${appearance}-test.txt"
-  xcrun simctl io booted screenshot "screenshots/today-sticky-${appearance}.png"
+  xcrun simctl io booted screenshot "screenshots/today-scrolled-${appearance}.png"
 done
 xcrun simctl ui booted appearance light
 SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=focus-long xcrun simctl launch --terminate-running-process booted "$bundle_id"

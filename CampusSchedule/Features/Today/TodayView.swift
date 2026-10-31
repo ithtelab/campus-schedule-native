@@ -10,7 +10,6 @@ struct TodayView: View {
     @ScaledMetric(relativeTo: .body) private var timeColumn: CGFloat = 72
     @State private var selectedCourse: DemoCourse?
     @State private var showingEditor = false
-    @State private var pinnedY: CGFloat = .infinity
     @State private var character = CampusCharacterPlayer(style: .girl)
     @State private var detailCharacter: CampusCharacterPlayer?
     @State private var courseFeedback = 0
@@ -26,36 +25,28 @@ struct TodayView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    // 课程卡片随页面滚动，不再吸顶：吸顶后在长列表里挡住内容，而且
+                    // 卡片本身足够大，滚动时一直压在顶部会显得拥挤。
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         introduction.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 12)
-                        Section {
-                            agenda.padding(.horizontal, 20).padding(.top, 18)
-                            closingNote.padding(20)
-                            Color.clear.frame(height: 20).id("agenda-end")
-                        } header: {
-                            if let next {
-                                focusCard(next)
-                                    .padding(.horizontal, 20).padding(.vertical, 8)
-                                    .frame(maxWidth: .infinity)
-                                    .background(DesignSystem.paper)
-                                    .onGeometryChange(for: CGFloat.self) { geometry in
-                                        geometry.frame(in: .named("todayScroll")).minY
-                                    } action: { value in
-                                        if store.isPreview { pinnedY = value }
-                                    }
-                            }
+                        if let next {
+                            focusCard(next)
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 4)
+                                .frame(maxWidth: .infinity)
                         }
+                        agenda.padding(.horizontal, 20).padding(.top, 18)
+                        closingNote.padding(20)
+                        Color.clear.frame(height: 20).id("agenda-end")
                     }
                     .padding(.bottom, 20)
                 }
                 .coordinateSpace(name: "todayScroll")
                 .task {
+                    // 截图流程需要看到页面底部的收尾区域。
                     guard store.isPreview, ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SCROLL"] == "1" else { return }
                     try? await Task.sleep(for: .milliseconds(700))
                     proxy.scrollTo("agenda-end", anchor: .bottom)
-                    try? await Task.sleep(for: .milliseconds(700))
-                    let result = abs(pinnedY) <= 2 ? "PASS: course header stays pinned; y=\(pinnedY)" : "FAIL: pinned header y=\(pinnedY)"
-                    try? result.write(to: URL.documentsDirectory.appendingPathComponent("today-sticky-smoke.txt"), atomically: true, encoding: .utf8)
                 }
             }
             .background(DesignSystem.background)
