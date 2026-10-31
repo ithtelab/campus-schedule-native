@@ -1,6 +1,6 @@
 # 大学生课表 · iOS 原生工程
 
-当前状态：用户要求清理旧 Apple 应用后重建，并自行上传。旧有效构建已停用、测试组及旧描述文件已删除；旧 App 条目的移除仍需用户在苹果网页完成。新主应用 `com.ithtelab.campustimetable`、新组件 `.widgets` 已注册，工程版本为 0.1.0，新的 App Group 和 App Store Connect 条目待网页设置，尚未上传。操作说明见 [重新建立 Apple 应用](docs/重新建立Apple应用.md)。
+当前状态：用户要求清理旧 Apple 应用后重建，并自行上传。旧有效构建已停用、测试组及旧描述文件已删除，用户已在苹果网页移除旧 App 并提供空列表截图。新主应用 `com.ithtelab.campustimetable`、新组件 `.widgets` 已注册，工程版本为 0.1.0，新的 App Group 和 App Store Connect 条目待网页设置，尚未上传。操作说明见 [重新建立 Apple 应用](docs/重新建立Apple应用.md)。
 
 历史 TestFlight：6.1 安装失败，7.1 外测提交返回 Apple 422；现按用户要求，旧 App 的所有构建均已过期，旧公开链接停用。历史凭证见 [TestFlight 发布](docs/TestFlight发布.md)，不再把旧测试资格视为当前可用。界面和功能代码仍保留；本轮重建的是分发配置。
 

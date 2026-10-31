@@ -5,6 +5,7 @@
 ## 已实际完成
 
 - 旧 App `6828962951`、主标识 `com.ithtelab.campusschedule`：将剩余有效的 6.1、7.1 设为过期。4.1、5.1 此前已过期。
+- 用户随后在苹果网页直接移除旧 App，截图显示 App 列表“无 App”，旧条目移除已由用户完成；这不代表 Apple 抹掉已上传的历史或允许复用旧标识。
 - 删除旧 App 的两个测试组“本人测试”“公开外部测试”，原公开邀请链接停用。
 - 删除精确匹配旧主应用和组件标识的 18 份描述文件，读回确认旧 App 无测试组、这两个标识无描述文件、所有旧构建已过期。记录在忽略目录 `.tool-cache/apple/retirement-result-6828962951.json`。
 - 已注册新的主应用和组件 App ID，并启用 App Groups 能力。工程改用下表新标识，版本重置为 0.1.0；清除旧 Expo/EAS projectId 关联。
@@ -23,11 +24,11 @@
 
 新的 bundle ID 是独立 App，手机旧 App 的个人数据不会自动迁入。现阶段仍为隔离演示数据模式。
 
-## 需要用户在苹果网页完成
+## 苹果网页操作：旧条目已移除，新共享组与新 App 待创建
 
 当前工具可处理公开 API 支持的分发记录，无法操作用户已登录的 Apple 网页来移除或新建 App 条目。
 
-1. 打开 [旧 App](https://appstoreconnect.apple.com/apps/6828962951)，进入“通用 → App 信息”，滚动到底部“额外信息 → 移除 App”，完成移除。**App 条目本身尚未由助手删除**。苹果会保留已上传构建的历史，原 bundle ID 与 SKU 不能用于新建记录，不能承诺从服务器抹掉全部历史。[官方规则](https://developer.apple.com/help/app-store-connect/create-an-app-record/remove-an-app/)
+1. **已完成**：用户在网页移除旧 App，截图显示列表为空。苹果会保留已上传构建的历史，原 bundle ID 与 SKU 不能用于新建记录，不能承诺从服务器抹掉全部历史。[官方规则](https://developer.apple.com/help/app-store-connect/create-an-app-record/remove-an-app/)
 2. 打开 [开发者标识管理](https://developer.apple.com/account/resources/identifiers/list)，切换“App Groups”，创建 `group.com.ithtelab.campustimetable`，描述可填 CampusTimetable。切回 App IDs，分别打开新主应用与 widgets，在 App Groups 的 Configure 中勾选这个新组，Continue/Save。仅开启能力开关不等于关联完成。
 3. 打开 [App Store Connect Apps](https://appstoreconnect.apple.com/apps)，点“＋ → 新建 App”：iOS、名称暂用“校园课表”（若仍占用可暂用“校园课表新版”）、主要语言简体中文、Bundle ID 选 `com.ithtelab.campustimetable`、SKU 填 `campustimetable-ios-20261031`。不要选旧标识或复用旧 SKU。
 
