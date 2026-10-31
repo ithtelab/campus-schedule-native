@@ -194,11 +194,15 @@ struct ImportView: View {
 
     private func parsePasted() {
         let text = pastedText
-        // 先按自由文本尝试：教务系统整页复制通常是每行一节课。
-        let lineOutcome = TimetableTextParser.parseLines(text, totalWeeks: store.totalWeeks)
-        let parsed = lineOutcome.courses.isEmpty
-            ? parseAsTable(text)
-            : lineOutcome
+        // 先试分享码：结构化 JSON 比文本启发式可靠，也用不上字体与排版。
+        let parsed: ParseOutcome
+        if let share = ShareCodeParser.parse(text, totalWeeks: store.totalWeeks) {
+            parsed = share
+        } else {
+            // 再按自由文本尝试：教务系统整页复制通常是每行一节课。
+            let lineOutcome = TimetableTextParser.parseLines(text, totalWeeks: store.totalWeeks)
+            parsed = lineOutcome.courses.isEmpty ? parseAsTable(text) : lineOutcome
+        }
         guard !parsed.courses.isEmpty else {
             store.errorMessage = parsed.warnings.first ?? "没有识别到课程。"
             return
