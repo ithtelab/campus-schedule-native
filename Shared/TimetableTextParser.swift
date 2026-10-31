@@ -223,7 +223,7 @@ public enum TimetableTextParser {
             var pending: [String] = []
             var sawTitle = false
             for word in words {
-                // 教师判定只在已经出现过课程名之后才可信：
+                // 教师与房间判定只在已经出现过课程名之后才可信：
                 // 「线性代数」与「张老师」都是汉字，靠位置区分而不是靠字形。
                 let standalone = parseWeeks(word, totalWeeks: totalWeeks) != nil
                     || (sawTitle && looksLikeRoom(word))
@@ -231,9 +231,10 @@ public enum TimetableTextParser {
                 if standalone {
                     if !pending.isEmpty { tokens.append(pending.joined(separator: " ")); pending = [] }
                     tokens.append(word)
-                    sawTitle = true
                 } else {
                     pending.append(word)
+                    // 第一片词即课程名，之后才允许把后续词识别为教师或房间。
+                    sawTitle = true
                 }
             }
             if !pending.isEmpty { tokens.append(pending.joined(separator: " ")) }
