@@ -38,7 +38,9 @@ async function api(path, { method = 'GET', data, query } = {}) {
     const error = new Error(`Apple ${result.status}: ${(body.errors ?? []).map(item => `${item.code}: ${item.detail ?? item.title}`).join('; ')}`);
     error.httpStatus = result.status;
     if (path === '/v1/betaAppReviewSubmissions' && method === 'POST') {
-      const diagnostic = { timestamp: new Date().toISOString(), method, path, status: result.status, errors: body.errors };
+      const traceHeaders = Object.fromEntries(['x-apple-request-uuid', 'x-apple-request-id', 'x-request-id', 'x-correlation-id', 'x-daiquiri-uuid']
+        .map(name => [name, result.headers.get(name)]).filter(([, value]) => value));
+      const diagnostic = { timestamp: new Date().toISOString(), method, path, buildID: data?.relationships?.build?.data?.id ?? null, status: result.status, traceHeaders, errors: body.errors };
       writeFileSync(resolve(local, 'beta-review-error.json'), JSON.stringify(diagnostic, null, 2), { mode: 0o600 });
       console.error(JSON.stringify(diagnostic));
     }
@@ -327,6 +329,7 @@ async function prepareExternal(buildNumber) {
   await externalStatus();
 }
 async function configureExternal() {
+  const demoEdition = process.env.CAMPUS_BETA_DEMO_EDITION === '1';
   const settings = JSON.parse(readFileSync(resolve(local, 'external-review.json'), 'utf8'));
   if (!/^\+[0-9]{8,15}$/.test(settings.phone) || settings.feedbackEmailSource !== 'account-holder') throw new Error('Missing authorized external review contact or feedback email choice');
   const record = need(await findApp(), 'App Store Connect app');
@@ -334,16 +337,24 @@ async function configureExternal() {
   if (owners.length !== 1) throw new Error('Cannot uniquely identify review contact');
   const owner = owners[0].attributes;
   const review = (await api(`/v1/apps/${record.id}/betaAppReviewDetail`)).data;
-  await api(`/v1/betaAppReviewDetails/${review.id}`, { method: 'PATCH', data: { type: 'betaAppReviewDetails', id: review.id, attributes: {
+  const contact = demoEdition ? {} : {
     contactFirstName: need(owner.firstName, 'review first name'), contactLastName: need(owner.lastName, 'review last name'), contactEmail: owner.username, contactPhone: settings.phone,
+  };
+  if (demoEdition && ['contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone'].some(key => !review.attributes[key])) throw new Error('Existing authorized review contact is incomplete; preserve it and stop');
+  await api(`/v1/betaAppReviewDetails/${review.id}`, { method: 'PATCH', data: { type: 'betaAppReviewDetails', id: review.id, attributes: {
+    ...contact,
     demoAccountRequired: false,
-    notes: 'Native university timetable app. No sign-in, subscription or payment is required. On first launch the timetable is empty. Tap + to add a course; configure semester dates and class periods in Settings when needed. Course data is stored on the device. Please test manual course management, local persistence, local notifications and widgets. School-system login/import is not included. Full background automatic Live Activity ending and multi-course handoff remain under development. The app does not require a demo account. Notification permission is optional and requested when enabling reminders.',
+    notes: demoEdition
+      ? 'Native university timetable demo. No login, subscription, payment, or demo account is required. On first launch the app displays an isolated sample timetable using the real date and time. Swipe horizontally across the timetable to change weeks. Long-press a course and drop it in the contextual bin for a visual interaction; this does not delete the course. Edits are held for the current demo session and reset to sample data after relaunch; existing personal SwiftData files are not overwritten. Home Screen and Lock Screen widgets show the sample schedule. School-system login/import is not implemented. Background automatic Live Activity ending and multi-course handoff are not reliable yet. Notification permission is optional and requested only if the tester enables reminders.'
+      : 'Native university timetable app. No sign-in, subscription or payment is required. On first launch the timetable is empty. Tap + to add a course; configure semester dates and class periods in Settings when needed. Course data is stored on the device. Please test manual course management, local persistence, local notifications and widgets. School-system login/import is not included. Full background automatic Live Activity ending and multi-course handoff remain under development. The app does not require a demo account. Notification permission is optional and requested when enabling reminders.',
   } } });
   const localizations = (await api(`/v1/apps/${record.id}/betaAppLocalizations`)).data;
   const localized = localizations.find(item => item.attributes.locale === 'zh-Hans');
   const attributes = {
-    description: '面向大学生的本地优先课表工具。支持手动添加课程、学期与作息设置、课程调停补课、上课及可选下课提醒，提供桌面和锁屏组件，以及随课表状态变化的黑白手绘校园人物。无需登录，课表保存在本机。本次为早期测试：学校教务导入尚未提供，实时活动的完整后台结束与多节衔接仍在完善。首次启动为空课表，请先手动添加课程。',
-    feedbackEmail: owner.username,
+    description: demoEdition
+      ? '大学生课表工具的早期演示版本。无需登录，启动后展示独立演示课程，使用真实日期与时间。支持整页滑动切周、长按课程投放纸篓的非删除互动、课表联动黑白手绘人物，以及桌面和锁屏组件。演示编辑在本次会话生效，重启恢复样例，已有个人课程文件保持隔离。学校教务导入未提供；实时活动的后台自动结束及多节自动衔接仍在完善。'
+      : '面向大学生的本地优先课表工具。支持手动添加课程、学期与作息设置、课程调停补课、上课及可选下课提醒，提供桌面和锁屏组件，以及随课表状态变化的黑白手绘校园人物。无需登录，课表保存在本机。本次为早期测试：学校教务导入尚未提供，实时活动的完整后台结束与多节衔接仍在完善。首次启动为空课表，请先手动添加课程。',
+    feedbackEmail: demoEdition ? need(localized?.attributes.feedbackEmail, 'existing authorized feedback email') : owner.username,
   };
   if (localized) await api(`/v1/betaAppLocalizations/${localized.id}`, { method: 'PATCH', data: { type: 'betaAppLocalizations', id: localized.id, attributes } });
   else await api('/v1/betaAppLocalizations', { method: 'POST', data: { type: 'betaAppLocalizations', attributes: { locale: 'zh-Hans', ...attributes }, relationships: { app: { data: { type: 'apps', id: record.id } } } } });

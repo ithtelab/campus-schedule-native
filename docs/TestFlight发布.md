@@ -1,5 +1,15 @@
 # TestFlight 真机测试
 
+## 最新尝试：0.1.1（7.1）已上传，外测仍未受理
+
+2026-10-31 按用户要求从 `0.1.0` 升为 `0.1.1`，并更换构建号为 `7.1`。上传源码 `6945d6860ac6e2d67c2172bcd0d27763918c265f`，[签名上传任务 41172750404](https://github.com/ithtelab/campus-schedule-native/actions/runs/41172750404) 成功。主应用和组件包内版本均为 0.1.1，签名、描述文件、App Group 和归档/上传检查通过，28 项规则测试通过。对比 4.1 与 6.1 的 workflow 和发布脚本没有差异。
+
+新构建 ID `ddcc9625-a6bc-4138-871f-cec1abd870c4`，Apple 处理 VALID，expired=false，内部 IN_BETA_TESTING，本人测试组已关联；当前测试者状态 INVITED，**手机能否安装 7.1 尚未得到反馈，不能称已解决安装**。上传凭证位于 `.tool-cache/preview/testflight-0-1-1/build/testflight-upload.json`。
+
+用户提供 0.1.1 外测提交向导报错截图后，又明确授权更新演示版说明并实际提交一次外测审核。已更新 Beta 描述、审核备注，保留现有联系人与反馈邮箱，测试说明非空。北京时间 13:37:22，`POST /v1/betaAppReviewSubmissions` 仍返回通用 HTTP 422 ENTITY_UNPROCESSABLE，错误 ID `8ace89c8-5d1e-4aa4-89a8-30656aa0a7b2`，请求追踪 `UNCHDTZWUV4XPH4S3GRDOHTJBI`，未成功进入审核。没有返回 BETA_CONTRACT_MISSING 或具体字段错误；根因未确认。
+
+完整新响应在 `.tool-cache/apple/beta-review-error.json`，拟交 Apple 的材料见 [0.1.1 分发故障报告](Apple-TestFlight-0.1.1-分发故障报告.md)。尚未向 Apple Support / Feedback Assistant 发送工单。更换版本号未解除外测阻塞，不把 6.1 的安装失败直接推断为 7.1 也安装失败。
+
 ## 最新上传内部版本：0.1.0（6.1），实际安装失败待排查
 
 用户随后提供 iPhone 截图：6.1 可见、有安装按钮，但点击提示“所请求的 App 不可用或者不存在”，切换网络仍失败。只读检查确认版本未过期、组内构建和本人权限均存在；不能再把 API 的 IN_BETA_TESTING 写成“已可实际安装”。当前根因未确定，记录及可提交 Apple 的材料见 [6.1 安装故障](TestFlight-6.1-安装故障.md)。
