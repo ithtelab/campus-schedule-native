@@ -58,7 +58,9 @@ struct ScheduleArchiveTests {
         let text = try #require(String(data: data, encoding: .utf8))
         #expect(text.contains("\"schema\" : 1"))
         #expect(text.contains("高等数学"))
-        #expect(text.contains("2026-09-07T"))  // ISO 8601，而不是浮点时间戳
+        #expect(text.contains(".000Z"))          // ISO 8601 时间，而不是浮点时间戳
+        #expect(!text.contains("756000000"))     // Date 的 timeIntervalSinceReferenceDate
+        #expect(text.contains("\"totalWeeks\" : 20"))
     }
 
     @Test func acceptsTimestampsWithoutFractionalSeconds() throws {
