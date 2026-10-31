@@ -6,7 +6,7 @@ import Observation
     private(set) var count = 0
     private(set) var title = ""
     private(set) var isDragging = false
-    @available(iOS 26.0, *)
+    @available(iOS 27.0, *)
     func update(phase: DragSession.Phase) {
         switch phase {
         // Keep the destination alive while the system commits the drop.
@@ -38,12 +38,12 @@ private struct CourseTossSource: ViewModifier {
     }
 }
 
-// DragSession and onDragSessionUpdated arrive in iOS 26. Below that the dock still
-// appears through the drop destination's targeted state instead of a live session.
+// onDragSessionUpdated requires iOS 27. Below that the dock does not appear,
+// because the drag session is the only thing that raises it.
 private struct CourseTossDragTracking: ViewModifier {
     let reaction: CourseTossReaction
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 27.0, *) {
             content.onDragSessionUpdated { reaction.update(phase: $0.phase) }
         } else {
             content
@@ -73,7 +73,7 @@ private struct CourseTossOverlay: ViewModifier {
         .onChange(of: scenePhase) { _, value in if value != .active { reaction.dismiss() } }
         .task {
             // Isolated screenshot state, never enabled in a normal launch.
-            if #available(iOS 26.0, *), ProcessInfo.processInfo.environment["CAMPUS_TOSS_PREVIEW"] == "1" {
+            if #available(iOS 27.0, *), ProcessInfo.processInfo.environment["CAMPUS_TOSS_PREVIEW"] == "1" {
                 reaction.update(phase: .active)
             }
         }
