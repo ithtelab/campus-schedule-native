@@ -1,8 +1,39 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// 包一层用于 `fileExporter`：需要可识别、可命名，且能延迟生成字节。
+struct BackupDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    var data: Data
+    var filename: String
+
+    init(data: Data, filename: String) {
+        self.data = data
+        self.filename = filename
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = data
+        self.filename = configuration.file.filename ?? "课间册.json"
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
 
 struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
     @State private var showingAcademicSettings = false
+    @State private var showingExporter = false
+    @State private var showingImporter = false
+    @State private var backupDocument: BackupDocument?
+    @State private var pendingArchive: ScheduleArchive?
+    @State private var showingRestorePrompt = false
     var body: some View {
         @Bindable var settings = store
         NavigationStack {
@@ -41,6 +72,11 @@ struct SettingsView: View {
                 Section("组件") {
                     Text("在桌面或锁屏编辑模式中搜索“课间册”，添加当前与下一节课组件。")
                 }
+                Section {
+                    Button("导出备份", systemImage: "square.and.arrow.up") { exportBackup() }
+                    Button("从备份恢复", systemImage: "square.and.arrow.down") { showingImporter = true }
+                } header: { Text("备份") }
+                footer: { Text("导出的文件包含本学期课程、作息与调课记录，可换机迁移或自行保存。恢复会用备份内容替换当前学期。") }
                 if let message = store.errorMessage {
                     Section("需要处理") { Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.primary) }
                 }
@@ -49,9 +85,63 @@ struct SettingsView: View {
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingAcademicSettings) { AcademicSettingsView() }
+            .fileExporter(isPresented: $showingExporter, document: backupDocument,
+                          contentType: .json, defaultFilename: backupDocument?.filename ?? "课间册.json") { result in
+                if case .failure(let error) = result {
+                    store.errorMessage = "导出未完成：\(error.localizedDescription)"
+                }
+                backupDocument = nil
+            }
+            .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
+                handleImport(result)
+            }
+            .alert("恢复备份？", isPresented: $showingRestorePrompt, presenting: pendingArchive) { archive in
+                Button("替换当前学期", role: .destructive) { applyRestore(archive) }
+                Button("取消", role: .cancel) { pendingArchive = nil }
+            } message: { archive in
+                Text("将用备份覆盖当前学期：\n\n\(archive.summary)\n\n当前数据会被替换，且无法撤销。建议先导出一次现有课表。")
+            }
             .task { showingAcademicSettings = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "academic" }
             .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications() } }
             .onChange(of: settings.endReminder) { _, enabled in if enabled { authorizeNotifications() } }
+        }
+    }
+
+    // MARK: - 备份
+
+    private func exportBackup() {
+        do {
+            let archive = try store.makeArchive()
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd-HHmm"
+            backupDocument = BackupDocument(data: try archive.encoded(),
+                                            filename: "课间册-\(formatter.string(from: Date())).json")
+            showingExporter = true
+        } catch {
+            store.errorMessage = "导出失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func handleImport(_ result: Result<URL, any Error>) {
+        do {
+            let url = try result.get()
+            // 备份可能来自任意来源，先取得安全作用域的访问权限再读取。
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let data = try Data(contentsOf: url)
+            pendingArchive = try PreviewStore.inspectArchive(data)
+            showingRestorePrompt = true
+        } catch {
+            store.errorMessage = "无法读取备份：\(error.localizedDescription)"
+        }
+    }
+
+    private func applyRestore(_ archive: ScheduleArchive) {
+        do {
+            try store.restore(from: archive)
+            pendingArchive = nil
+        } catch {
+            store.errorMessage = "恢复失败：\(error.localizedDescription)"
         }
     }
     private func authorizeNotifications() {

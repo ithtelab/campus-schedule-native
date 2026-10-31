@@ -224,13 +224,100 @@ final class PreviewStore {
     }
 
     func refreshCourseTimes() {
+        // 节次编号可能不连续，按编号查找而不是用下标。
+        let byIndex = Dictionary(uniqueKeysWithValues: periods.map { ($0.id, $0) })
         courses = courses.map { course in
+            guard let start = byIndex[course.startPeriod], let end = byIndex[course.endPeriod] else { return course }
             var updated = DemoCourse(id: course.id, title: course.title, room: course.room, teacher: course.teacher,
                        weekday: course.weekday, startPeriod: course.startPeriod, endPeriod: course.endPeriod,
-                       startTime: periods[course.startPeriod - 1].start, endTime: periods[course.endPeriod - 1].end,
+                       startTime: start.start, endTime: end.end,
                        color: course.color, weeks: course.weeks)
             updated.remindersEnabled = course.remindersEnabled
             return updated
         }
+    }
+
+    // MARK: - 导出与恢复
+
+    /// 当前学期标识。内部模型还不支持多学期，先用固定值，格式层面已经预留数组。
+    static let currentSemesterID = "term-current"
+
+    /// 把当前全部个人数据导出为可存档的格式。演示版与截图模式不产出真实数据。
+    func makeArchive(exportedAt: Date = Date()) throws -> ScheduleArchive {
+        guard !isDemoEdition, !isPreview else { throw ArchiveError.emptySemesterList }
+        let semesters = [ArchivedSemester(
+            id: Self.currentSemesterID,
+            name: semesterName,
+            startDate: semesterStart,
+            totalWeeks: totalWeeks,
+            periods: periods.map { ArchivedPeriod(index: $0.id, start: $0.start, end: $0.end) },
+            courses: courses.map { course in
+                ArchivedCourse(id: course.id, sourceID: course.sourceID, title: course.title, room: course.room,
+                               teacher: course.teacher, weekday: course.weekday, startPeriod: course.startPeriod,
+                               endPeriod: course.endPeriod, color: course.color.rawValue,
+                               weeks: course.weeks.sorted(), remindersEnabled: course.remindersEnabled)
+            },
+            exceptions: exceptions.map { change in
+                ArchivedException(id: change.id.uuidString, courseID: change.courseID, day: change.day,
+                                  cancelled: change.cancelled, start: change.start, end: change.end, room: change.room)
+            }
+        )]
+        return try ScheduleArchive(exportedAt: exportedAt, appVersion: Self.appVersion, semesters: semesters).validated()
+    }
+
+    static var appVersion: String? {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    }
+
+    /// 导入前的预检：只解析和校验，不写入任何状态，便于先向用户确认。
+    nonisolated static func inspectArchive(_ data: Data) throws -> ScheduleArchive {
+        try ScheduleArchive.decoded(from: data)
+    }
+
+    /// 用备份替换当前学期。调用方必须已经让用户确认；成功后立即保存并同步系统状态。
+    func restore(from archive: ScheduleArchive, now: Date = Date()) throws {
+        let validated = try archive.validated()
+        guard let term = validated.semesters.first else { throw ArchiveError.emptySemesterList }
+
+        let restoredPeriods = term.periods.sorted { $0.index < $1.index }
+            .map { DemoPeriod(id: $0.index, start: $0.start, end: $0.end) }
+        // 节次编号不保证从 1 连续，用编号查时间而不是用数组下标。
+        let periodTimes = Dictionary(uniqueKeysWithValues: restoredPeriods.map { ($0.id, $0) })
+        let restoredCourses = term.courses.compactMap { archived -> DemoCourse? in
+            guard let start = periodTimes[archived.startPeriod],
+                  let end = periodTimes[archived.endPeriod],
+                  let color = CourseColor(rawValue: archived.color) ?? Optional(.blue) else { return nil }
+            var course = DemoCourse(id: archived.id, title: archived.title, room: archived.room,
+                                    teacher: archived.teacher, weekday: archived.weekday,
+                                    startPeriod: archived.startPeriod, endPeriod: archived.endPeriod,
+                                    startTime: start.start, endTime: end.end,
+                                    color: color, weeks: Set(archived.weeks))
+            course.sourceID = archived.sourceID
+            course.remindersEnabled = archived.remindersEnabled
+            return course
+        }
+        let restoredExceptions = term.exceptions.map { change in
+            CourseException(id: UUID(uuidString: change.id) ?? UUID(), courseID: change.courseID,
+                            day: change.day, cancelled: change.cancelled,
+                            start: change.start, end: change.end, room: change.room)
+        }
+
+        guard restoredCourses.count == term.courses.count else {
+            throw ArchiveError.courseOutsidePeriodRange(term.name, term.name)
+        }
+        // 学期设置页假设恰好 10 节且编号 1…10；备份允许任意编号，这里拒绝会让设置页越界的数据。
+        guard restoredPeriods.map(\.id) == Array(1...restoredPeriods.count), restoredPeriods.count == 10 else {
+            throw ArchiveError.emptyPeriods(term.name)
+        }
+
+        semesterName = term.name
+        semesterStart = term.startDate
+        totalWeeks = term.totalWeeks
+        periods = restoredPeriods
+        courses = restoredCourses
+        exceptions = restoredExceptions
+        selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
+        errorMessage = nil
+        save()
     }
 }
