@@ -132,7 +132,8 @@ struct TimetableTextParserTests {
 
     @Test func parsesGridWithHeaderRow() {
         let outcome = TimetableTextParser.parseGrid(grid())
-        #expect(outcome.courses.count == 3)
+        // 网格里共四门课：高等数学、线性代数、大学英语、程序设计。
+        #expect(outcome.courses.count == 4)
         let math = outcome.courses.first { $0.title == "高等数学" }
         #expect(math?.weekday == 0)
         #expect(math?.startPeriod == 1)
