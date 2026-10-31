@@ -224,12 +224,12 @@ struct ScheduleArchiveTests {
     }
 
     @Test func rejectsMoreSemestersThanSupported() {
-        let terms = (1...5).map { index -> ArchivedSemester in
+        let terms = (1...41).map { index -> ArchivedSemester in
             var term = semester()
             term.id = "term-\(index)"
             return term
         }
-        #expect(throws: ArchiveError.tooManySemesters(5)) { try archive(terms).validated() }
+        #expect(throws: ArchiveError.tooManySemesters(41)) { try archive(terms).validated() }
     }
 
     @Test func rejectsDuplicateSemesterID() {

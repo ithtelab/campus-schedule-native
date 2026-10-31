@@ -176,7 +176,8 @@ public extension ScheduleArchive {
             throw ArchiveError.unsupportedSchema(schema)
         }
         guard !semesters.isEmpty else { throw ArchiveError.emptySemesterList }
-        guard semesters.count <= 4 else { throw ArchiveError.tooManySemesters(semesters.count) }
+        // 上限按「一个人在校期间可能保留的学期数」放宽，同时避免恶意文件撑爆内存。
+        guard semesters.count <= 40 else { throw ArchiveError.tooManySemesters(semesters.count) }
 
         var semesterIDs = Set<String>()
         var totalCourses = 0

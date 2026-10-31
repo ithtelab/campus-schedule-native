@@ -29,6 +29,7 @@ struct BackupDocument: FileDocument {
 struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
     @State private var showingAcademicSettings = false
+    @State private var showingTermList = false
     @State private var showingExporter = false
     @State private var showingImporter = false
     @State private var backupDocument: BackupDocument?
@@ -48,6 +49,7 @@ struct SettingsView: View {
                 }
                 Section("课表") {
                     Button("学期与作息", systemImage: "calendar.badge.clock") { showingAcademicSettings = true }
+                    Button("全部学期", systemImage: "list.bullet.rectangle") { showingTermList = true }
                     LabeledContent("当前学期", value: store.semesterName)
                 }
                 Section {
@@ -92,6 +94,7 @@ struct SettingsView: View {
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingAcademicSettings) { AcademicSettingsView() }
+            .sheet(isPresented: $showingTermList) { TermListView() }
             .fileExporter(isPresented: $showingExporter, document: backupDocument,
                           contentType: .json, defaultFilename: backupDocument?.filename ?? "课间册.json") { result in
                 if case .failure(let error) = result {

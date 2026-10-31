@@ -37,19 +37,75 @@ final class PreviewStore {
     var selectedWeek = 8
     var reminderPreview = true { didSet { save() } }
     var reminderMinutes = 10 { didSet { save() } }
-    var semesterName = "2026 秋季学期" { didSet { save() } }
-    var semesterStart = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 7))! { didSet { save() } }
-    var totalWeeks = 20 { didSet { save() } }
     var showsWeekend = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_WEEKEND"] == "1"
-    var periods: [DemoPeriod] = [
+
+    /// 单个学期的全部内容。多学期共用一个容器，靠 `activeTermID` 切换。
+    struct TermContent: Codable {
+        var name: String
+        var startDate: Date
+        var totalWeeks: Int
+        var periods: [DemoPeriod]
+        var courses: [DemoCourse]
+        var exceptions: [CourseException] = []
+    }
+
+    /// 所有学期的内容，键是学期标识。
+    var termContents: [String: TermContent] = [:] { didSet { save() } }
+    /// 当前正在查看的学期。
+    var activeTermID = "" { didSet { guard activeTermID != oldValue else { return }; save() } }
+
+    /// 学期列表，按开学日期从新到旧。
+    var terms: [TermSummary] {
+        TermSelection.sorted(termContents.map { TermSummary(id: $0.key, name: $0.value.name,
+                                                            startDate: $0.value.startDate,
+                                                            totalWeeks: $0.value.totalWeeks) })
+    }
+
+    private var activeContent: TermContent? { termContents[activeTermID] }
+
+    /// 写入活动学期后统一保存，避免每个字段各写一次。
+    private func mutateActive(_ change: (inout TermContent) -> Void) {
+        guard var content = termContents[activeTermID] else { return }
+        change(&content)
+        termContents[activeTermID] = content
+    }
+
+    // MARK: 活动学期字段（保持既有调用方式）
+
+    var semesterName: String {
+        get { activeContent?.name ?? "" }
+        set { mutateActive { $0.name = newValue } }
+    }
+    var semesterStart: Date {
+        get { activeContent?.startDate ?? ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))! }
+        set { mutateActive { $0.startDate = newValue } }
+    }
+    var totalWeeks: Int {
+        get { activeContent?.totalWeeks ?? 20 }
+        set { mutateActive { $0.totalWeeks = newValue } }
+    }
+    var periods: [DemoPeriod] {
+        get { activeContent?.periods ?? PreviewStore.defaultPeriods }
+        set { mutateActive { $0.periods = newValue } }
+    }
+    var courses: [DemoCourse] {
+        get { activeContent?.courses ?? [] }
+        set { mutateActive { $0.courses = newValue } }
+    }
+    var exceptions: [CourseException] {
+        get { activeContent?.exceptions ?? [] }
+        set { mutateActive { $0.exceptions = newValue } }
+    }
+
+    static let defaultPeriods: [DemoPeriod] = [
         .init(id: 1, start: "08:00", end: "08:45"), .init(id: 2, start: "08:50", end: "09:35"),
         .init(id: 3, start: "10:00", end: "10:45"), .init(id: 4, start: "10:50", end: "11:35"),
         .init(id: 5, start: "14:00", end: "14:45"), .init(id: 6, start: "14:50", end: "15:35"),
         .init(id: 7, start: "16:00", end: "16:45"), .init(id: 8, start: "16:50", end: "17:35"),
         .init(id: 9, start: "19:00", end: "19:45"), .init(id: 10, start: "19:50", end: "20:35")
-    ] { didSet { save() } }
+    ]
 
-    var courses: [DemoCourse] = [
+    static let sampleCourses: [DemoCourse] = [
         .init(id: "math-mon", title: "高等数学", room: "教学楼 A · 302", teacher: "陈老师", weekday: 0, startPeriod: 1, endPeriod: 2, startTime: "08:00", endTime: "09:35", color: .blue),
         .init(id: "english-mon", title: "大学英语", room: "教学楼 B · 205", teacher: "林老师", weekday: 0, startPeriod: 3, endPeriod: 4, startTime: "10:00", endTime: "11:35", color: .purple),
         .init(id: "design-mon", title: "设计基础", room: "艺术楼 · 401", teacher: "周老师", weekday: 0, startPeriod: 7, endPeriod: 8, startTime: "16:00", endTime: "17:35", color: .orange),
@@ -58,7 +114,7 @@ final class PreviewStore {
         .init(id: "sport-wed", title: "大学体育", room: "东区体育馆", teacher: "刘老师", weekday: 2, startPeriod: 5, endPeriod: 6, startTime: "14:00", endTime: "15:35", color: .green),
         .init(id: "english-thu", title: "大学英语", room: "教学楼 B · 205", teacher: "林老师", weekday: 3, startPeriod: 3, endPeriod: 4, startTime: "10:00", endTime: "11:35", color: .purple),
         .init(id: "design-fri", title: "设计基础", room: "艺术楼 · 401", teacher: "周老师", weekday: 4, startPeriod: 5, endPeriod: 6, startTime: "14:00", endTime: "15:35", color: .orange)
-    ] { didSet { save() } }
+    ]
 
     var isPreview: Bool { ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] != nil }
     var isDemoEdition: Bool {
@@ -91,7 +147,6 @@ final class PreviewStore {
     var liveEnabled = false { didSet { save() } }
     var endReminder = false { didSet { save() } }
     var endLead = 0 { didSet { save() } }
-    var exceptions: [CourseException] = [] { didSet { save() } }
 
     /// 用户是否开启了 iCloud 同步。默认关闭，与产品约定一致。
     var cloudSyncEnabled = false {
@@ -111,13 +166,34 @@ final class PreviewStore {
     @ObservationIgnored private var ready = false
     @ObservationIgnored private var syncTask: Task<Void, Never>?
     private struct Saved: Codable {
+        var activeTermID: String
+        var terms: [String: TermContent]
+        var reminders: Bool; var lead: Int; var endReminder: Bool; var endLead: Int
+        var liveEnabled: Bool
+        var cloudSyncEnabled: Bool?
+    }
+
+    /// 单学期时代的存储结构。仅用于把旧文件迁移到多学期容器，不参与新写入。
+    private struct LegacySaved: Codable {
         var courses: [DemoCourse]; var periods: [DemoPeriod]; var semesterName: String; var semesterStart: Date
         var totalWeeks: Int; var reminders: Bool; var lead: Int; var endReminder: Bool; var endLead: Int
         var liveEnabled: Bool; var exceptions: [CourseException]
-        // 后端加字段必须是可选的，否则旧版本写下的数据会解码失败。
         var cloudSyncEnabled: Bool?
     }
+
     init() {
+        // 先建立活动学期，之后的字段读写都落到这个容器里。
+        let initialID = "term-" + UUID().uuidString
+        termContents[initialID] = TermContent(
+            name: "2026 秋季学期",
+            startDate: ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))!,
+            totalWeeks: 20,
+            periods: Self.defaultPeriods,
+            courses: Self.sampleCourses,
+            exceptions: []
+        )
+        activeTermID = initialID
+
         if isDemoEdition {
             // Keep the sample term current without loading or replacing personal courses.
             let calendar = ScheduleRules.calendar
@@ -154,29 +230,70 @@ final class PreviewStore {
             }
         }
         if !isPreview && !isDemoEdition {
-            courses = []; reminderPreview = false
             do {
                 let storage = try LocalPersistence()
-                if let data = try storage.load() {
-                    let saved = try JSONDecoder().decode(Saved.self, from: data)
-                    guard (1...53).contains(saved.totalWeeks), saved.periods.count == 10,
-                          saved.courses.allSatisfy({ (0...6).contains($0.weekday) && (1...10).contains($0.startPeriod) && ($0.startPeriod...10).contains($0.endPeriod) }),
-                          saved.periods.allSatisfy({ ScheduleRules.date(day: Date(), time: $0.start) != nil && ScheduleRules.date(day: Date(), time: $0.end) != nil }) else {
-                        throw CocoaError(.coderReadCorrupt)
-                    }
-                    courses = saved.courses; periods = saved.periods; semesterName = saved.semesterName
-                    semesterStart = saved.semesterStart; totalWeeks = saved.totalWeeks
-                    reminderPreview = saved.reminders; reminderMinutes = saved.lead
-                    endReminder = saved.endReminder; endLead = saved.endLead; liveEnabled = saved.liveEnabled; exceptions = saved.exceptions
-                    restoreCloudSync = saved.cloudSyncEnabled == true
-                }
                 persistence = storage
+                if let data = try storage.load() {
+                    loadSaved(data)
+                } else {
+                    // 全新安装：保留空学期，等待用户添加课程。
+                    courses = []; reminderPreview = false
+                }
+                if termContents.isEmpty { courses = [] }
+                if activeContent == nil { courses = [] }
             } catch { errorMessage = "本地数据无法读取，未覆盖原有文件：\(error.localizedDescription)" }
         }
         selectedWeek = min(totalWeeks, max(1, currentWeek))
         ready = true
         // 存储已就绪，此时再开启同步才能读到本地内容；直接在这里赋值会绕过持久化准备。
         if restoreCloudSync { cloudSyncEnabled = true; restoreCloudSync = false }
+    }
+
+    /// 读取存储内容，优先多学期格式，失败后尝试单学期旧格式迁移。
+    private func loadSaved(_ data: Data) {
+        let decoder = JSONDecoder()
+        if let saved = try? decoder.decode(Saved.self, from: data) {
+            guard !saved.terms.isEmpty else { errorMessage = "本地数据中没有学期。"; return }
+            guard saved.terms.allSatisfy({ _, content in Self.isValid(content) }) else {
+                errorMessage = "本地数据校验未通过，未覆盖原有文件。"; return
+            }
+            termContents = saved.terms
+            activeTermID = saved.terms[saved.activeTermID] != nil ? saved.activeTermID : (saved.terms.keys.sorted().first ?? "")
+            reminderPreview = saved.reminders; reminderMinutes = saved.lead
+            endReminder = saved.endReminder; endLead = saved.endLead; liveEnabled = saved.liveEnabled
+            restoreCloudSync = saved.cloudSyncEnabled == true
+            return
+        }
+        guard let legacy = try? decoder.decode(LegacySaved.self, from: data) else {
+            errorMessage = "本地数据无法读取，未覆盖原有文件。"
+            return
+        }
+        let content = TermContent(name: legacy.semesterName, startDate: legacy.semesterStart,
+                                  totalWeeks: legacy.totalWeeks, periods: legacy.periods,
+                                  courses: legacy.courses, exceptions: legacy.exceptions)
+        guard Self.isValid(content) else {
+            errorMessage = "本地数据校验未通过，未覆盖原有文件。"; return
+        }
+        let migratedID = "term-migrated"
+        termContents = [migratedID: content]
+        activeTermID = migratedID
+        reminderPreview = legacy.reminders; reminderMinutes = legacy.lead
+        endReminder = legacy.endReminder; endLead = legacy.endLead; liveEnabled = legacy.liveEnabled
+        restoreCloudSync = legacy.cloudSyncEnabled == true
+    }
+
+    /// 学期内容的完整性检查。学期设置页固定 10 节，越界数据会让网格绘错。
+    static func isValid(_ content: TermContent) -> Bool {
+        guard (1...53).contains(content.totalWeeks), content.periods.count == 10 else { return false }
+        guard content.periods.map(\.id) == Array(1...10) else { return false }
+        guard content.periods.allSatisfy({
+            ScheduleRules.date(day: Date(), time: $0.start) != nil && ScheduleRules.date(day: Date(), time: $0.end) != nil
+        }) else { return false }
+        let indices = Set(content.periods.map(\.id))
+        return content.courses.allSatisfy { course in
+            (0...6).contains(course.weekday) && indices.contains(course.startPeriod)
+                && indices.contains(course.endPeriod) && course.endPeriod >= course.startPeriod
+        }
     }
     var occurrences: [CourseOccurrence] {
         var result: [CourseOccurrence] = []
@@ -205,14 +322,16 @@ final class PreviewStore {
         if ready && isDemoEdition { synchronize(); return }
         guard ready, !isPreview, let persistence else { return }
         do {
-            let data = Saved(courses: courses, periods: periods, semesterName: semesterName, semesterStart: semesterStart,
-                totalWeeks: totalWeeks, reminders: reminderPreview, lead: reminderMinutes, endReminder: endReminder,
-                endLead: endLead, liveEnabled: liveEnabled, exceptions: exceptions,
-                cloudSyncEnabled: cloudSyncEnabled)
+            let data = Saved(activeTermID: activeTermID, terms: termContents,
+                reminders: reminderPreview, lead: reminderMinutes, endReminder: endReminder,
+                endLead: endLead, liveEnabled: liveEnabled, cloudSyncEnabled: cloudSyncEnabled)
             let encoded = try JSONEncoder().encode(data)
             try persistence.save(encoded)
             synchronize()
-            if cloudSyncEnabled { scheduleCloudPush(encoded) }
+            // 云端统一使用归档格式：它有版本号与校验，恢复路径也复用它。
+            if cloudSyncEnabled, let archive = try? makeArchive().encoded() {
+                scheduleCloudPush(archive)
+            }
         } catch { errorMessage = "保存失败：\(error.localizedDescription)" }
     }
 
@@ -299,9 +418,9 @@ final class PreviewStore {
 
     /// 用户选择保留本机版本，覆盖云端。
     func resolveConflictKeepingLocal() {
-        guard pendingCloudConflict != nil, let localData = try? persistence?.load() else { return }
+        guard pendingCloudConflict != nil else { return }
         do {
-            try cloudSync.push(localData)
+            try cloudSync.push(try makeArchive().encoded())
             pendingCloudConflict = nil
             cloudSyncStatus = "已保留本机课表并覆盖 iCloud。"
         } catch {
@@ -371,29 +490,29 @@ final class PreviewStore {
 
     // MARK: - 导出与恢复
 
-    /// 当前学期标识。内部模型还不支持多学期，先用固定值，格式层面已经预留数组。
-    static let currentSemesterID = "term-current"
-
-    /// 把当前全部个人数据导出为可存档的格式。演示版与截图模式不产出真实数据。
+    /// 把全部学期导出为可存档的格式。演示版与截图模式不产出真实数据。
     func makeArchive(exportedAt: Date = Date()) throws -> ScheduleArchive {
         guard !isDemoEdition, !isPreview else { throw ArchiveError.emptySemesterList }
-        let semesters = [ArchivedSemester(
-            id: Self.currentSemesterID,
-            name: semesterName,
-            startDate: semesterStart,
-            totalWeeks: totalWeeks,
-            periods: periods.map { ArchivedPeriod(index: $0.id, start: $0.start, end: $0.end) },
-            courses: courses.map { course in
-                ArchivedCourse(id: course.id, sourceID: course.sourceID, title: course.title, room: course.room,
-                               teacher: course.teacher, weekday: course.weekday, startPeriod: course.startPeriod,
-                               endPeriod: course.endPeriod, color: course.color.rawValue,
-                               weeks: course.weeks.sorted(), remindersEnabled: course.remindersEnabled)
-            },
-            exceptions: exceptions.map { change in
-                ArchivedException(id: change.id.uuidString, courseID: change.courseID, day: change.day,
-                                  cancelled: change.cancelled, start: change.start, end: change.end, room: change.room)
-            }
-        )]
+        let semesters = terms.compactMap { summary -> ArchivedSemester? in
+            guard let content = termContents[summary.id] else { return nil }
+            return ArchivedSemester(
+                id: summary.id,
+                name: content.name,
+                startDate: content.startDate,
+                totalWeeks: content.totalWeeks,
+                periods: content.periods.map { ArchivedPeriod(index: $0.id, start: $0.start, end: $0.end) },
+                courses: content.courses.map { course in
+                    ArchivedCourse(id: course.id, sourceID: course.sourceID, title: course.title, room: course.room,
+                                   teacher: course.teacher, weekday: course.weekday, startPeriod: course.startPeriod,
+                                   endPeriod: course.endPeriod, color: course.color.rawValue,
+                                   weeks: course.weeks.sorted(), remindersEnabled: course.remindersEnabled)
+                },
+                exceptions: content.exceptions.map { change in
+                    ArchivedException(id: change.id.uuidString, courseID: change.courseID, day: change.day,
+                                      cancelled: change.cancelled, start: change.start, end: change.end, room: change.room)
+                }
+            )
+        }
         return try ScheduleArchive(exportedAt: exportedAt, appVersion: Self.appVersion, semesters: semesters).validated()
     }
 
@@ -406,50 +525,105 @@ final class PreviewStore {
         try ScheduleArchive.decoded(from: data)
     }
 
-    /// 用备份替换当前学期。调用方必须已经让用户确认；成功后立即保存并同步系统状态。
+    /// 用备份替换全部学期。调用方必须已经让用户确认；成功后立即保存并同步系统状态。
     func restore(from archive: ScheduleArchive, now: Date = Date()) throws {
         let validated = try archive.validated()
-        guard let term = validated.semesters.first else { throw ArchiveError.emptySemesterList }
+        guard !validated.semesters.isEmpty else { throw ArchiveError.emptySemesterList }
 
-        let restoredPeriods = term.periods.sorted { $0.index < $1.index }
-            .map { DemoPeriod(id: $0.index, start: $0.start, end: $0.end) }
-        // 节次编号不保证从 1 连续，用编号查时间而不是用数组下标。
-        let periodTimes = Dictionary(uniqueKeysWithValues: restoredPeriods.map { ($0.id, $0) })
-        let restoredCourses = term.courses.compactMap { archived -> DemoCourse? in
-            guard let start = periodTimes[archived.startPeriod],
-                  let end = periodTimes[archived.endPeriod],
-                  let color = CourseColor(rawValue: archived.color) ?? Optional(.blue) else { return nil }
-            var course = DemoCourse(id: archived.id, title: archived.title, room: archived.room,
-                                    teacher: archived.teacher, weekday: archived.weekday,
-                                    startPeriod: archived.startPeriod, endPeriod: archived.endPeriod,
-                                    startTime: start.start, endTime: end.end,
-                                    color: color, weeks: Set(archived.weeks))
-            course.sourceID = archived.sourceID
-            course.remindersEnabled = archived.remindersEnabled
-            return course
-        }
-        let restoredExceptions = term.exceptions.map { change in
-            CourseException(id: UUID(uuidString: change.id) ?? UUID(), courseID: change.courseID,
-                            day: change.day, cancelled: change.cancelled,
-                            start: change.start, end: change.end, room: change.room)
+        var restored: [String: TermContent] = [:]
+        for term in validated.semesters {
+            let restoredPeriods = term.periods.sorted { $0.index < $1.index }
+                .map { DemoPeriod(id: $0.index, start: $0.start, end: $0.end) }
+            // 节次编号不保证从 1 连续，用编号查时间而不是用数组下标。
+            let periodTimes = Dictionary(uniqueKeysWithValues: restoredPeriods.map { ($0.id, $0) })
+            let restoredCourses = term.courses.compactMap { archived -> DemoCourse? in
+                guard let start = periodTimes[archived.startPeriod],
+                      let end = periodTimes[archived.endPeriod],
+                      let color = CourseColor(rawValue: archived.color) ?? Optional(.blue) else { return nil }
+                var course = DemoCourse(id: archived.id, title: archived.title, room: archived.room,
+                                        teacher: archived.teacher, weekday: archived.weekday,
+                                        startPeriod: archived.startPeriod, endPeriod: archived.endPeriod,
+                                        startTime: start.start, endTime: end.end,
+                                        color: color, weeks: Set(archived.weeks))
+                course.sourceID = archived.sourceID
+                course.remindersEnabled = archived.remindersEnabled
+                return course
+            }
+            guard restoredCourses.count == term.courses.count else {
+                throw ArchiveError.courseOutsidePeriodRange(term.name, term.name)
+            }
+            // 学期设置页假设恰好 10 节且编号 1…10；备份允许任意编号，这里拒绝会让设置页越界的数据。
+            guard restoredPeriods.map(\.id) == Array(1...restoredPeriods.count), restoredPeriods.count == 10 else {
+                throw ArchiveError.emptyPeriods(term.name)
+            }
+            restored[term.id] = TermContent(
+                name: term.name, startDate: term.startDate, totalWeeks: term.totalWeeks,
+                periods: restoredPeriods, courses: restoredCourses,
+                exceptions: term.exceptions.map { change in
+                    CourseException(id: UUID(uuidString: change.id) ?? UUID(), courseID: change.courseID,
+                                    day: change.day, cancelled: change.cancelled,
+                                    start: change.start, end: change.end, room: change.room)
+                }
+            )
         }
 
-        guard restoredCourses.count == term.courses.count else {
-            throw ArchiveError.courseOutsidePeriodRange(term.name, term.name)
-        }
-        // 学期设置页假设恰好 10 节且编号 1…10；备份允许任意编号，这里拒绝会让设置页越界的数据。
-        guard restoredPeriods.map(\.id) == Array(1...restoredPeriods.count), restoredPeriods.count == 10 else {
-            throw ArchiveError.emptyPeriods(term.name)
-        }
-
-        semesterName = term.name
-        semesterStart = term.startDate
-        totalWeeks = term.totalWeeks
-        periods = restoredPeriods
-        courses = restoredCourses
-        exceptions = restoredExceptions
+        termContents = restored
+        // 恢复后把当前学期指向按日期应当显示的那个，而不是备份里第一个。
+        let summaries = restored.map { TermSummary(id: $0.key, name: $0.value.name,
+                                                   startDate: $0.value.startDate, totalWeeks: $0.value.totalWeeks) }
+        activeTermID = TermSelection.preferred(in: summaries, on: now)?.id ?? restored.keys.sorted().first ?? ""
         selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
         errorMessage = nil
         save()
+    }
+
+    // MARK: - 学期管理
+
+    /// 切换当前学期。
+    func selectTerm(_ id: String, now: Date = Date()) {
+        guard termContents[id] != nil, id != activeTermID else { return }
+        activeTermID = id
+        selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
+        save()
+    }
+
+    /// 新建学期，返回新学期标识。节次时间沿用当前学期的作息，减少重复输入。
+    @discardableResult
+    func addTerm(name: String? = nil, start: Date? = nil, totalWeeks weeks: Int = 20) -> String {
+        let id = "term-" + UUID().uuidString
+        let suggested = name ?? TermSelection.uniqueName("新学期", existing: terms)
+        termContents[id] = TermContent(
+            name: suggested,
+            startDate: start ?? TermSelection.suggestedStart(after: terms),
+            totalWeeks: weeks,
+            periods: periods.isEmpty ? Self.defaultPeriods : periods,
+            courses: [],
+            exceptions: []
+        )
+        save()
+        return id
+    }
+
+    /// 删除学期。至少保留一个，避免界面进入没有任何学期的状态。
+    @discardableResult
+    func deleteTerm(_ id: String, now: Date = Date()) -> Bool {
+        guard termContents.count > 1, termContents[id] != nil else { return false }
+        termContents.removeValue(forKey: id)
+        if activeTermID == id {
+            activeTermID = TermSelection.afterRemoving(id, from: terms, on: now)?.id
+                ?? termContents.keys.sorted().first ?? ""
+            selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
+        }
+        save()
+        return true
+    }
+
+    /// 重命名学期。
+    func renameTerm(_ id: String, to name: String) {
+        guard var content = termContents[id] else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        content.name = trimmed
+        termContents[id] = content
     }
 }
