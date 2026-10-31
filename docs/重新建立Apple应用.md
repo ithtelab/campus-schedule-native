@@ -2,6 +2,8 @@
 
 用户明确选择删除旧 Apple 应用记录后重建，并表示后续自行上传。此处清理范围是本项目的 Apple 分发记录与发布标识；现有 Swift/SwiftUI 功能代码保留。不再由助手上传或提审。
 
+用户已确定产品名称为“课表”。手机显示名称、项目应用配置和新 App Store Connect 记录的名称统一使用“课表”，内部工程名 CampusSchedule 不影响产品名称。
+
 ## 已实际完成
 
 - 旧 App `6828962951`、主标识 `com.ithtelab.campusschedule`：将剩余有效的 6.1、7.1 设为过期。4.1、5.1 此前已过期。
@@ -30,7 +32,7 @@
 
 1. **已完成**：用户在网页移除旧 App，截图显示列表为空。苹果会保留已上传构建的历史，原 bundle ID 与 SKU 不能用于新建记录，不能承诺从服务器抹掉全部历史。[官方规则](https://developer.apple.com/help/app-store-connect/create-an-app-record/remove-an-app/)
 2. 打开 [开发者标识管理](https://developer.apple.com/account/resources/identifiers/list)，切换“App Groups”，创建 `group.com.ithtelab.campustimetable`，描述可填 CampusTimetable。切回 App IDs，分别打开新主应用与 widgets，在 App Groups 的 Configure 中勾选这个新组，Continue/Save。仅开启能力开关不等于关联完成。
-3. 打开 [App Store Connect Apps](https://appstoreconnect.apple.com/apps)，点“＋ → 新建 App”：iOS、名称暂用“校园课表”（若仍占用可暂用“校园课表新版”）、主要语言简体中文、Bundle ID 选 `com.ithtelab.campustimetable`、SKU 填 `campustimetable-ios-20261031`。不要选旧标识或复用旧 SKU。
+3. 打开 [App Store Connect Apps](https://appstoreconnect.apple.com/apps)，点“＋ → 新建 App”：iOS、名称“课表”、主要语言简体中文、Bundle ID 选 `com.ithtelab.campustimetable`、SKU 填 `campustimetable-ios-20261031`。不要选旧标识或复用旧 SKU。如果苹果提示名称不可用，记录具体提示再决定，不自动改成其他名称。
 
 ## 自行上传
 

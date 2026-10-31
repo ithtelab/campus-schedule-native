@@ -59,7 +59,7 @@ Apple 已读回确认：build `6.1`，构建 ID `b57b164c-cbb6-45b2-befa-9ced382
 - App Store Connect Apple ID：`6828962951`
 - [App Store Connect 测试页](https://appstoreconnect.apple.com/apps/6828962951/testflight/ios)
 
-应用正式名称仍待定；手机显示“课表”，当前使用可替换的黑白日历测试图标。应用标识首次上传后应保持稳定，避免破坏安装更新与本地数据连续性。
+首次发布时应用名称待定；用户现已确定产品名称为“课表”，手机显示与新 App Store Connect 名称均使用“课表”。当前使用可替换的黑白日历测试图标。应用标识首次上传后应保持稳定，避免破坏安装更新与本地数据连续性；本次按用户明确要求退役旧应用后使用新标识重建。
 
 `app.json` 保存应用及共享组标识。生成器同步两个 target 的构建设置；Info.plist 和 entitlements 引用同一构建变量，运行时从实际 bundle 获取共享组，截图脚本读取相同配置，避免多处手工修改。
 

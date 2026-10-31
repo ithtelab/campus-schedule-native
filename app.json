@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CampusSchedule",
+    "name": "课表",
     "slug": "campus-schedule-native",
     "version": "0.1.0",
     "ios": {
