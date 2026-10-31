@@ -165,8 +165,7 @@ private struct WebViewHost: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
-        webView.customUserAgent =
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+        webView.customUserAgent = WebContentCollector.desktopUserAgent
         webView.load(URLRequest(url: url))
         DispatchQueue.main.async { webViewRef = webView }
         return webView

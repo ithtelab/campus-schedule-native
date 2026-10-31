@@ -2,26 +2,36 @@ import Foundation
 import WebKit
 
 /// 从 WebView 读取 HTML 的辅助。使用 `evaluateJavaScript` 只读取，不修改页面。
+///
+/// 标记为 `@MainActor`：`WKWebView` 只能在主线程访问，返回值也不该跨隔离域传递。
+@MainActor
 enum WebContentCollector {
     /// 读取整页 HTML。先滚动到底再读，确保懒加载的表格行都已渲染。
     static func collect(from webView: WKWebView) async throws -> String {
         // 逐步滚动触发懒加载，然后回到顶部。
-        _ = try? await webView.evaluateJavaScript(
-            """
-            (async () => {
-              const step = Math.max(200, window.innerHeight);
-              for (let y = 0; y < document.body.scrollHeight; y += step) {
-                window.scrollTo(0, y);
-                await new Promise(r => setTimeout(r, 60));
-              }
-              window.scrollTo(0, 0);
-              return true;
-            })()
-            """
-        )
-        guard let html = try await webView.evaluateJavaScript("document.documentElement.outerHTML") as? String,
-              !html.isEmpty else {
-            throw CollectError.emptyDocument
+        await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(
+                """
+                (function () {
+                  var step = Math.max(200, window.innerHeight);
+                  var y = 0;
+                  while (y < document.body.scrollHeight) { window.scrollTo(0, y); y += step; }
+                  window.scrollTo(0, 0);
+                  return true;
+                })()
+                """
+            ) { _, _ in continuation.resume() }
+        }
+        let html: String = try await withCheckedThrowingContinuation { continuation in
+            webView.evaluateJavaScript("document.documentElement.outerHTML") { result, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let text = result as? String, !text.isEmpty {
+                    continuation.resume(returning: text)
+                } else {
+                    continuation.resume(throwing: CollectError.emptyDocument)
+                }
+            }
         }
         return html
     }
