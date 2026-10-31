@@ -1,18 +1,10 @@
 name: Native iOS UI validation
 
+# macOS runners are billed per minute and a private repository multiplies that.
+# A path-filtered push trigger spent the monthly allowance during ordinary
+# editing, which then blocked signing and upload. Start validation explicitly.
 on:
   workflow_dispatch:
-  push:
-    branches: [master, 'codex/**']
-    paths:
-      - 'CampusSchedule/**'
-      - 'Shared/**'
-      - 'Widgets/**'
-      - 'Tests/**'
-      - 'ios/**'
-      - 'scripts/**'
-      - 'Package.swift'
-      - '.github/workflows/native-ui.yml'
 
 permissions:
   contents: read
