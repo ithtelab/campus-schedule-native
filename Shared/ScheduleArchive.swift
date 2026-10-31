@@ -33,9 +33,12 @@ public struct ArchivedSemester: Codable, Equatable {
     public var periods: [ArchivedPeriod]
     public var courses: [ArchivedCourse]
     public var exceptions: [ArchivedException]
+    /// 较早的备份没有考试字段；解码时缺省为空数组，旧文件仍然可读。
+    public var exams: [Exam]
 
     public init(id: String, name: String, startDate: Date, totalWeeks: Int,
-                periods: [ArchivedPeriod], courses: [ArchivedCourse], exceptions: [ArchivedException]) {
+                periods: [ArchivedPeriod], courses: [ArchivedCourse], exceptions: [ArchivedException],
+                exams: [Exam] = []) {
         self.id = id
         self.name = name
         self.startDate = startDate
@@ -43,6 +46,23 @@ public struct ArchivedSemester: Codable, Equatable {
         self.periods = periods
         self.courses = courses
         self.exceptions = exceptions
+        self.exams = exams
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, startDate, totalWeeks, periods, courses, exceptions, exams
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        startDate = try container.decode(Date.self, forKey: .startDate)
+        totalWeeks = try container.decode(Int.self, forKey: .totalWeeks)
+        periods = try container.decode([ArchivedPeriod].self, forKey: .periods)
+        courses = try container.decode([ArchivedCourse].self, forKey: .courses)
+        exceptions = try container.decode([ArchivedException].self, forKey: .exceptions)
+        exams = try container.decodeIfPresent([Exam].self, forKey: .exams) ?? []
     }
 }
 
@@ -130,6 +150,8 @@ public enum ArchiveError: LocalizedError, Equatable {
     case duplicateSemesterID(String)
     case duplicateExceptionID(String)
     case exceptionWithoutCourse(String)
+    case duplicateExamID(String)
+    case invalidExam(String, String)
 
     public var errorDescription: String? {
         switch self {
@@ -165,6 +187,10 @@ public enum ArchiveError: LocalizedError, Equatable {
             "调课记录标识 \(id) 重复出现。"
         case .exceptionWithoutCourse(let id):
             "调课记录指向了不存在的课程 \(id)。"
+        case .duplicateExamID(let id):
+            "考试标识 \(id) 重复出现。"
+        case .invalidExam(let id, let reason):
+            "考试 \(id) 数据无效：\(reason)。"
         }
     }
 }
@@ -231,6 +257,19 @@ public extension ScheduleArchive {
                 }
                 guard courseIDs.contains(exception.courseID) else {
                     throw ArchiveError.exceptionWithoutCourse(exception.courseID)
+                }
+            }
+
+            var examIDs = Set<String>()
+            for exam in semester.exams {
+                guard examIDs.insert(exam.id).inserted else {
+                    throw ArchiveError.duplicateExamID(exam.id)
+                }
+                switch ExamPlan.validate(exam) {
+                case .valid: break
+                case .missingTitle: throw ArchiveError.invalidExam(exam.id, "缺少考试科目")
+                case .malformedTime(let value): throw ArchiveError.invalidExam(exam.id, "时间「\(value)」格式不正确")
+                case .endBeforeStart: throw ArchiveError.invalidExam(exam.id, "结束时间早于开始时间")
                 }
             }
         }

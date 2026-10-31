@@ -47,6 +47,32 @@ final class PreviewStore {
         var periods: [DemoPeriod]
         var courses: [DemoCourse]
         var exceptions: [CourseException] = []
+        var exams: [Exam] = []
+
+        enum CodingKeys: String, CodingKey { case name, startDate, totalWeeks, periods, courses, exceptions, exams }
+
+        init(name: String, startDate: Date, totalWeeks: Int, periods: [DemoPeriod],
+             courses: [DemoCourse], exceptions: [CourseException] = [], exams: [Exam] = []) {
+            self.name = name
+            self.startDate = startDate
+            self.totalWeeks = totalWeeks
+            self.periods = periods
+            self.courses = courses
+            self.exceptions = exceptions
+            self.exams = exams
+        }
+
+        // 考试字段是后加的，旧数据没有它，缺省为空以避免迁移失败。
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            name = try container.decode(String.self, forKey: .name)
+            startDate = try container.decode(Date.self, forKey: .startDate)
+            totalWeeks = try container.decode(Int.self, forKey: .totalWeeks)
+            periods = try container.decode([DemoPeriod].self, forKey: .periods)
+            courses = try container.decode([DemoCourse].self, forKey: .courses)
+            exceptions = try container.decodeIfPresent([CourseException].self, forKey: .exceptions) ?? []
+            exams = try container.decodeIfPresent([Exam].self, forKey: .exams) ?? []
+        }
     }
 
     /// 所有学期的内容，键是学期标识。
@@ -96,6 +122,13 @@ final class PreviewStore {
         get { activeContent?.exceptions ?? [] }
         set { mutateActive { $0.exceptions = newValue } }
     }
+    var exams: [Exam] {
+        get { activeContent?.exams ?? [] }
+        set { mutateActive { $0.exams = newValue } }
+    }
+
+    /// 当前学期即将到来的考试。
+    var upcomingExams: [Exam] { ExamPlan.upcoming(exams.filter { $0.id != "" }, now: now) }
 
     static let defaultPeriods: [DemoPeriod] = [
         .init(id: 1, start: "08:00", end: "08:45"), .init(id: 2, start: "08:50", end: "09:35"),
@@ -510,7 +543,8 @@ final class PreviewStore {
                 exceptions: content.exceptions.map { change in
                     ArchivedException(id: change.id.uuidString, courseID: change.courseID, day: change.day,
                                       cancelled: change.cancelled, start: change.start, end: change.end, room: change.room)
-                }
+                },
+                exams: content.exams
             )
         }
         return try ScheduleArchive(exportedAt: exportedAt, appVersion: Self.appVersion, semesters: semesters).validated()
@@ -563,7 +597,8 @@ final class PreviewStore {
                     CourseException(id: UUID(uuidString: change.id) ?? UUID(), courseID: change.courseID,
                                     day: change.day, cancelled: change.cancelled,
                                     start: change.start, end: change.end, room: change.room)
-                }
+                },
+                exams: term.exams
             )
         }
 

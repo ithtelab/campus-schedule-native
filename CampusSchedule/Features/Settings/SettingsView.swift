@@ -26,10 +26,15 @@ struct BackupDocument: FileDocument {
     }
 }
 
+enum SettingsRoute: Hashable {
+    case exams
+}
+
 struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
     @State private var showingAcademicSettings = false
     @State private var showingTermList = false
+    @State private var path = NavigationPath()
     @State private var showingExporter = false
     @State private var showingImporter = false
     @State private var backupDocument: BackupDocument?
@@ -50,6 +55,7 @@ struct SettingsView: View {
                 Section("课表") {
                     Button("学期与作息", systemImage: "calendar.badge.clock") { showingAcademicSettings = true }
                     Button("全部学期", systemImage: "list.bullet.rectangle") { showingTermList = true }
+                    NavigationLink("考试安排", value: SettingsRoute.exams)
                     LabeledContent("当前学期", value: store.semesterName)
                 }
                 Section {
@@ -93,6 +99,11 @@ struct SettingsView: View {
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: SettingsRoute.self) { route in
+                switch route {
+                case .exams: ExamListView()
+                }
+            }
             .sheet(isPresented: $showingAcademicSettings) { AcademicSettingsView() }
             .sheet(isPresented: $showingTermList) { TermListView() }
             .fileExporter(isPresented: $showingExporter, document: backupDocument,
