@@ -57,12 +57,17 @@ public enum ExamPlan {
     }
 
     /// 考试开始时刻。时分非法时返回 nil，避免显示错误时间。
+    ///
+    /// 刻意不复用 `ScheduleRules.date`：它接受 `9:00` 这类省略前导零的写法，
+    /// 而考试时间需要与导出格式一致，统一要求 HH:mm。
     public static func startDate(_ exam: Exam) -> Date? {
-        ScheduleRules.date(day: exam.date, time: exam.startTime)
+        guard ScheduleArchive.isClockTime(exam.startTime) else { return nil }
+        return ScheduleRules.date(day: exam.date, time: exam.startTime)
     }
 
     public static func endDate(_ exam: Exam) -> Date? {
-        ScheduleRules.date(day: exam.date, time: exam.endTime)
+        guard ScheduleArchive.isClockTime(exam.endTime) else { return nil }
+        return ScheduleRules.date(day: exam.date, time: exam.endTime)
     }
 
     /// 是否已经考完。
@@ -76,12 +81,8 @@ public enum ExamPlan {
         guard !exam.courseTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .missingTitle
         }
-        guard ScheduleRules.date(day: exam.date, time: exam.startTime) != nil else {
-            return .malformedTime(exam.startTime)
-        }
-        guard ScheduleRules.date(day: exam.date, time: exam.endTime) != nil else {
-            return .malformedTime(exam.endTime)
-        }
+        guard ScheduleArchive.isClockTime(exam.startTime) else { return .malformedTime(exam.startTime) }
+        guard ScheduleArchive.isClockTime(exam.endTime) else { return .malformedTime(exam.endTime) }
         guard let start = startDate(exam), let end = endDate(exam) else { return .malformedTime(exam.startTime) }
         guard end > start else { return .endBeforeStart }
         return .valid
