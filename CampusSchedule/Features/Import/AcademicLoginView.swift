@@ -105,24 +105,34 @@ struct AcademicLoginView: View {
     }
 
     private func planFromHTML(_ html: String) throws {
-        let tables = HTMLTableExtractor.extractTables(from: html)
-        guard !tables.isEmpty else {
-            throw ImportFailure.noTable
+        // 1) 内嵌 JSON：正方、URP 等把课表放在脚本变量里，最可靠。
+        for candidate in AcademicSystemProfile.embeddedJSON(from: html) {
+            if let outcome = AcademicSystemProfile.courses(fromEmbeddedJSON: candidate,
+                                                           totalWeeks: store.totalWeeks),
+               !outcome.courses.isEmpty {
+                finish(plan: makePlan(outcome))
+                return
+            }
         }
-        // 逐个表格尝试，取识别出课程最多的那个：页面上常有导航表格干扰。
+
+        // 2) 表格结构：绝大多数教务系统。
+        let tables = HTMLTableExtractor.extractTables(from: html)
         var best: ParseOutcome?
         for table in tables {
             let outcome = TimetableTextParser.parseGrid(table, totalWeeks: store.totalWeeks)
             if outcome.courses.count > (best?.courses.count ?? 0) { best = outcome }
         }
-        guard let outcome = best, !outcome.courses.isEmpty else {
-            // 表格没解析出课程时，退回整页文本解析。
-            let textFallback = TimetableTextParser.parseLines(html, totalWeeks: store.totalWeeks)
-            guard !textFallback.courses.isEmpty else { throw ImportFailure.noCourses }
-            finish(plan: makePlan(textFallback))
+        if let outcome = best, !outcome.courses.isEmpty {
+            finish(plan: makePlan(outcome))
             return
         }
-        finish(plan: makePlan(outcome))
+
+        // 3) 整页文本：纯 div 布局，靠每行的星期与节次识别。
+        let textFallback = TimetableTextParser.parseLines(html, totalWeeks: store.totalWeeks)
+        guard !textFallback.courses.isEmpty else {
+            throw tables.isEmpty ? ImportFailure.noTable : ImportFailure.noCourses
+        }
+        finish(plan: makePlan(textFallback))
     }
 
     private func makePlan(_ outcome: ParseOutcome) -> ImportPlanner.Plan {
