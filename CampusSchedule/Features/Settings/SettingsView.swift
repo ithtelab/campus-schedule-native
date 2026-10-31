@@ -43,7 +43,7 @@ struct SettingsView: View {
     @State private var showingRestorePrompt = false
     var body: some View {
         @Bindable var settings = store
-        NavigationStack {
+        NavigationStack(path: $path) {
             Form {
                 Section {
                     HStack(spacing: 16) {

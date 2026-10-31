@@ -248,6 +248,23 @@ final class PreviewStore {
             courses.append(.init(id: "layout-single", title: "学术写作", room: "图书馆 · 201", teacher: "李老师", weekday: 6,
                 startPeriod: 9, endPeriod: 9, startTime: "19:00", endTime: "19:45", color: .blue))
         }
+        if isPreview && ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "exams" {
+            // 截图专用示范数据，让考试页展示真实排版而不是空状态。
+            let calendar = ScheduleRules.calendar
+            let base = calendar.startOfDay(for: clockDate)
+            let offsets = [3, 8, 15]
+            let samples = [("高等数学", "09:00", "11:00", "A302", "17"),
+                           ("大学英语", "14:00", "16:00", "B205", "08"),
+                           ("程序设计", "19:00", "21:00", "实验楼502", "")]
+            var seeded: [Exam] = []
+            for (index, offset) in offsets.enumerated() {
+                let sample = samples[index]
+                let day = calendar.date(byAdding: .day, value: offset, to: base) ?? base
+                seeded.append(Exam(courseTitle: sample.0, date: day, startTime: sample.1,
+                                   endTime: sample.2, room: sample.3, seatNumber: sample.4))
+            }
+            exams = seeded
+        }
         if isPreview {
             switch ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] {
             case "dense":

@@ -351,6 +351,37 @@ async function uploadStatus() {
   const uploads = (await api(`/v1/apps/${record.id}/buildUploads`, { query: { limit: '5' } })).data;
   console.log(JSON.stringify(uploads.map(item => ({ id: item.id, ...item.attributes })), null, 2));
 }
+async function resendOwnerInvitation(buildNumber) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const [owners, builds, groups] = await Promise.all([
+    api('/v1/users', { query: { 'filter[roles]': 'ACCOUNT_HOLDER', limit: '2' } }),
+    api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'specific build number'), limit: '10' } }),
+    api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } }),
+  ]);
+  if (owners.data.length !== 1) throw new Error('Cannot uniquely identify the account holder; no invitation sent');
+  const owner = owners.data[0].attributes;
+  const build = need(builds.data.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID' && !item.attributes.expired), 'valid unexpired build');
+  const recipients = new Map();
+  for (const group of groups.data.filter(item => item.attributes.isInternalGroup)) {
+    const assigned = (await api(`/v1/betaGroups/${group.id}/builds`, { query: { limit: '200' } })).data;
+    if (!assigned.some(item => item.id === build.id)) continue;
+    const testers = (await api(`/v1/betaGroups/${group.id}/betaTesters`, { query: { limit: '200' } })).data;
+    for (const tester of testers.filter(item => item.attributes.email?.toLowerCase() === owner.username.toLowerCase())) recipients.set(tester.id, tester);
+  }
+  if (recipients.size !== 1) throw new Error('Expected exactly one existing account-holder tester with build access; no invitation sent');
+  const tester = [...recipients.values()][0];
+  const result = await api('/v1/betaTesterInvitations', { method: 'POST', data: {
+    type: 'betaTesterInvitations', relationships: {
+      app: { data: { type: 'apps', id: record.id } },
+      betaTester: { data: { type: 'betaTesters', id: tester.id } },
+    },
+  } });
+  const report = { appID: record.id, build: buildNumber, recipient: maskedEmail(tester.attributes.email),
+    previousState: tester.attributes.state, invitationResourceID: result.data?.id ?? null,
+    requestedAt: new Date().toISOString(), status: 'RESEND_REQUEST_ACCEPTED', emailDelivery: 'UNVERIFIED' };
+  writeFileSync(resolve(local, `invitation-resend-${record.id}.json`), JSON.stringify(report, null, 2), { mode: 0o600 });
+  console.log(JSON.stringify(report, null, 2));
+}
 async function enableInternal(buildNumber) {
   need(buildNumber, 'specific build number');
   const record = need(await findApp(), 'App Store Connect app');
@@ -528,6 +559,7 @@ try {
     case 'diagnose-review': await diagnoseReview(); break;
     case 'internal-status': await internalStatus(); break;
     case 'upload-status': await uploadStatus(); break;
+    case 'resend-owner-invitation': await resendOwnerInvitation(process.argv[3]); break;
     case 'enable-internal': await enableInternal(process.argv[3]); break;
     case 'watch-internal': await watchInternal(process.argv[3]); break;
     case 'external-status': await externalStatus(); break;
