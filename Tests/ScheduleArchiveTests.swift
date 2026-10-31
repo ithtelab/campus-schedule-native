@@ -245,7 +245,7 @@ struct ScheduleArchiveTests {
         #expect(text.contains("1 门课程"))
     }
 
-    @Test func rejectsTruncatedJSON() {
+    @Test func rejectsTruncatedJSON() throws {
         let data = try archive([semester()]).encoded()
         #expect(throws: (any Error).self) {
             _ = try ScheduleArchive.decoded(from: data.dropLast(40))
