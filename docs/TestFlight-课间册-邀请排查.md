@@ -17,7 +17,7 @@
 
 使用 [Apple 官方邀请接口](https://developer.apple.com/documentation/appstoreconnectapi/post-v1-betatesterinvitations)，仅对有 15.1 内测资格的唯一账号持有人重发一次邀请。无新增测试者、删除资格、重建 App、构建上传或外测提审。
 
-Apple 于北京时间 **2026-10-31 19:11:34** 成功受理重发请求，邀请资源 ID `0d9e7199-fd38-4425-bcf8-2874cb098e0b`。收件、点击接受和安装均仍待用户确认；不把接口受理写成邮件已送达。
+Apple 于北京时间 **2026-10-31 19:11:34** 成功受理重发请求，邀请资源 ID `0d9e7199-fd38-4425-bcf8-2874cb098e0b`。用户随后明确确认该邮箱是本人邮箱，重发后仍未收到。邮件实际投递未成功得到确认，接受与安装也未确认；不把接口受理写成邮件已送达。
 
 脱敏凭证位于 `.tool-cache/apple/invitation-resend-6829142615.json`；只读资格报告位于 `.tool-cache/apple/install-diagnostic-15.1.json`。未输出私钥、登录凭据或邀请兑换码。
 
@@ -25,8 +25,10 @@ Apple 于北京时间 **2026-10-31 19:11:34** 成功受理重发请求，邀请�
 
 ## 用户待核对事项与公开测试边界
 
-请用户核对 `ch***@icloud.com` 是否为实际收信邮箱，检查收件箱、垃圾邮件或 [iCloud 网页邮箱](https://www.icloud.com/mail/) 中的 TestFlight 邮件；如邮箱不对，再根据用户明确提供的信息处理，不猜测新地址。
+`ch***@icloud.com` 已由用户确认是本人邮箱，不再反复要求确认地址。用户已反馈仍未收到邀请，当前只读查询仍为 INVITED。已进一步询问该邮箱能否收到其他普通邮件，用于区分邮箱收信和 TestFlight 邀请投递；此项尚未得到回答，不能自行假定其他邮件正常。
+
+已直接读取 Apple DocC 官方 JSON 结构，确认现有请求使用的 type / relationships 格式正确。[BetaTesterInvitation](https://developer.apple.com/documentation/appstoreconnectapi/betatesterinvitation) 响应只有 id、type 和导航 links，没有用户可兑换的邀请 URL 或兑换码；导航 self-link 不能当作用户邀请链接使用。当前公开接口也未提供邮箱实际送达日志。不重复发信、不删除测试者、不编造替代邀请链接。
 
 公开测试需要新 App 的外测组和通过 Beta App Review 的构建。[Apple TestFlight 说明](https://developer.apple.com/testflight/) 当前条件均不满足，本次未擅自重新创建外测组、启用链接或提交审核。
 
-若重发后用户仍未收到邀请，应记录实际确认结果并升级调查邮件/账号分发链路；现阶段没有证据认定用户设备、邮箱过滤或 Apple 后台中的哪一项是根因。
+重发后用户仍未收到，已保存事实并准备 [邮件邀请故障报告](Apple-课间册-内测邀请未收到.md)。尚未发送给 Apple。现阶段没有证据认定用户设备、邮箱过滤或 Apple 后台中的哪一项是根因；若普通邮件也收不到，应先处理邮箱收信，若其他邮件正常，再将具体邀请编号交 Apple 核查投递链路。
