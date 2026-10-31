@@ -42,6 +42,7 @@ struct WeekScheduleView: View {
                     .tint(DesignSystem.toolbarTint)
                     Button("添加课程", systemImage: "plus") { showingEditor = true }
                         .tint(DesignSystem.toolbarTint)
+                        .keyboardShortcut("n", modifiers: .command)
                 }
             }
             .sheet(item: $selectedCourse) { CourseDetailView(course: $0) }
@@ -54,7 +55,10 @@ struct WeekScheduleView: View {
         if typeSize.isAccessibilitySize { accessibleList(week: week) }
         else {
             GeometryReader { geometry in
-                let width = max(1, (geometry.size.width - 24 - 33 - CGFloat(dayCount) * 4) / CGFloat(dayCount))
+                // iPad 全屏时单日列会被拉到 200 点以上，课程卡里的两行文字显得很空。
+                // 限制内容宽度并居中，让五天网格保持手机上的疏密比例。
+                let available = min(geometry.size.width, Self.maximumContentWidth)
+                let width = max(1, (available - 24 - 33 - CGFloat(dayCount) * 4) / CGFloat(dayCount))
                 let pageCourses = store.courses(in: week)
                 VStack(spacing: 0) {
                     weekdayHeader(width: width, week: week)
@@ -62,9 +66,14 @@ struct WeekScheduleView: View {
                         timetable(width: width, week: week, courses: pageCourses).padding(.bottom, 20)
                     }
                 }
+                .frame(width: available)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
     }
+
+    /// 五天网格超过这个宽度后不再变宽，只增加两侧留白。
+    private static let maximumContentWidth: CGFloat = 620
 
     private var weekHeader: some View {
         Group {
@@ -111,8 +120,10 @@ struct WeekScheduleView: View {
                 HStack(spacing: 0) {
                     Button("上一周", systemImage: "chevron.left") { changeWeek(-1) }
                         .frame(width: 44, height: 44).disabled(store.selectedWeek <= 1)
+                        .keyboardShortcut(.leftArrow, modifiers: .command)
                     Button("下一周", systemImage: "chevron.right") { changeWeek(1) }
                         .frame(width: 44, height: 44).disabled(store.selectedWeek >= store.totalWeeks)
+                        .keyboardShortcut(.rightArrow, modifiers: .command)
                 }
                 .labelStyle(.iconOnly).font(.subheadline.weight(.semibold)).padding(.leading, 8)
             }

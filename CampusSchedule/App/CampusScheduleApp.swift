@@ -15,15 +15,36 @@ struct CampusScheduleApp: App {
                 RootView()
             }
         }
+        // iPad 允许任意尺寸窗口，才能在分屏与台前调度里按需调整。
+        .windowResizability(.contentMinSize)
     }
 }
 
+/// 主界面。iPad 上用侧边栏承载三个分区，iPhone 保持标签栏。
+///
+/// 两套布局共享同一份状态与子视图，因此切换设备不会改变行为。
 struct RootView: View {
     @Environment(\.dynamicTypeSize) private var systemTypeSize
     @Environment(\.scenePhase) private var phase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var linkedCourse: DemoCourse?
-    private enum Screen: String {
+    enum Screen: String, CaseIterable, Identifiable {
         case today, week, settings
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .week: "课表"
+            case .today: "今日"
+            case .settings: "设置"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .week: "calendar"
+            case .today: "sun.max"
+            case .settings: "slider.horizontal.3"
+            }
+        }
     }
 
     @State private var store = PreviewStore()
@@ -33,17 +54,11 @@ struct RootView: View {
     ) ?? .week
 
     var body: some View {
-        TabView(selection: $selectedScreen) {
-            Tab("课表", systemImage: "calendar", value: Screen.week) {
-                WeekScheduleView()
-                    .tint(DesignSystem.toolbarTint)
-            }
-            Tab("今日", systemImage: "sun.max", value: Screen.today) {
-                TodayView().tint(DesignSystem.toolbarTint)
-            }
-            Tab("设置", systemImage: "slider.horizontal.3", value: Screen.settings) {
-                SettingsView()
-                    .tint(DesignSystem.toolbarTint)
+        Group {
+            if horizontalSizeClass == .regular {
+                splitLayout
+            } else {
+                tabLayout
             }
         }
         .tint(DesignSystem.accent)
@@ -57,7 +72,56 @@ struct RootView: View {
                 store.clockDate = Date(); store.synchronize()
             }
         }
-        .task {
+        .task { await runSmokeChecksIfRequested() }
+        .environment(store)
+        .environment(\.timeZone, ScheduleRules.calendar.timeZone)
+        .environment(\.dynamicTypeSize,
+            ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_ACCESSIBILITY"] == "1" ? .accessibility3 : systemTypeSize)
+        .environment(\.campusSuppressMotion,
+            ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1")
+    }
+
+    /// iPad：侧边栏常驻，内容区随选择切换。
+    private var splitLayout: some View {
+        NavigationSplitView {
+            List(Screen.allCases) { screen in
+                Button {
+                    selectedScreen = screen
+                } label: {
+                    Label(screen.title, systemImage: screen.symbol)
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(screen == selectedScreen ? DesignSystem.accent.opacity(0.12) : Color.clear)
+            }
+            .navigationTitle("课间册")
+            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
+        } detail: {
+            screenView(selectedScreen)
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    /// iPhone：原有标签栏。
+    private var tabLayout: some View {
+        TabView(selection: $selectedScreen) {
+            ForEach(Screen.allCases) { screen in
+                Tab(screen.title, systemImage: screen.symbol, value: screen) {
+                    screenView(screen).tint(DesignSystem.toolbarTint)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func screenView(_ screen: Screen) -> some View {
+        switch screen {
+        case .week: WeekScheduleView()
+        case .today: TodayView()
+        case .settings: SettingsView()
+        }
+    }
+
+    /// 环境变量驱动的自动检查，仅在 CI 与截图流程中启用。
+    private func runSmokeChecksIfRequested() async {
             if ProcessInfo.processInfo.environment["CAMPUS_DEMO_SMOKE"] == "1" {
                 let passed = store.isDemoEdition && !store.isPreview && !store.courses.isEmpty && store.currentWeek == 8
                 try? (passed ? "PASS: normal demo edition opens populated current-term data separately from personal storage" : "FAIL: demo edition routing")
@@ -132,13 +196,6 @@ struct RootView: View {
                 }
                 catch { break }
             }
-        }
-        .environment(store)
-        .environment(\.timeZone, ScheduleRules.calendar.timeZone)
-        .environment(\.dynamicTypeSize,
-            ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_ACCESSIBILITY"] == "1" ? .accessibility3 : systemTypeSize)
-        .environment(\.campusSuppressMotion,
-            ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1")
     }
 }
 
