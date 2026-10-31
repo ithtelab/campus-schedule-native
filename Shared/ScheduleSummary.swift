@@ -53,8 +53,10 @@ public struct ScheduleSummary: Equatable, Sendable {
                 if item.end <= now { result.monthCompleted += 1 }
             }
             if calendar.isDate(item.start, inSameDayAs: today) {
+                // 已上完按结束时刻算，其余都归入「还没上完」。
+                // 正好等于开始时刻时不能两种都不算，否则会漏掉这节课。
                 if item.end <= now { result.todayCompleted += 1 }
-                else if item.start > now { result.todayRemaining += 1 }
+                else { result.todayRemaining += 1 }
             }
         }
         return result
