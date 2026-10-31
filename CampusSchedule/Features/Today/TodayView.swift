@@ -226,29 +226,13 @@ struct TodayView: View {
     }
 
 
+    /// 一行小字：不加容器、不描边，避免看起来像一块卡片或可点的面板。
     private func statsRow(_ summary: ScheduleSummary) -> some View {
-        HStack(spacing: 0) {
-            statItem(value: "\(summary.weekSessions)", label: "本周")
-            divider
-            statItem(value: "\(summary.monthCompleted)/\(summary.monthSessions)", label: "本月已上")
-        }
-        .padding(.vertical, 10)
-        .background(DesignSystem.paper, in: RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12).strokeBorder(DesignSystem.rule, lineWidth: 0.75)
-        }
-    }
-
-    private func statItem(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value).font(.callout.weight(.semibold)).monospacedDigit()
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var divider: some View {
-        Rectangle().fill(DesignSystem.rule).frame(width: 0.75, height: 26)
+        Text("本周 \(summary.weekSessions) 节 · 本月已上 \(summary.monthCompleted)/\(summary.monthSessions) 节")
+            .font(.caption2)
+            .monospacedDigit()
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity)
     }
 
     /// 今日页收尾的三种状态。
