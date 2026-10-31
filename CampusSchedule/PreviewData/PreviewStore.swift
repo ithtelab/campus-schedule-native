@@ -92,6 +92,21 @@ final class PreviewStore {
     var endReminder = false { didSet { save() } }
     var endLead = 0 { didSet { save() } }
     var exceptions: [CourseException] = [] { didSet { save() } }
+
+    /// 用户是否开启了 iCloud 同步。默认关闭，与产品约定一致。
+    var cloudSyncEnabled = false {
+        didSet {
+            guard cloudSyncEnabled != oldValue else { return }
+            if cloudSyncEnabled { beginCloudSync() } else { stopCloudSync() }
+        }
+    }
+    /// 同步状态文案，设置在界面展示。
+    private(set) var cloudSyncStatus: String?
+    /// 云端与本地都改过时挂起，等待用户选择。
+    private(set) var pendingCloudConflict: StampedPayload?
+    @ObservationIgnored private var cloudSync = CloudSync.shared
+    @ObservationIgnored private var cloudPushTask: Task<Void, Never>?
+    @ObservationIgnored private var restoreCloudSync = false
     @ObservationIgnored private var persistence: LocalPersistence?
     @ObservationIgnored private var ready = false
     @ObservationIgnored private var syncTask: Task<Void, Never>?
@@ -99,6 +114,8 @@ final class PreviewStore {
         var courses: [DemoCourse]; var periods: [DemoPeriod]; var semesterName: String; var semesterStart: Date
         var totalWeeks: Int; var reminders: Bool; var lead: Int; var endReminder: Bool; var endLead: Int
         var liveEnabled: Bool; var exceptions: [CourseException]
+        // 后端加字段必须是可选的，否则旧版本写下的数据会解码失败。
+        var cloudSyncEnabled: Bool?
     }
     init() {
         if isDemoEdition {
@@ -151,12 +168,15 @@ final class PreviewStore {
                     semesterStart = saved.semesterStart; totalWeeks = saved.totalWeeks
                     reminderPreview = saved.reminders; reminderMinutes = saved.lead
                     endReminder = saved.endReminder; endLead = saved.endLead; liveEnabled = saved.liveEnabled; exceptions = saved.exceptions
+                    restoreCloudSync = saved.cloudSyncEnabled == true
                 }
                 persistence = storage
             } catch { errorMessage = "本地数据无法读取，未覆盖原有文件：\(error.localizedDescription)" }
         }
         selectedWeek = min(totalWeeks, max(1, currentWeek))
         ready = true
+        // 存储已就绪，此时再开启同步才能读到本地内容；直接在这里赋值会绕过持久化准备。
+        if restoreCloudSync { cloudSyncEnabled = true; restoreCloudSync = false }
     }
     var occurrences: [CourseOccurrence] {
         var result: [CourseOccurrence] = []
@@ -187,10 +207,122 @@ final class PreviewStore {
         do {
             let data = Saved(courses: courses, periods: periods, semesterName: semesterName, semesterStart: semesterStart,
                 totalWeeks: totalWeeks, reminders: reminderPreview, lead: reminderMinutes, endReminder: endReminder,
-                endLead: endLead, liveEnabled: liveEnabled, exceptions: exceptions)
-            try persistence.save(JSONEncoder().encode(data))
+                endLead: endLead, liveEnabled: liveEnabled, exceptions: exceptions,
+                cloudSyncEnabled: cloudSyncEnabled)
+            let encoded = try JSONEncoder().encode(data)
+            try persistence.save(encoded)
             synchronize()
+            if cloudSyncEnabled { scheduleCloudPush(encoded) }
         } catch { errorMessage = "保存失败：\(error.localizedDescription)" }
+    }
+
+    // MARK: - iCloud 同步
+
+    private func beginCloudSync() {
+        guard !isDemoEdition, !isPreview else {
+            cloudSyncStatus = "演示版不参与 iCloud 同步。"
+            return
+        }
+        guard cloudSync.isAvailable else {
+            cloudSyncStatus = CloudSyncError.unavailable.errorDescription
+            return
+        }
+        do {
+            let localData = try persistence?.load()
+            switch cloudSync.decision(local: localData) {
+            case .idle:
+                cloudSyncStatus = "已是最新。"
+            case .pushLocal:
+                guard let localData else { throw CloudSyncError.decodeFailed }
+                try cloudSync.push(localData)
+                cloudSyncStatus = "已上传本机课表。"
+            case .applyRemote:
+                guard let remote = cloudSync.remote(), let term = try? ScheduleArchive.decoded(from: remote.payload) else {
+                    throw CloudSyncError.decodeFailed
+                }
+                try restore(from: term)
+                cloudSync.markSynced(remote.payload)
+                cloudSyncStatus = "已采用 iCloud 中的课表。"
+            case .conflict:
+                pendingCloudConflict = cloudSync.remote()
+                cloudSyncStatus = "iCloud 与本机都有改动，需要你选择保留哪一份。"
+            }
+        } catch {
+            cloudSyncStatus = error.localizedDescription
+        }
+        cloudSync.startObserving { [weak self] payload in
+            self?.handleRemoteChange(payload)
+        }
+    }
+
+    private func stopCloudSync() {
+        cloudSync.stopObserving()
+        cloudSync.resetSyncState()
+        pendingCloudConflict = nil
+        cloudSyncStatus = "已关闭同步。"
+    }
+
+    /// 远端变化：本地没改过就直接采用，改过则挂起等用户决定。
+    private func handleRemoteChange(_ payload: StampedPayload) {
+        guard cloudSyncEnabled, !payload.payload.isEmpty, payload.deviceID != cloudSync.deviceID else { return }
+        guard let localData = try? persistence?.load() else {
+            applyRemote(payload); return
+        }
+        switch CloudSyncPlan.decide(
+            local: StampedPayload(updatedAt: Date(), deviceID: cloudSync.deviceID, payload: localData),
+            remote: payload,
+            lastSyncedPayload: cloudSync.lastSyncedPayloadForComparison
+        ) {
+        case .applyRemote: applyRemote(payload)
+        case .conflict: pendingCloudConflict = payload
+        default: break
+        }
+    }
+
+    private func applyRemote(_ payload: StampedPayload) {
+        do {
+            let term = try ScheduleArchive.decoded(from: payload.payload)
+            try restore(from: term)
+            cloudSync.markSynced(payload.payload)
+            pendingCloudConflict = nil
+            cloudSyncStatus = "已同步来自其他设备的改动。"
+        } catch {
+            cloudSyncStatus = "远端课表无法读取：\(error.localizedDescription)"
+        }
+    }
+
+    /// 用户选择采用 iCloud 版本。
+    func resolveConflictUsingCloud() {
+        guard let payload = pendingCloudConflict else { return }
+        applyRemote(payload)
+    }
+
+    /// 用户选择保留本机版本，覆盖云端。
+    func resolveConflictKeepingLocal() {
+        guard pendingCloudConflict != nil, let localData = try? persistence?.load() else { return }
+        do {
+            try cloudSync.push(localData)
+            pendingCloudConflict = nil
+            cloudSyncStatus = "已保留本机课表并覆盖 iCloud。"
+        } catch {
+            cloudSyncStatus = error.localizedDescription
+        }
+    }
+
+    func dismissCloudConflict() { pendingCloudConflict = nil }
+
+    /// 合并连续保存，避免每敲一个字就写一次 iCloud。
+    private func scheduleCloudPush(_ data: Data) {
+        cloudPushTask?.cancel()
+        cloudPushTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .seconds(2))
+                try Task.checkCancellation()
+                guard cloudSyncEnabled, pendingCloudConflict == nil else { return }
+                try cloudSync.push(data)
+                cloudSyncStatus = "已同步到 iCloud。"
+            } catch is CancellationError {} catch { cloudSyncStatus = error.localizedDescription }
+        }
     }
     func synchronize() {
         guard !isPreview else { return }

@@ -69,6 +69,13 @@ struct SettingsView: View {
                     Toggle("课程实时活动", isOn: $settings.liveEnabled).tint(DesignSystem.switchTint)
                 } header: { Text("锁屏与灵动岛") }
                 footer: { Text("在锁屏与灵动岛查看课程安排。") }
+                Section {
+                    Toggle("iCloud 同步", isOn: $settings.cloudSyncEnabled).tint(DesignSystem.switchTint)
+                    if let status = store.cloudSyncStatus {
+                        Text(status).font(.footnote).foregroundStyle(.secondary)
+                    }
+                } header: { Text("多设备") }
+                footer: { Text("开启后课表会保存到你的 iCloud，在登录同一 Apple 账户的其他设备上自动出现。关闭后本机数据保留，不再上传。") }
                 Section("组件") {
                     Text("在桌面或锁屏编辑模式中搜索“课间册”，添加当前与下一节课组件。")
                 }
@@ -100,6 +107,16 @@ struct SettingsView: View {
                 Button("取消", role: .cancel) { pendingArchive = nil }
             } message: { archive in
                 Text("将用备份覆盖当前学期：\n\n\(archive.summary)\n\n当前数据会被替换，且无法撤销。建议先导出一次现有课表。")
+            }
+            .alert("iCloud 与本机都有改动", isPresented: .init(
+                get: { store.pendingCloudConflict != nil },
+                set: { if !$0 { store.dismissCloudConflict() } }
+            )) {
+                Button("使用 iCloud 版本") { store.resolveConflictUsingCloud() }
+                Button("保留本机版本", role: .destructive) { store.resolveConflictKeepingLocal() }
+                Button("稍后决定", role: .cancel) { store.dismissCloudConflict() }
+            } message: {
+                Text("两台设备各自修改了课表，无法自动合并。选择要保留的那一份，另一份会被覆盖。")
             }
             .task { showingAcademicSettings = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "academic" }
             .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications() } }
