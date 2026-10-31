@@ -8,8 +8,9 @@ import Observation
     private(set) var isDragging = false
     func update(phase: DragSession.Phase) {
         switch phase {
-        case .initial, .active: isDragging = true
-        case .ending(_), .ended(_), .dataTransferCompleted: isDragging = false
+        // Keep the destination alive while the system commits the drop.
+        case .initial, .active, .ending(_): isDragging = true
+        case .ended(_), .dataTransferCompleted: isDragging = false
         @unknown default: isDragging = false
         }
     }
