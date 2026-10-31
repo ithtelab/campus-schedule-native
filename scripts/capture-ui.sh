@@ -121,6 +121,9 @@ SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_TOSS_SMOKE=1 xcrun sim
 sleep 3
 cp "$data_path/Documents/course-toss-smoke.txt" screenshots/course-toss-test.txt
 grep -q '^PASS' screenshots/course-toss-test.txt
+SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=week SIMCTL_CHILD_CAMPUS_TOSS_PREVIEW=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
+sleep 3
+xcrun simctl io booted screenshot screenshots/course-toss-visible-preview.png
 
 # 使用独立的个人数据模式检查 SwiftData 写入及进程重启后读回。
 SIMCTL_CHILD_CAMPUS_SMOKE_TEST=seed xcrun simctl launch --terminate-running-process booted "$bundle_id"
@@ -138,6 +141,20 @@ if grep -q '^FAIL' screenshots/shared-snapshot-test.txt; then
   echo 'Shared snapshot round trip failed.' >&2
   exit 1
 fi
+
+# Verify the normal demo launch independently of the fixed-time screenshot route.
+SIMCTL_CHILD_CAMPUS_DEMO_SMOKE=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
+sleep 3
+cp "$data_path/Documents/demo-edition-smoke.txt" screenshots/demo-edition-test.txt
+grep -q '^PASS' screenshots/demo-edition-test.txt
+xcrun simctl io booted screenshot screenshots/demo-edition-week.png
+SIMCTL_CHILD_CAMPUS_DEMO_SCREEN=today xcrun simctl launch --terminate-running-process booted "$bundle_id"
+sleep 3
+xcrun simctl io booted screenshot screenshots/demo-edition-today.png
+SIMCTL_CHILD_CAMPUS_SMOKE_TEST=reload xcrun simctl launch --terminate-running-process booted "$bundle_id"
+sleep 3
+grep -q '^PASS' "$data_path/Documents/persistence-smoke.txt"
+cp "$data_path/Documents/persistence-smoke.txt" screenshots/personal-data-after-demo-test.txt
 
 # 实际向模拟器系统请求 Live Activity，而不是把普通卡片当成灵动岛截图。
 SIMCTL_CHILD_CAMPUS_SMOKE_TEST=live xcrun simctl launch --terminate-running-process booted "$bundle_id"

@@ -3,6 +3,7 @@ import SwiftUI
 struct WeekScheduleView: View {
     @Environment(PreviewStore.self) private var store
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedCourse: DemoCourse?
     @State private var showingWeeks = false
     @State private var showingEditor = false
@@ -15,28 +16,19 @@ struct WeekScheduleView: View {
     private var totalHeight: CGFloat { rowHeight * 10 + groupGap * 2 }
 
     var body: some View {
+        @Bindable var calendar = store
         NavigationStack {
             VStack(spacing: 0) {
                 weekHeader
-                    .contentShape(Rectangle())
-                    .simultaneousGesture(DragGesture(minimumDistance: 45).onEnded { value in
-                        if abs(value.translation.width) > abs(value.translation.height) * 1.5 { changeWeek(value.translation.width < 0 ? 1 : -1) }
-                    })
-                if typeSize.isAccessibilitySize { accessibleList }
-                else {
-                    GeometryReader { geometry in
-                        let width = max(1, (geometry.size.width - 24 - 33 - CGFloat(dayCount) * 4) / CGFloat(dayCount))
-                        VStack(spacing: 0) {
-                            weekdayHeader(width: width)
-                            ScrollView(.vertical) {
-                                timetable(width: width).padding(.bottom, 20)
-                            }
-                        }
+                TabView(selection: $calendar.selectedWeek) {
+                    ForEach(1...store.totalWeeks, id: \.self) { week in
+                        weekPage(week).tag(week)
                     }
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never))
             }
             .background(DesignSystem.background)
-            .safeAreaInset(edge: .bottom, spacing: 0) { CourseTossDock(courses: courses, reaction: toss) }
+            .courseTossOverlay(courses: courses, reaction: toss)
             .navigationTitle("课表").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -55,6 +47,22 @@ struct WeekScheduleView: View {
             .sheet(item: $selectedCourse) { CourseDetailView(course: $0) }
             .sheet(isPresented: $showingEditor) { CourseEditorView() }
             .sheet(isPresented: $showingWeeks) { weekPicker }
+        }
+    }
+
+    @ViewBuilder private func weekPage(_ week: Int) -> some View {
+        if typeSize.isAccessibilitySize { accessibleList(week: week) }
+        else {
+            GeometryReader { geometry in
+                let width = max(1, (geometry.size.width - 24 - 33 - CGFloat(dayCount) * 4) / CGFloat(dayCount))
+                let pageCourses = store.courses(in: week)
+                VStack(spacing: 0) {
+                    weekdayHeader(width: width, week: week)
+                    ScrollView(.vertical) {
+                        timetable(width: width, week: week, courses: pageCourses).padding(.bottom, 20)
+                    }
+                }
+            }
         }
     }
 
@@ -118,14 +126,14 @@ struct WeekScheduleView: View {
         }
     }
 
-    private func weekdayHeader(width: CGFloat) -> some View {
+    private func weekdayHeader(width: CGFloat, week: Int) -> some View {
         HStack(spacing: 4) {
             Text("节次").font(.system(size: 9)).foregroundStyle(.secondary).frame(width: 33)
             ForEach(0..<dayCount, id: \.self) { day in
-                let isToday = store.selectedWeek == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7
+                let isToday = week == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7
                 VStack(spacing: 5) {
                     Text(days[day]).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                    Text("\(ScheduleRules.calendar.component(.day, from: store.date(week: store.selectedWeek, day: day)))")
+                    Text("\(ScheduleRules.calendar.component(.day, from: store.date(week: week, day: day)))")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .frame(width: 28, height: 28)
                         .foregroundStyle(isToday ? DesignSystem.inverse : Color.primary)
@@ -137,7 +145,7 @@ struct WeekScheduleView: View {
         .padding(.horizontal, 12).padding(.bottom, 12)
     }
 
-    private func timetable(width: CGFloat) -> some View {
+    private func timetable(width: CGFloat, week: Int, courses: [DemoCourse]) -> some View {
         HStack(alignment: .top, spacing: 4) {
             ZStack(alignment: .top) {
                 ForEach(store.periods) { period in
@@ -150,7 +158,7 @@ struct WeekScheduleView: View {
                 }
             }
             .frame(width: 33, height: totalHeight, alignment: .top)
-            ForEach(0..<dayCount, id: \.self) { day in dayColumn(day, width: width) }
+            ForEach(0..<dayCount, id: \.self) { day in dayColumn(day, width: width, week: week, courses: courses) }
         }
         .frame(height: totalHeight, alignment: .top).padding(.horizontal, 12)
         .overlay(alignment: .topLeading) {
@@ -161,14 +169,14 @@ struct WeekScheduleView: View {
         }
     }
 
-    private func dayColumn(_ day: Int, width: CGFloat) -> some View {
+    private func dayColumn(_ day: Int, width: CGFloat, week: Int, courses: [DemoCourse]) -> some View {
         ZStack(alignment: .top) {
             ForEach(1...10, id: \.self) { period in
                 Rectangle().fill(Color.primary.opacity(0.045)).frame(height: 0.5).offset(y: offset(period))
             }
             ForEach(courses.filter { $0.weekday == day }) { course in
                 let height = max(32, position(course.endTime) - position(course.startTime) - 4)
-                let date = store.date(week: store.selectedWeek, day: day)
+                let date = store.date(week: week, day: day)
                 let ended = (ScheduleRules.date(day: date, time: course.endTime) ?? .distantFuture) <= store.now
                 let ongoing = (ScheduleRules.date(day: date, time: course.startTime) ?? .distantFuture) <= store.now && !ended
                 let ink = ongoing ? DesignSystem.inverse : Color.primary
@@ -191,17 +199,14 @@ struct WeekScheduleView: View {
                     .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(ended ? 0.2 : 0.25), lineWidth: 0.8) }
                 }
                 .buttonStyle(.plain).foregroundStyle(.primary)
-                .draggable(CourseTossReaction.payload(course))
-                .accessibilityAction(named: "扔个纸团，保留课程") {
-                    toss.accept([CourseTossReaction.payload(course)], courses: courses)
-                }
+                .courseTossSource(course, courses: courses, reaction: toss)
                 .accessibilityLabel("\(days[day])，\(course.title)，\(course.startTime)至\(course.endTime)，\(course.room)")
                 .offset(y: min(totalHeight - 32, position(course.startTime)))
             }
         }
         .frame(width: width, height: totalHeight, alignment: .top)
         .overlay(alignment: .top) {
-            if store.selectedWeek == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7 {
+            if week == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7 {
                 HStack(spacing: 0) {
                     Circle().fill(.primary).frame(width: 5, height: 5)
                     Rectangle().fill(.primary).frame(height: 1)
@@ -228,11 +233,11 @@ struct WeekScheduleView: View {
         return totalHeight
     }
 
-    private var accessibleList: some View {
+    private func accessibleList(week: Int) -> some View {
         List {
             ForEach(0..<dayCount, id: \.self) { day in
                 Section(days[day]) {
-                    let daily = courses.filter { $0.weekday == day }.sorted { $0.startPeriod < $1.startPeriod }
+                    let daily = store.courses(in: week).filter { $0.weekday == day }.sorted { $0.startPeriod < $1.startPeriod }
                     if daily.isEmpty { Text("没有课程").foregroundStyle(.secondary) }
                     ForEach(daily) { course in
                         Button { selectedCourse = course } label: {
@@ -248,6 +253,7 @@ struct WeekScheduleView: View {
                             .fixedSize(horizontal: false, vertical: true).padding(.vertical, 10)
                         }
                         .buttonStyle(.plain)
+                        .courseTossSource(course, courses: courses, reaction: toss)
                     }
                 }
             }
@@ -292,7 +298,11 @@ struct WeekScheduleView: View {
         }
         return totalHeight
     }
-    private func changeWeek(_ delta: Int) { store.selectedWeek = min(store.totalWeeks, max(1, store.selectedWeek + delta)) }
+    private func changeWeek(_ delta: Int) {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+            store.selectedWeek = min(store.totalWeeks, max(1, store.selectedWeek + delta))
+        }
+    }
     private var hasHiddenWeekendCourses: Bool { !store.showsWeekend && courses.contains { $0.weekday >= 5 } }
     private func returnToCurrentWeek() { store.selectedWeek = min(store.totalWeeks, max(1, store.currentWeek)) }
 }

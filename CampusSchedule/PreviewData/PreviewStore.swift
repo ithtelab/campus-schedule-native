@@ -31,7 +31,7 @@ struct DemoPeriod: Identifiable, Codable {
     var end: String
 }
 
-/// 应用状态与本地存储入口；云端截图通过显式环境变量隔离演示数据。
+/// 本版展示独立演示课表；个人 SwiftData 文件保持隔离。云端验证可显式选择个人路径。
 @MainActor @Observable
 final class PreviewStore {
     var selectedWeek = 8
@@ -61,6 +61,11 @@ final class PreviewStore {
     ] { didSet { save() } }
 
     var isPreview: Bool { ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] != nil }
+    var isDemoEdition: Bool {
+        !isPreview && ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == nil
+            && ProcessInfo.processInfo.environment["CAMPUS_PERSONAL_DATA"] != "1"
+            && Bundle.main.object(forInfoDictionaryKey: "CampusDemoEdition") as? Bool == true
+    }
     var clockDate = Date()
     var timeText: String { time(now) }
     func time(_ date: Date) -> String { let f = DateFormatter(); f.timeZone = ScheduleRules.calendar.timeZone; f.dateFormat = "HH:mm"; return f.string(from: date) }
@@ -96,6 +101,21 @@ final class PreviewStore {
         var liveEnabled: Bool; var exceptions: [CourseException]
     }
     init() {
+        if isDemoEdition {
+            // Keep the sample term current without loading or replacing personal courses.
+            let calendar = ScheduleRules.calendar
+            let today = calendar.startOfDay(for: clockDate)
+            let weekday = (calendar.component(.weekday, from: today) + 5) % 7
+            semesterStart = calendar.date(byAdding: .day, value: -weekday - 49, to: today)!
+            reminderPreview = false
+            for day in [5, 6] {
+                for source in Array(courses.prefix(3)) {
+                    courses.append(.init(id: "sample-\(day)-\(source.id)", title: source.title, room: source.room,
+                        teacher: source.teacher, weekday: day, startPeriod: source.startPeriod, endPeriod: source.endPeriod,
+                        startTime: source.startTime, endTime: source.endTime, color: source.color))
+                }
+            }
+        }
         if isPreview && ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] == "long" {
             courses[3] = .init(id: "layout-long", title: "大学英语视听说与学术交流", room: "第二教学楼北区 · 1205", teacher: "王老师", weekday: 1,
                 startPeriod: 3, endPeriod: 4, startTime: "10:00", endTime: "11:35", color: .green)
@@ -116,7 +136,7 @@ final class PreviewStore {
             default: break
             }
         }
-        if !isPreview {
+        if !isPreview && !isDemoEdition {
             courses = []; reminderPreview = false
             do {
                 let storage = try LocalPersistence()
@@ -162,6 +182,7 @@ final class PreviewStore {
         return result
     }
     func save() {
+        if ready && isDemoEdition { synchronize(); return }
         guard ready, !isPreview, let persistence else { return }
         do {
             let data = Saved(courses: courses, periods: periods, semesterName: semesterName, semesterStart: semesterStart,

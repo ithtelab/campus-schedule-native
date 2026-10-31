@@ -42,18 +42,6 @@ enum CourseColor: String, CaseIterable, Codable {
     }
 }
 
-struct DemoNotice: View {
-    @Environment(PreviewStore.self) private var store
-    var body: some View {
-        Label(store.isPreview ? "演示课表 · 尚未连接学校" : "本地课表 · 离线可查看", systemImage: "info.circle")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
-            .accessibilityLabel(store.isPreview ? "当前为演示课表" : "当前为个人本地课表")
-    }
-}
-
 struct CourseCard: View {
     let course: DemoCourse
 

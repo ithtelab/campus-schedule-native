@@ -5,12 +5,68 @@ import Observation
     static let prefix = "campus-toss:"
     private(set) var count = 0
     private(set) var title = ""
+    private(set) var isDragging = false
+    func update(phase: DragSession.Phase) {
+        switch phase {
+        case .initial, .active: isDragging = true
+        case .ending(_), .ended(_), .dataTransferCompleted: isDragging = false
+        @unknown default: isDragging = false
+        }
+    }
+    func dismiss() { isDragging = false }
     static func payload(_ course: DemoCourse) -> String { prefix + course.id }
     @discardableResult func accept(_ payloads: [String], courses: [DemoCourse]) -> Bool {
         guard let payload = payloads.first, payload.hasPrefix(Self.prefix),
               let course = courses.first(where: { $0.id == String(payload.dropFirst(Self.prefix.count)) }) else { return false }
         title = course.title; count += 1
         return true
+    }
+}
+
+private struct CourseTossSource: ViewModifier {
+    let course: DemoCourse
+    let courses: [DemoCourse]
+    let reaction: CourseTossReaction
+    func body(content: Content) -> some View {
+        content.draggable(CourseTossReaction.payload(course))
+            .onDragSessionUpdated { reaction.update(phase: $0.phase) }
+            .accessibilityAction(named: "扔个纸团，保留课程") {
+                reaction.accept([CourseTossReaction.payload(course)], courses: courses)
+            }
+    }
+}
+
+private struct CourseTossOverlay: ViewModifier {
+    let courses: [DemoCourse]
+    let reaction: CourseTossReaction
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .bottom) {
+            if reaction.isDragging {
+                CourseTossDock(courses: courses, reaction: reaction)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(DesignSystem.rule, lineWidth: 0.75) }
+                    .padding(.horizontal, 16).padding(.bottom, 8)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: reaction.isDragging)
+        .onDisappear { reaction.dismiss() }
+        .onChange(of: scenePhase) { _, value in if value != .active { reaction.dismiss() } }
+        .task {
+            // Isolated screenshot state, never enabled in a normal launch.
+            if ProcessInfo.processInfo.environment["CAMPUS_TOSS_PREVIEW"] == "1" { reaction.update(phase: .active) }
+        }
+    }
+}
+
+extension View {
+    func courseTossSource(_ course: DemoCourse, courses: [DemoCourse], reaction: CourseTossReaction) -> some View {
+        modifier(CourseTossSource(course: course, courses: courses, reaction: reaction))
+    }
+    func courseTossOverlay(courses: [DemoCourse], reaction: CourseTossReaction) -> some View {
+        modifier(CourseTossOverlay(courses: courses, reaction: reaction))
     }
 }
 

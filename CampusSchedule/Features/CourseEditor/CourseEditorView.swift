@@ -82,10 +82,9 @@ struct CourseEditorView: View {
                 } header: { Text("上课周次") }
                 footer: { Text("已选择 \(weeks.count) 个教学周。指定周次适合短学期课程或集中授课。") }
 
-                Section {
-                    if conflict { Label("与已有课程时间重叠，请调整时间或周次", systemImage: "exclamationmark.circle").foregroundStyle(.primary) }
-                    Label(store.isPreview ? "本次仅为演示" : "课程保存在本机", systemImage: "info.circle").foregroundStyle(.secondary)
-                } footer: { Text(store.isPreview ? "退出后恢复演示数据。" : "设置中可开启上课提醒，组件将使用同一份课表。") }
+                if conflict {
+                    Section { Label("与已有课程时间重叠，请调整时间或周次", systemImage: "exclamationmark.circle").foregroundStyle(.primary) }
+                }
             }
             .navigationTitle(editing == nil ? "添加课程" : "编辑课程").navigationBarTitleDisplayMode(.inline)
             .toolbar {

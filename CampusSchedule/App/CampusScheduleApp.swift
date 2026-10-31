@@ -27,9 +27,9 @@ struct RootView: View {
     }
 
     @State private var store = PreviewStore()
-    // 云端显式选择页面；正常启动突出课表，个人数据仍从本机读取。
+    // 云端显式选择页面；本演示版正常启动突出课表，个人存储保持隔离。
     @State private var selectedScreen = Screen(
-        rawValue: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] ?? "week"
+        rawValue: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] ?? ProcessInfo.processInfo.environment["CAMPUS_DEMO_SCREEN"] ?? "week"
     ) ?? .week
 
     var body: some View {
@@ -58,6 +58,11 @@ struct RootView: View {
             }
         }
         .task {
+            if ProcessInfo.processInfo.environment["CAMPUS_DEMO_SMOKE"] == "1" {
+                let passed = store.isDemoEdition && !store.isPreview && !store.courses.isEmpty && store.currentWeek == 8
+                try? (passed ? "PASS: normal demo edition opens populated current-term data separately from personal storage" : "FAIL: demo edition routing")
+                    .write(to: URL.documentsDirectory.appendingPathComponent("demo-edition-smoke.txt"), atomically: true, encoding: .utf8)
+            }
             if store.isPreview, ProcessInfo.processInfo.environment["CAMPUS_TOSS_SMOKE"] == "1", let first = store.todayCourses.first {
                 let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
                 let before = try? encoder.encode(store.courses)

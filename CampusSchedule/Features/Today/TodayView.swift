@@ -31,7 +31,6 @@ struct TodayView: View {
                         Section {
                             agenda.padding(.horizontal, 20).padding(.top, 18)
                             closingNote.padding(20)
-                            DemoNotice().padding(.horizontal, 20)
                             Color.clear.frame(height: 20).id("agenda-end")
                         } header: {
                             if let next {
@@ -60,7 +59,7 @@ struct TodayView: View {
                 }
             }
             .background(DesignSystem.background)
-            .safeAreaInset(edge: .bottom, spacing: 0) { CourseTossDock(courses: daily, reaction: toss) }
+            .courseTossOverlay(courses: daily, reaction: toss)
             .navigationTitle("今日").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -94,9 +93,6 @@ struct TodayView: View {
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .foregroundStyle(DesignSystem.inverse)
                     .background(Color.primary, in: RoundedRectangle(cornerRadius: 5)).rotationEffect(.degrees(-2))
-                if store.isPreview {
-                    Text("演示 \(time)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                }
             }
         }
     }
@@ -123,6 +119,7 @@ struct TodayView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(CampusPressStyle()).accessibilityHint("查看课程详情")
+                    .courseTossSource(course, courses: daily, reaction: toss)
                     if !typeSize.isAccessibilitySize {
                         CampusCharacter(player: character, contextDriven: true).frame(width: 78, height: 150)
                     }
@@ -191,10 +188,7 @@ struct TodayView: View {
             }
         }
         .buttonStyle(CampusPressStyle())
-        .draggable(CourseTossReaction.payload(course))
-        .accessibilityAction(named: "扔个纸团，保留课程") {
-            toss.accept([CourseTossReaction.payload(course)], courses: daily)
-        }
+        .courseTossSource(course, courses: daily, reaction: toss)
         .accessibilityElement(children: .combine)
     }
 
