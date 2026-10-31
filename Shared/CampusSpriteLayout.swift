@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 enum CampusSpriteLayout {
     // The generated artwork has uneven rows. Do not divide the image into equal quarters.

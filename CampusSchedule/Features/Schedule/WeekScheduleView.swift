@@ -190,12 +190,13 @@ struct WeekScheduleView: View {
                     .background(ongoing ? Color.primary : ended ? DesignSystem.paper : Color.primary.opacity(0.11), in: RoundedRectangle(cornerRadius: 9))
                     .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(ended ? 0.2 : 0.25), lineWidth: 0.8) }
                 }
-                .buttonStyle(.plain).foregroundStyle(.primary).offset(y: min(totalHeight - 32, position(course.startTime)))
+                .buttonStyle(.plain).foregroundStyle(.primary)
                 .draggable(CourseTossReaction.payload(course))
                 .accessibilityAction(named: "扔个纸团，保留课程") {
                     toss.accept([CourseTossReaction.payload(course)], courses: courses)
                 }
                 .accessibilityLabel("\(days[day])，\(course.title)，\(course.startTime)至\(course.endTime)，\(course.room)")
+                .offset(y: min(totalHeight - 32, position(course.startTime)))
             }
         }
         .frame(width: width, height: totalHeight, alignment: .top)
