@@ -37,6 +37,11 @@ async function api(path, { method = 'GET', data, query } = {}) {
   if (!result.ok) {
     const error = new Error(`Apple ${result.status}: ${(body.errors ?? []).map(item => `${item.code}: ${item.detail ?? item.title}`).join('; ')}`);
     error.httpStatus = result.status;
+    if (path === '/v1/betaAppReviewSubmissions' && method === 'POST') {
+      const diagnostic = { timestamp: new Date().toISOString(), method, path, status: result.status, errors: body.errors };
+      writeFileSync(resolve(local, 'beta-review-error.json'), JSON.stringify(diagnostic, null, 2), { mode: 0o600 });
+      console.error(JSON.stringify(diagnostic));
+    }
     throw error;
   }
   return body;
