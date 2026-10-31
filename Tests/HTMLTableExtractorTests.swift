@@ -13,7 +13,9 @@ struct HTMLTableExtractorTests {
         #expect(tables.count == 1)
         #expect(tables[0].count == 2)
         #expect(tables[0][0][1] == "周一")
-        #expect(tables[0][1][2] == "高等数学")
+        // 第二行：第 0 列是节次，第 1 列是周一，第 3 列是周三。
+        #expect(tables[0][1][1] == "高等数学")
+        #expect(tables[0][1][3] == "线性代数")
     }
 
     @Test func handlesMultipleTables() {
