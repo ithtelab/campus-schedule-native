@@ -156,6 +156,21 @@ async function resumeBuild(buildNumber) {
   if (build.attributes.expired) await api(`/v1/builds/${build.id}`, { method: 'PATCH', data: { type: 'builds', id: build.id, attributes: { expired: false } } });
   await auditBuild(buildNumber);
 }
+async function diagnoseReview() {
+  const record = need(await findApp(), 'App Store Connect app');
+  const review = (await api(`/v1/apps/${record.id}/betaAppReviewDetail`)).data;
+  const localizations = (await api(`/v1/apps/${record.id}/betaAppLocalizations`)).data;
+  console.log(JSON.stringify({ primaryLocale: record.attributes.primaryLocale, reviewFields: Object.fromEntries(Object.entries(review.attributes).map(([key,value]) => [key, typeof value === 'boolean' ? value : Boolean(value)])), localizations: localizations.map(item => ({ locale: item.attributes.locale, descriptionLength: item.attributes.description?.length ?? 0, feedbackEmailSet: Boolean(item.attributes.feedbackEmail) })) }));
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, limit: '10' } })).data;
+  for (const build of builds) {
+    const notes = (await api(`/v1/builds/${build.id}/betaBuildLocalizations`)).data;
+    console.log(JSON.stringify({ build: build.attributes.version, notes: notes.map(item => ({ locale: item.attributes.locale, length: item.attributes.whatsNew?.length ?? 0 })) }));
+    try {
+      const submission = (await api(`/v1/betaAppReviewSubmissions/${build.id}`)).data;
+      console.log(JSON.stringify({ build: build.attributes.version, submission: submission?.attributes ?? null }));
+    } catch (error) { console.log(`Build ${build.attributes.version} direct submission lookup: HTTP ${error.httpStatus ?? 'unknown'}`); }
+  }
+}
 function maskedEmail(email) {
   const [name, domain] = email.split('@');
   return `${name.slice(0, 2)}***@${domain}`;
@@ -201,8 +216,12 @@ async function enableInternal(buildNumber) {
     console.log(`Added only the account holder to internal testing: ${maskedEmail(owner.username)}`);
   }
   const notes = (await api(`/v1/builds/${build.id}/betaBuildLocalizations`)).data;
-  if (!notes.some(item => item.attributes.locale === 'zh-Hans')) {
-    await api('/v1/betaBuildLocalizations', { method: 'POST', data: { type: 'betaBuildLocalizations', attributes: { locale: 'zh-Hans', whatsNew: '请测试：手动添加课程、本地保存、深浅色、课表联动人物、上下课提醒、桌面与锁屏组件。学校导入未实现；灵动岛完整后台自动结束和多节自动衔接尚待完善。初次启动为空课表。' }, relationships: { build: { data: { type: 'builds', id: build.id } } } } });
+  const note = notes.find(item => item.attributes.locale === 'zh-Hans');
+  const whatsNew = '请测试：手动添加课程、本地保存、深浅色、课表联动人物、上下课提醒、桌面与锁屏组件。学校导入未实现；灵动岛完整后台自动结束和多节自动衔接尚待完善。初次启动为空课表。';
+  if (!note) {
+    await api('/v1/betaBuildLocalizations', { method: 'POST', data: { type: 'betaBuildLocalizations', attributes: { locale: 'zh-Hans', whatsNew }, relationships: { build: { data: { type: 'builds', id: build.id } } } } });
+  } else if (!note.attributes.whatsNew?.trim()) {
+    await api(`/v1/betaBuildLocalizations/${note.id}`, { method: 'PATCH', data: { type: 'betaBuildLocalizations', id: note.id, attributes: { whatsNew } } });
   }
   const assigned = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
   if (!assigned.some(item => item.id === build.id)) await api(`/v1/betaGroups/${group.id}/relationships/builds`, { method: 'POST', data: [{ type: 'builds', id: build.id }] });
@@ -288,6 +307,8 @@ async function submitExternal(buildNumber) {
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
   const build = need(builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID' && !item.attributes.expired), 'eligible processed build');
   if (build.attributes.buildAudienceType === 'INTERNAL_ONLY') throw new Error('Internal-only build cannot be submitted externally');
+  const notes = (await api(`/v1/builds/${build.id}/betaBuildLocalizations`)).data;
+  if (!notes.some(item => item.attributes.whatsNew?.trim())) throw new Error('Beta build What to Test is empty; fill it before submission');
   let submission;
   try { submission = (await api(`/v1/builds/${build.id}/betaAppReviewSubmission`)).data; }
   catch (error) { if (error.httpStatus !== 404) throw error; }
@@ -316,6 +337,7 @@ try {
     case 'status': await status(); break;
     case 'audit-build': await auditBuild(process.argv[3]); break;
     case 'resume-build': await resumeBuild(process.argv[3]); break;
+    case 'diagnose-review': await diagnoseReview(); break;
     case 'internal-status': await internalStatus(); break;
     case 'upload-status': await uploadStatus(); break;
     case 'enable-internal': await enableInternal(process.argv[3]); break;
@@ -325,7 +347,7 @@ try {
     case 'configure-external': await configureExternal(); break;
     case 'submit-external': await submitExternal(process.argv[3]); break;
     case 'external-link': await enableExternalLink(process.argv[3]); break;
-    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
+    default: throw new Error('Use check-key, setup, certificate, secrets, profiles, status, audit-build BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
   }
 } catch (error) {
   // Do not print subprocess buffers, request headers, tokens or private key content.
