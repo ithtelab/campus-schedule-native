@@ -1,6 +1,6 @@
 # 课间册 · iOS 原生工程
 
-当前状态：旧 App 已退役并由用户移除，新 App“课间册”已创建，Apple ID `6829142615`，主应用 `com.ithtelab.campustimetable`、组件 `.widgets` 已注册，工程版本为 0.1.0。用户已重新授权助手上传，预检发现新 App Group 尚未实际关联，等待网页保存后继续签名。新 App 尚未上传构建。操作说明见 [重新建立 Apple 应用](docs/重新建立Apple应用.md)。
+当前状态：旧 App 已退役并由用户移除，新 App“课间册”已创建，Apple ID `6829142615`，主应用 `com.ithtelab.campustimetable`、组件 `.widgets` 已注册，工程版本为 0.1.0。共享组 `group.com.ithtelab.campustimetable` 已在两个标识上关联并解码验证通过，签名与上传链路就绪。新 App 尚未上传构建。操作说明见 [重新建立 Apple 应用](docs/重新建立Apple应用.md)。
 
 历史 TestFlight：6.1 安装失败，7.1 外测提交返回 Apple 422；现按用户要求，旧 App 的所有构建均已过期，旧公开链接停用。历史凭证见 [TestFlight 发布](docs/TestFlight发布.md)，不再把旧测试资格视为当前可用。界面和功能代码仍保留；本轮重建的是分发配置。
 
@@ -73,3 +73,13 @@ xcodebuild -project ios/CampusSchedule.xcodeproj -scheme CampusSchedule -sdk iph
 后续验收仍需检查：小屏 iPhone 与 iPad、VoiceOver、减少透明度、横竖屏、课程详情打开关闭、周次切换、表单添加/取消/保存、提醒设置显隐及长文本。周网格默认五天同屏，辅助功能大字体改用按天分组列表。UI 规范见 [UI设计规范.md](docs/UI设计规范.md)。
 
 此阶段不加入仅复述静态布局的自动化测试。真实课程时间规则、数据合并与通知排程落地时再添加针对性的测试。
+
+## 许可
+
+本项目以 [PolyForm Noncommercial License 1.0.0](LICENSE) 发布，全文见 `LICENSE`。
+
+- **允许**：个人学习、研究、实验、测试、业余项目；慈善机构、教育机构、公共研究机构、公共安全或卫生机构、环保组织及政府机构的非商业使用。
+- **禁止**：任何商业用途，包括但不限于销售、以本项目或其衍生作品提供付费服务、将其集成进商业产品、或在企业内部用于营利性经营活动。
+
+需要商业授权请另行联系版权持有人。
+
