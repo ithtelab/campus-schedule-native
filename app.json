@@ -9,7 +9,7 @@
     "extra": {
       "nativeAppGroup": "group.com.ithtelab.campustimetable",
       "nativePreview": {
-        "minimumIOSVersion": "27.0"
+        "minimumIOSVersion": "18.0"
       }
     }
   }

@@ -1,6 +1,6 @@
 # EAS 的默认原生 iOS 流程会执行 pod install。
 # 当前没有第三方运行依赖，此文件只用于衔接该流程。
-platform :ios, '27.0'
+platform :ios, '18.0'
 project 'CampusSchedule.xcodeproj'
 
 target 'CampusSchedule' do
