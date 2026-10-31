@@ -221,13 +221,17 @@ public enum TimetableTextParser {
             let words = line.split(whereSeparator: \.isWhitespace).map(String.init)
             if words.count < 2 { tokens.append(line); continue }
             var pending: [String] = []
+            var sawTitle = false
             for word in words {
-                let isStandalone = parseWeeks(word, totalWeeks: totalWeeks) != nil
-                    || looksLikeRoom(word)
-                    || isTeacherName(word)
-                if isStandalone {
+                // 教师判定只在已经出现过课程名之后才可信：
+                // 「线性代数」与「张老师」都是汉字，靠位置区分而不是靠字形。
+                let standalone = parseWeeks(word, totalWeeks: totalWeeks) != nil
+                    || (sawTitle && looksLikeRoom(word))
+                    || (sawTitle && isTeacherName(word))
+                if standalone {
                     if !pending.isEmpty { tokens.append(pending.joined(separator: " ")); pending = [] }
                     tokens.append(word)
+                    sawTitle = true
                 } else {
                     pending.append(word)
                 }
@@ -257,15 +261,16 @@ public enum TimetableTextParser {
 
         for token in remainder {
             if room.isEmpty, looksLikeRoom(token) { room = token; continue }
-            if teacher.isEmpty, isTeacherName(token) { teacher = token; continue }
             titleParts.append(token)
         }
-
         guard !titleParts.isEmpty else { return nil }
-        // 课程名可能含空格（如「大学英语视听说」），因此只取第一片作为标题，
-        // 其余无归属的片段仅在房间仍为空时补充为房间。
+        // 第一片一定是课程名：教务系统总是先写课程，再写教师和教室。
+        // 教师只从后续片段里取，避免「线性代数」这种四字课程名被当成教师。
         let title = titleParts[0]
         if room.isEmpty, titleParts.count > 1, looksLikeRoom(titleParts[1]) { room = titleParts[1] }
+        if teacher.isEmpty {
+            teacher = titleParts.dropFirst().first(where: isTeacherName) ?? ""
+        }
         guard !title.isEmpty else { return nil }
         return ParsedCourse(title: title, teacher: teacher, room: room,
                             weekday: 0, startPeriod: 1, endPeriod: 1,
