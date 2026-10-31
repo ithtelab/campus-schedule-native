@@ -6,6 +6,7 @@ import Observation
     private(set) var count = 0
     private(set) var title = ""
     private(set) var isDragging = false
+    @available(iOS 26.0, *)
     func update(phase: DragSession.Phase) {
         switch phase {
         // Keep the destination alive while the system commits the drop.
@@ -30,10 +31,23 @@ private struct CourseTossSource: ViewModifier {
     let reaction: CourseTossReaction
     func body(content: Content) -> some View {
         content.draggable(CourseTossReaction.payload(course))
-            .onDragSessionUpdated { reaction.update(phase: $0.phase) }
+            .modifier(CourseTossDragTracking(reaction: reaction))
             .accessibilityAction(named: "扔个纸团，保留课程") {
                 reaction.accept([CourseTossReaction.payload(course)], courses: courses)
             }
+    }
+}
+
+// DragSession and onDragSessionUpdated arrive in iOS 26. Below that the dock still
+// appears through the drop destination's targeted state instead of a live session.
+private struct CourseTossDragTracking: ViewModifier {
+    let reaction: CourseTossReaction
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.onDragSessionUpdated { reaction.update(phase: $0.phase) }
+        } else {
+            content
+        }
     }
 }
 
@@ -42,9 +56,15 @@ private struct CourseTossOverlay: ViewModifier {
     let reaction: CourseTossReaction
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    // Without DragSession the dock cannot react to a drag starting, so it stays
+    // available whenever a course can be dragged.
+    private var dockVisible: Bool {
+        if #available(iOS 26.0, *) { reaction.isDragging }
+        else { !courses.isEmpty }
+    }
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottom) {
-            if reaction.isDragging {
+            if dockVisible {
                 CourseTossDock(courses: courses, reaction: reaction)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(DesignSystem.rule, lineWidth: 0.75) }
@@ -57,7 +77,9 @@ private struct CourseTossOverlay: ViewModifier {
         .onChange(of: scenePhase) { _, value in if value != .active { reaction.dismiss() } }
         .task {
             // Isolated screenshot state, never enabled in a normal launch.
-            if ProcessInfo.processInfo.environment["CAMPUS_TOSS_PREVIEW"] == "1" { reaction.update(phase: .active) }
+            if #available(iOS 26.0, *), ProcessInfo.processInfo.environment["CAMPUS_TOSS_PREVIEW"] == "1" {
+                reaction.update(phase: .active)
+            }
         }
     }
 }
