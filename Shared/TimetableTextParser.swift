@@ -131,6 +131,9 @@ public enum TimetableTextParser {
     // MARK: - 节次
 
     /// 解析「第1-2节」「1-2节」「1,2节」「3节」。
+    ///
+    /// 只在文本中定位节次片段本身，而不是把整行数字都当候选：
+    /// 整行里还含周次和房间号，直接分词会把它们算进来。
     public static func parsePeriods(_ text: String) -> (start: Int, end: Int)? {
         let normalized = text
             .replacingOccurrences(of: "（", with: "(")
@@ -139,17 +142,40 @@ public enum TimetableTextParser {
             .replacingOccurrences(of: "～", with: "-")
             .replacingOccurrences(of: "~", with: "-")
             .replacingOccurrences(of: "—", with: "-")
-            .replacingOccurrences(of: "第", with: "")
-            .replacingOccurrences(of: "节", with: "")
-            .replacingOccurrences(of: " ", with: "")
 
-        let parts = normalized.split(whereSeparator: { $0 == "-" || $0 == "," })
-        let numbers = parts.compactMap { Int($0) }.filter { $0 > 0 && $0 <= 20 }
-        guard let first = numbers.first else { return nil }
-        // 「1,2节」表示连续两节；「1-2节」也是连续两节。
-        let last = numbers.count >= 2 ? numbers[numbers.count - 1] : first
-        guard last >= first else { return nil }
-        return (first, last)
+        // 优先匹配带「节」的明确写法。
+        let explicit = "第?([0-9]{1,2})(?:[-–,]([0-9]{1,2}))?节"
+        if let match = firstMatch(explicit, in: normalized) {
+            let start = match.0
+            let end = match.1 ?? start
+            guard start > 0, end >= start, end <= 20 else { return nil }
+            return (start, end)
+        }
+        // 没有「节」字时，只有整段就是一个纯节次表达式才接受，
+        // 否则整行文本会被误判（例如「周一 高等数学 A302」）。
+        let trimmed = normalized.trimmingCharacters(in: .whitespaces)
+        let bare = "^第?([0-9]{1,2})(?:[-–]([0-9]{1,2}))?$"
+        if let match = firstMatch(bare, in: trimmed) {
+            let start = match.0
+            let end = match.1 ?? start
+            guard start > 0, end >= start, end <= 20 else { return nil }
+            return (start, end)
+        }
+        return nil
+    }
+
+    /// 用 NSRegularExpression 取出第一个匹配的前两个捕获组。
+    private static func firstMatch(_ pattern: String, in text: String) -> (Int, Int?)? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        guard let match = regex.firstMatch(in: text, range: range) else { return nil }
+        func group(_ index: Int) -> Int? {
+            guard index < match.numberOfRanges,
+                  let captured = Range(match.range(at: index), in: text) else { return nil }
+            return Int(text[captured])
+        }
+        guard let first = group(1) else { return nil }
+        return (first, group(2))
     }
 
     // MARK: - 星期
@@ -179,19 +205,35 @@ public enum TimetableTextParser {
     public static func parseCourseCell(_ raw: String, totalWeeks: Int = 20) -> ParsedCourse? {
         // 单元格既可能换行分隔，也可能用空格分隔（例如从整行复制的文本）。
         // 统一按行和多余空白切开，再逐片分类。
-        let tokens = raw
+        let lines = raw
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
             .replacingOccurrences(of: "\t", with: "\n")
-            .split(whereSeparator: { $0.isNewline })
-            .flatMap { line -> [String] in
-                let text = String(line).trimmingCharacters(in: .whitespaces)
-                guard !text.isEmpty else { return [] }
-                // 一行里若是「高等数学 陈老师 A302 1-16周」这种空格串联，拆开才能分类；
-                // 只有两片时不拆，避免把「大学 英语」这类正常课程名切断。
-                let pieces = text.split(whereSeparator: \.isWhitespace).map(String.init)
-                return pieces.count >= 3 ? pieces : [text]
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return nil }
+
+        // 每行再切成词：含周次的词、含房间特征的词可以独立成片，
+        // 其余合并回一个「标题片段」，避免把带空格的课程名拆碎。
+        var tokens: [String] = []
+        for line in lines {
+            let words = line.split(whereSeparator: \.isWhitespace).map(String.init)
+            if words.count < 2 { tokens.append(line); continue }
+            var pending: [String] = []
+            for word in words {
+                let isStandalone = parseWeeks(word, totalWeeks: totalWeeks) != nil
+                    || looksLikeRoom(word)
+                    || isTeacherName(word)
+                if isStandalone {
+                    if !pending.isEmpty { tokens.append(pending.joined(separator: " ")); pending = [] }
+                    tokens.append(word)
+                } else {
+                    pending.append(word)
+                }
             }
+            if !pending.isEmpty { tokens.append(pending.joined(separator: " ")) }
+        }
         guard !tokens.isEmpty else { return nil }
 
         var weeks: Set<Int> = []
@@ -347,8 +389,8 @@ public enum TimetableTextParser {
             guard let day = parseWeekday(line), let period = parsePeriods(line) else { continue }
             // 先整段去掉节次写法，再移除星期名，避免「第1-2节」被拆散后残留数字。
             var remainder = line
-            if let periodRange = line.range(of: "第?[0-9]{1,2}(-[0-9]{1,2})?节", options: .regularExpression) {
-                remainder.replaceSubrange(periodRange, with: " ")
+            if let range = remainder.range(of: "第?[0-9]{1,2}([-–,][0-9]{1,2})?节", options: .regularExpression) {
+                remainder.replaceSubrange(range, with: " ")
             }
             for (marker, _) in weekdayMarkers {
                 remainder = remainder.replacingOccurrences(of: marker, with: " ")
