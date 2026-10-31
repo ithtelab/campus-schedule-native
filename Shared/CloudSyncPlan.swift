@@ -4,7 +4,7 @@ import Foundation
 ///
 /// 时间戳和内容一起存储，因为只看云端 `updatedAt` 无法区分「本地没改过」和
 /// 「本地改过但还没推送」这两种情况，而它们的处理方式完全不同。
-public struct StampedPayload: Codable, Equatable {
+public struct StampedPayload: Codable, Equatable, Sendable {
     /// 内容最后一次修改的时间，由修改方写入。
     public var updatedAt: Date
     /// 生成这份内容的设备，仅用于把「自己的回声」和真实远端变更区分开。
@@ -20,7 +20,7 @@ public struct StampedPayload: Codable, Equatable {
 }
 
 /// 一次同步应当执行的动作。
-public enum SyncDecision: Equatable {
+public enum SyncDecision: Equatable, Sendable {
     /// 两边都没有内容，不需要做事。
     case idle
     /// 云端没有内容，或本地更新：应当把本地推上去。
@@ -91,7 +91,7 @@ public enum CloudSyncPlan {
     }
 }
 
-public enum CloudSyncError: LocalizedError, Equatable {
+public enum CloudSyncError: LocalizedError, Equatable, Sendable {
     case unavailable
     case payloadTooLarge(Int, Int)
     case decodeFailed
