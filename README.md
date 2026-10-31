@@ -1,6 +1,6 @@
 # 大学生课表 · iOS 原生工程
 
-最新 TestFlight 状态：4.1 于 2026-10-31 提前失效，现不可安装，正在重新发布替代构建。具体原因尚未从 Apple API 确认，详见 [TestFlight 发布](docs/TestFlight发布.md)。
+最新 TestFlight 状态：4.1 于 2026-10-31 提前失效，现不可安装；替代版本 5.1 已成功上传，Apple 正在处理。具体失效原因尚未从 Apple API 确认，详见 [TestFlight 发布](docs/TestFlight发布.md)。
 
 当前已进入第二批实施：SwiftData 本地保存、课程操作、通知计划和 WidgetKit / ActivityKit 扩展已接入。正常启动使用个人本地数据，截图模式仍隔离演示数据；不接入学校。**系统组件与通知待真机验收，灵动岛完整后台自动结束尚未完成，不能视为全部功能已交付。** 正式名称待定，工程临时命名 CampusSchedule。详细状态见 [第二批实施记录](docs/第二批实施记录.md)。
 

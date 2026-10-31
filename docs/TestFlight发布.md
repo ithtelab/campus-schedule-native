@@ -2,6 +2,10 @@
 
 2026-10-31 状态变更：4.1 已被提前标记为 EXPIRED，当前不可安装。Apple 返回失效时间为北京时间 03:13:44，包处理仍为 VALID，原 Beta 审核记录已不可查询。用户确认未操作停止测试；现有发布脚本未执行 expired=true，触发来源未能从 Apple API 确定，不归因于用户或审核拒绝。尝试 expired=false 被 Apple 409 拒绝（不允许恢复已失效构建），将重新上传替代构建。下文首次发布成功状态为历史记录。
 
+替代版本 `0.1.0 (5.1)` 已由 [上传任务 41164506639](https://github.com/ithtelab/campus-schedule-native/actions/runs/41164506639) 成功签名上传，源码 `8a86b48`，当前 Apple PROCESSING。一次性检查脚本正在等待该 build 处理为 VALID 且未失效，之后按顺序恢复本人内部测试、关联同一外测组、重新提交 Beta 审核并保留原公开链接。尚不能称 5.1 可安装或外测审核通过。
+
+此次补充 `expired` / `expirationDate` 状态输出和 `audit-build` 只读诊断；测试分配、外测提审及处理检查现同时排除 expired=true，防止将处理结果 VALID 误认为可测试。
+
 用户于 2026-10-31 明确要求上传 TestFlight 供本人真机测试。上传测试包不等于发布 App Store 正式版。
 
 ## 本项目标识
