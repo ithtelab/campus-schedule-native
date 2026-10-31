@@ -15,6 +15,8 @@ import Observation
         @unknown default: isDragging = false
         }
     }
+    /// 拖拽会话不可用时，由纸篓自己的 drop 目标提示拖动正在进行。
+    func setDragging(_ dragging: Bool) { isDragging = dragging }
     func dismiss() { isDragging = false }
     static func payload(_ course: DemoCourse) -> String { prefix + course.id }
     @discardableResult func accept(_ payloads: [String], courses: [DemoCourse]) -> Bool {
@@ -56,27 +58,45 @@ private struct CourseTossOverlay: ViewModifier {
     let reaction: CourseTossReaction
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    /// 拖拽会话可用时由会话驱动；不可用时用一个常驻的收纳目标自行感知。
+    private var usesDragSession: Bool {
+        if #available(iOS 27.0, *) { true } else { false }
+    }
     func body(content: Content) -> some View {
-        content.overlay(alignment: .bottom) {
-            // isDragging is only ever set by the iOS 26 drag session, so the dock
-            // simply does not appear on earlier systems.
-            if reaction.isDragging {
-                CourseTossDock(courses: courses, reaction: reaction)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(DesignSystem.rule, lineWidth: 0.75) }
-                    .padding(.horizontal, 16).padding(.bottom, 8)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+        content
+            .overlay(alignment: .bottom) {
+                if reaction.isDragging {
+                    CourseTossDock(courses: courses, reaction: reaction)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(DesignSystem.rule, lineWidth: 0.75) }
+                        .padding(.horizontal, 16).padding(.bottom, 8)
+                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                }
             }
-        }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: reaction.isDragging)
-        .onDisappear { reaction.dismiss() }
-        .onChange(of: scenePhase) { _, value in if value != .active { reaction.dismiss() } }
-        .task {
-            // Isolated screenshot state, never enabled in a normal launch.
-            if #available(iOS 27.0, *), ProcessInfo.processInfo.environment["CAMPUS_TOSS_PREVIEW"] == "1" {
-                reaction.update(phase: .active)
+            // 没有拖拽会话时，用屏幕底部的隐形收纳区在拖入瞬间唤出纸篓。
+            .overlay(alignment: .bottom) {
+                if !usesDragSession {
+                    Color.clear
+                        .frame(height: 88)
+                        .contentShape(Rectangle())
+                        .dropDestination(for: String.self) { payloads, _ in
+                            let handled = reaction.accept(payloads, courses: courses)
+                            reaction.dismiss()
+                            return handled
+                        } isTargeted: { targeted in
+                            if targeted { reaction.setDragging(true) }
+                        }
+                }
             }
-        }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: reaction.isDragging)
+            .onDisappear { reaction.dismiss() }
+            .onChange(of: scenePhase) { _, value in if value != .active { reaction.dismiss() } }
+            .task {
+                // Isolated screenshot state, never enabled in a normal launch.
+                if #available(iOS 27.0, *), ProcessInfo.processInfo.environment["CAMPUS_TOSS_PREVIEW"] == "1" {
+                    reaction.update(phase: .active)
+                }
+            }
     }
 }
 
