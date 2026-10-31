@@ -27,15 +27,14 @@ public enum ShareCodeParser {
     private static func parseChaoxing(_ data: Data, totalWeeks: Int) -> ParseOutcome? {
         guard let root = try? JSONSerialization.jsonObject(with: data) else { return nil }
         let objects = collectObjects(root)
-        let rows = objects.filter {
-            $0["name"] != nil && $0["dayOfWeek"] != nil && $0["beginNumber"] != nil
-                && $0["length"] != nil && $0["weeks"] != nil
-        }
-        guard !rows.isEmpty else { return nil }
+        // 先按「看起来像课程」筛选出候选，再逐条校验：这样缺字段的行能被计入警告，
+        // 而不是在过滤阶段悄悄消失。
+        let candidates = objects.filter { $0["name"] != nil && $0["dayOfWeek"] != nil }
+        guard !candidates.isEmpty else { return nil }
 
         var courses: [ParsedCourse] = []
         var skipped = 0
-        for row in rows {
+        for row in candidates {
             guard let name = row["name"] as? String, !name.isEmpty,
                   let day = intValue(row["dayOfWeek"]),
                   let begin = intValue(row["beginNumber"]),
@@ -65,17 +64,49 @@ public enum ShareCodeParser {
     }
 
     /// 超星的 `weeks` 字段可能是「1-16」这样的字符串，也可能是数组。
+    ///
+    /// 这里不能直接用 `TimetableTextParser.parseWeeks`：那个函数要求文本里出现
+    /// 「周」字才认为有周次，而分享码里就是裸的「1-16」。字段本身已经声明是周次，
+    /// 因此直接按数值解析。
     private static func parseShareWeeks(_ value: Any?, totalWeeks: Int) -> Set<Int> {
         if let array = value as? [Int] {
             return Set(array.filter { $0 >= 1 && $0 <= totalWeeks })
         }
+        if let numbers = value as? [Any] {
+            return Set(numbers.compactMap(intValue).filter { $0 >= 1 && $0 <= totalWeeks })
+        }
         if let text = value as? String {
-            return TimetableTextParser.parseWeeks(text, totalWeeks: totalWeeks) ?? []
+            // 允许带「周」和单双周标记，也允许裸范围。
+            if let parsed = TimetableTextParser.parseWeeks(text, totalWeeks: totalWeeks), !parsed.isEmpty {
+                return parsed
+            }
+            return Set(parseBareWeekList(text).filter { $0 >= 1 && $0 <= totalWeeks })
         }
         if let number = intValue(value) {
             return number >= 1 && number <= totalWeeks ? [number] : []
         }
         return []
+    }
+
+    /// 解析「1-16」「1,3,5」「1-8,10-16」这类不含「周」字的周次列表。
+    static func parseBareWeekList(_ text: String) -> [Int] {
+        let normalized = text
+            .replacingOccurrences(of: "，", with: ",")
+            .replacingOccurrences(of: "～", with: "-")
+            .replacingOccurrences(of: "~", with: "-")
+            .replacingOccurrences(of: "—", with: "-")
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "周", with: "")
+        var result: [Int] = []
+        for piece in normalized.split(whereSeparator: { $0 == "," || $0 == ";" || $0 == "、" }) {
+            let parts = piece.split(separator: "-", omittingEmptySubsequences: false)
+            if parts.count == 2, let lower = Int(parts[0]), let upper = Int(parts[1]), lower <= upper {
+                result.append(contentsOf: lower...upper)
+            } else if parts.count == 1, let single = Int(piece), single > 0 {
+                result.append(single)
+            }
+        }
+        return result
     }
 
     // MARK: WakeUp
@@ -87,7 +118,6 @@ public enum ShareCodeParser {
         let objects = collectObjects(root)
         let rows = objects.filter { $0["courseName"] != nil && $0["day"] != nil && $0["startNode"] != nil }
         guard !rows.isEmpty else { return nil }
-
         var courses: [ParsedCourse] = []
         var skipped = 0
         for row in rows {
