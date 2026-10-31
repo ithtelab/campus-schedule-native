@@ -32,10 +32,12 @@ import Foundation
         let attributes = CourseActivityAttributes(occurrenceID: item.id, title: item.title, room: item.room, start: item.start)
         let content = ActivityContent(state: CourseActivityAttributes.ContentState(end: item.end, nextTitle: item.nextTitle, nextRoom: item.nextRoom, beforeClass: Date() < item.start), staleDate: item.end)
         let activity: Activity<CourseActivityAttributes>
-        if let scheduledAt, scheduledAt > Date() {
+        if let scheduledAt, scheduledAt > Date(), #available(iOS 26.0, *) {
             activity = try Activity.request(attributes: attributes, content: content, pushType: nil, style: .standard,
                 alertConfiguration: AlertConfiguration(title: "即将上课", body: "请查看课程安排", sound: .default), start: scheduledAt)
         } else {
+            // Before iOS 26 the starting date cannot be handed to the system, so the activity
+            // starts immediately and the local notification still carries the class reminder.
             activity = try Activity.request(attributes: attributes, content: content, pushType: nil)
         }
         observe(activity)
