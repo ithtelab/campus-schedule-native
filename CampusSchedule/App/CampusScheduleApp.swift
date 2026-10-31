@@ -5,7 +5,9 @@ import SwiftUI
 struct CampusScheduleApp: App {
     var body: some Scene {
         WindowGroup {
-            if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] != nil {
+            if ProcessInfo.processInfo.environment["CAMPUS_LIVE_PREVIEW"] != nil {
+                CourseLiveGallery()
+            } else if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] != nil {
                 CampusCharacterGallery()
             } else if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
                 WidgetGalleryView()
@@ -25,20 +27,19 @@ struct RootView: View {
     }
 
     @State private var store = PreviewStore()
-    // 云端截图通过启动环境选择页面；普通启动始终显示今日。
+    // 云端显式选择页面；正常启动突出课表，个人数据仍从本机读取。
     @State private var selectedScreen = Screen(
-        rawValue: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] ?? "today"
-    ) ?? .today
+        rawValue: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] ?? "week"
+    ) ?? .week
 
     var body: some View {
         TabView(selection: $selectedScreen) {
-            Tab("今日", systemImage: "sun.max", value: Screen.today) {
-                TodayView()
-                    .tint(DesignSystem.toolbarTint)
-            }
             Tab("课表", systemImage: "calendar", value: Screen.week) {
                 WeekScheduleView()
                     .tint(DesignSystem.toolbarTint)
+            }
+            Tab("今日", systemImage: "sun.max", value: Screen.today) {
+                TodayView().tint(DesignSystem.toolbarTint)
             }
             Tab("设置", systemImage: "slider.horizontal.3", value: Screen.settings) {
                 SettingsView()
@@ -57,6 +58,17 @@ struct RootView: View {
             }
         }
         .task {
+            if store.isPreview, ProcessInfo.processInfo.environment["CAMPUS_TOSS_SMOKE"] == "1", let first = store.todayCourses.first {
+                let before = try? JSONEncoder().encode(store.courses)
+                let occurrences = store.occurrences
+                let reaction = CourseTossReaction()
+                let accepted = reaction.accept([CourseTossReaction.payload(first)], courses: store.todayCourses)
+                let rejected = !reaction.accept(["foreign-payload"], courses: store.todayCourses)
+                let after = try? JSONEncoder().encode(store.courses)
+                let passed = accepted && rejected && reaction.count == 1 && reaction.title == first.title && before != nil && before == after && occurrences == store.occurrences
+                try? (passed ? "PASS: toss reaction accepts known course, rejects foreign payload, preserves complete course and reminder instances" : "FAIL: toss mutated course data")
+                    .write(to: URL.documentsDirectory.appendingPathComponent("course-toss-smoke.txt"), atomically: true, encoding: .utf8)
+            }
             if store.isPreview {
                 let result = CampusArtAssets.available && CampusCharacterAssets.available ? "PASS: light/dark figures, two 16-frame action atlases and bundled handwriting font loaded" : "FAIL: campus art, animation atlas or handwriting font missing"
                 try? result.write(to: URL.documentsDirectory.appendingPathComponent("campus-assets-smoke.txt"), atomically: true, encoding: .utf8)

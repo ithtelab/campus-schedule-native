@@ -107,7 +107,8 @@ add('widgetproduct', 'isa = PBXFileReference; explicitFileType = "wrapper.app-ex
 add('widgetgroup', 'isa = PBXGroup; children = ' + list(widgetFiles.map(file => 'widgetref:' + file)) + '; name = Widgets; sourceTree = "<group>";');
 add('widgetsources', 'isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ' + list(widgetFiles.map(file => 'widgetbuild:' + file)) + '; runOnlyForDeploymentPostprocessing = 0;');
 add('widgetprivacy', 'isa = PBXBuildFile; fileRef = ' + id('ref:CampusSchedule/Resources/PrivacyInfo.xcprivacy') + ';');
-add('widgetresources', 'isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ' + list(['widgetprivacy']) + '; runOnlyForDeploymentPostprocessing = 0;');
+add('widgetart', 'isa = PBXBuildFile; fileRef = ' + id('ref:CampusSchedule/Resources/CampusArtwork.xcassets') + ';');
+add('widgetresources', 'isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ' + list(['widgetprivacy', 'widgetart']) + '; runOnlyForDeploymentPostprocessing = 0;');
 add('embedfile', 'isa = PBXBuildFile; fileRef = ' + id('widgetproduct') + '; settings = { ATTRIBUTES = (RemoveHeadersOnCopy,); };');
 add('embed', 'isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = ' + list(['embedfile']) + '; name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0;');
 add('proxy', 'isa = PBXContainerItemProxy; containerPortal = ' + id('project') + '; proxyType = 1; remoteGlobalIDString = ' + id('widgettarget') + '; remoteInfo = CampusWidgets;');

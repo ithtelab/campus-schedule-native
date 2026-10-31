@@ -14,6 +14,7 @@ struct TodayView: View {
     @State private var character = CampusCharacterPlayer(style: .girl)
     @State private var detailCharacter: CampusCharacterPlayer?
     @State private var courseFeedback = 0
+    @State private var toss = CourseTossReaction()
     private var time: String { store.timeText }
     private var daily: [DemoCourse] { store.todayCourses }
     private var next: DemoCourse? { daily.first { $0.endTime > time } }
@@ -59,6 +60,7 @@ struct TodayView: View {
                 }
             }
             .background(DesignSystem.background)
+            .safeAreaInset(edge: .bottom, spacing: 0) { CourseTossDock(courses: daily, reaction: toss) }
             .navigationTitle("今日").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -110,12 +112,12 @@ struct TodayView: View {
                 HStack(alignment: .center, spacing: 12) {
                     Button { openCourse(course) } label: {
                       VStack(alignment: .leading, spacing: 7) {
-                        Text(course.title).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                        Text(course.title).font(.title2.weight(.bold)).fixedSize(horizontal: false, vertical: true)
                         Text(course.shortRoom.isEmpty ? "地点待确认" : course.shortRoom)
-                            .font(.system(size: min(focusSize, 44), weight: .bold))
+                            .font(.title2.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
                         Text("\(course.startTime)–\(course.endTime)")
-                            .font(.system(size: min(focusSize, 44), weight: .bold, design: .rounded).monospacedDigit())
+                            .font(.title3.weight(.medium).monospacedDigit())
                             .lineLimit(1).minimumScaleFactor(0.65)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,14 +167,14 @@ struct TodayView: View {
             let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .center, spacing: 14))
             layout {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(course.startTime).font(.title3.weight(.bold).monospacedDigit())
+                    Text(course.startTime).font(.subheadline.weight(.semibold).monospacedDigit())
                     Text(course.endTime).font(.caption.monospacedDigit()).foregroundStyle(secondaryInk)
                 }
                 .frame(width: typeSize.isAccessibilitySize ? nil : timeColumn, alignment: .leading)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(course.title).font(.subheadline.weight(.medium))
+                    Text(course.title).font(.title3.weight(.bold))
                     Text(course.shortRoom.isEmpty ? "地点待确认" : course.shortRoom)
-                        .font(.body.weight(.semibold))
+                        .font(.subheadline.weight(.medium))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Text(ended ? "已结束" : focused ? (course.startTime <= time ? "进行中" : "接下来") : "待上课")
@@ -189,6 +191,10 @@ struct TodayView: View {
             }
         }
         .buttonStyle(CampusPressStyle())
+        .draggable(CourseTossReaction.payload(course))
+        .accessibilityAction(named: "扔个纸团，保留课程") {
+            toss.accept([CourseTossReaction.payload(course)], courses: daily)
+        }
         .accessibilityElement(children: .combine)
     }
 

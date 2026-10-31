@@ -20,7 +20,7 @@ struct ScheduleWidgetView: View {
     var entry: ScheduleEntry
     var body: some View {
         ScheduleWidgetContent(family: family, entry: entry)
-            .containerBackground(.background, for: .widget)
+            .containerBackground(Color(uiColor: .secondarySystemBackground), for: .widget)
             .widgetURL(URL(string: "campusschedule://course/" + (ScheduleRules.next(in: entry.courses, now: entry.date)?.courseID ?? "")))
     }
 }
@@ -51,41 +51,45 @@ struct EndCourseIntent: LiveActivityIntent {
 struct CourseLiveWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CourseActivityAttributes.self) { context in
-            VStack(alignment: .leading, spacing: 10) {
-                Text(context.isStale ? "课程时间已结束" : context.attributes.title).font(.headline)
-                Text(context.attributes.room).font(.subheadline)
-                if !context.isStale {
-                    Text(context.state.beforeClass ? "距离上课" : "距离下课").font(.caption)
-                    Text(timerInterval: Date()...max(Date(), context.state.beforeClass ? context.attributes.start : context.state.end), countsDown: true).monospacedDigit()
+            HStack(spacing: 0) {
+                CourseLiveCard(title: context.attributes.title, room: context.attributes.room,
+                    start: context.attributes.start, end: context.state.end, nextRoom: context.state.nextRoom, stale: context.isStale)
+                Button(intent: EndCourseIntent(id: context.attributes.occurrenceID)) {
+                    Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 32, height: 44)
                 }
-                HStack {
-                    Text("上课"); Text(context.attributes.start, style: .time)
-                    Text("下课"); Text(context.state.end, style: .time)
-                }.font(.subheadline.monospacedDigit())
-                if let title = context.state.nextTitle {
-                    Text("下一节 \(title) · \(context.state.nextRoom ?? "地点待确认")").font(.caption)
-                }
-                Button(intent: EndCourseIntent(id: context.attributes.occurrenceID)) { Text("结束本次") }
+                .buttonStyle(.plain).accessibilityLabel("结束本次实时活动").padding(.trailing, 6)
             }
-            .padding()
+            .environment(\.colorScheme, .dark)
+            .activityBackgroundTint(Color(white: 0.07))
+            .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) { Text(context.attributes.title).font(.headline) }
-                DynamicIslandExpandedRegion(.trailing) { Text(context.attributes.room).font(.caption) }
-                DynamicIslandExpandedRegion(.bottom) {
-                    VStack {
-                        HStack { Text("下课"); Text(context.state.end, style: .time) }.monospacedDigit()
-                        if let title = context.state.nextTitle { Text("下一节：\(title) · \(context.state.nextRoom ?? "地点待确认")").font(.caption) }
-                        Button(intent: EndCourseIntent(id: context.attributes.occurrenceID)) { Text("结束本次") }
-                    }
+                DynamicIslandExpandedRegion(.leading) {
+                    Text(context.isStale ? "已结束" : "课程安排").font(.caption).foregroundStyle(.secondary)
                 }
-            } compactLeading: { Image(systemName: "book.closed") }
-              compactTrailing: {
-                  if context.isStale { Image(systemName: "checkmark") }
-                  else { Text(timerInterval: Date()...max(Date(), context.state.beforeClass ? context.attributes.start : context.state.end), countsDown: true).monospacedDigit().frame(width: 48) }
-              }
-              minimal: { Image(systemName: "book.closed") }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Button(intent: EndCourseIntent(id: context.attributes.occurrenceID)) { Image(systemName: "xmark") }
+                        .buttonStyle(.plain).accessibilityLabel("结束本次实时活动")
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    CourseIslandExpanded(title: context.attributes.title, room: context.attributes.room,
+                        start: context.attributes.start, end: context.state.end, nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom)
+                }
+            } compactLeading: {
+                CampusBookMark().stroke(.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)).frame(width: 14, height: 17)
+            } compactTrailing: {
+                if context.isStale { Image(systemName: "checkmark").font(.caption) }
+                else {
+                    Text(CourseLivePlan.compactTime(end: context.state.end))
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .lineLimit(1).minimumScaleFactor(0.9).frame(width: 36)
+                        .accessibilityLabel("下课 \(ScheduleRules.time(context.state.end))")
+                }
+            } minimal: {
+                CampusBookMark().stroke(.white, lineWidth: 1.4).frame(width: 13, height: 16)
+            }
             .widgetURL(URL(string: "campusschedule://today"))
+            .keylineTint(.white)
         }
     }
 }

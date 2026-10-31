@@ -10,7 +10,12 @@ struct CourseDetailView: View {
     @State private var changing = false
     @State private var deleting = false
     @State private var makeup = false
+    @State private var activityMessage: String?
     private var original: DemoCourse { store.courses.first { $0.id == (course.sourceID ?? course.id) } ?? course }
+    private var nextOccurrence: CourseOccurrence? { store.occurrences.first { $0.courseID == original.id && $0.end > store.now } }
+    private var canStartActivity: Bool {
+        nextOccurrence.map { CourseLivePlan.canStartManually($0, now: store.now, lead: store.reminderMinutes) } ?? false
+    }
     var body: some View {
         NavigationStack {
             List {
@@ -32,10 +37,13 @@ struct CourseDetailView: View {
                     Button("单次停课或调课", systemImage: "calendar.badge.clock") { changing = true }
                     Button("添加一次补课", systemImage: "calendar.badge.plus") { makeup = true }
                     Button("开始本次实时活动", systemImage: "waveform") {
-                        guard let item = store.occurrences.first(where: { $0.courseID == original.id && $0.end > store.now }) else { return }
-                        do { try CourseLiveActivities.shared.start(item); store.liveEnabled = true } catch { store.errorMessage = error.localizedDescription }
+                        guard let item = nextOccurrence else { return }
+                        do { try CourseLiveActivities.shared.start(item, lead: store.reminderMinutes); store.liveEnabled = true }
+                        catch { activityMessage = error.localizedDescription }
                     }
-                    .disabled(store.isPreview)
+                    .disabled(store.isPreview || !canStartActivity)
+                    Text("在课前 \(store.reminderMinutes) 分钟内或上课中可开启实时活动。")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section {
                     Button("删除整门课程", role: .destructive) { deleting = true }
@@ -46,6 +54,9 @@ struct CourseDetailView: View {
             .sheet(isPresented: $editing) { CourseEditorView(editing: original) }
             .sheet(isPresented: $changing) { CourseExceptionView(course: original) }
             .sheet(isPresented: $makeup) { CourseEditorView(template: original) }
+            .alert("无法开启实时活动", isPresented: Binding(get: { activityMessage != nil }, set: { if !$0 { activityMessage = nil } })) {
+                Button("好") { activityMessage = nil }
+            } message: { Text(activityMessage ?? "") }
             .confirmationDialog("删除课程及其所有安排？", isPresented: $deleting, titleVisibility: .visible) {
                 Button("删除", role: .destructive) {
                     store.courses.removeAll { $0.id == original.id }

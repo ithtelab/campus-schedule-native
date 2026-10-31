@@ -6,8 +6,9 @@ struct WeekScheduleView: View {
     @State private var selectedCourse: DemoCourse?
     @State private var showingWeeks = false
     @State private var showingEditor = false
+    @State private var toss = CourseTossReaction()
     private let days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-    private let rowHeight: CGFloat = 46
+    private let rowHeight: CGFloat = 56
     private let groupGap: CGFloat = 22
     private var dayCount: Int { store.showsWeekend ? 7 : 5 }
     private var courses: [DemoCourse] { store.courses(in: store.selectedWeek) }
@@ -17,6 +18,10 @@ struct WeekScheduleView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 weekHeader
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(DragGesture(minimumDistance: 45).onEnded { value in
+                        if abs(value.translation.width) > abs(value.translation.height) * 1.5 { changeWeek(value.translation.width < 0 ? 1 : -1) }
+                    })
                 if typeSize.isAccessibilitySize { accessibleList }
                 else {
                     GeometryReader { geometry in
@@ -31,6 +36,7 @@ struct WeekScheduleView: View {
                 }
             }
             .background(DesignSystem.background)
+            .safeAreaInset(edge: .bottom, spacing: 0) { CourseTossDock(courses: courses, reaction: toss) }
             .navigationTitle("课表").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -153,9 +159,6 @@ struct WeekScheduleView: View {
                     .padding(.leading, 16).offset(y: offset(period) - 19)
             }
         }
-        .simultaneousGesture(DragGesture(minimumDistance: 45).onEnded { value in
-            if abs(value.translation.width) > abs(value.translation.height) * 1.5 { changeWeek(value.translation.width < 0 ? 1 : -1) }
-        })
     }
 
     private func dayColumn(_ day: Int, width: CGFloat) -> some View {
@@ -171,7 +174,7 @@ struct WeekScheduleView: View {
                 let ink = ongoing ? DesignSystem.inverse : Color.primary
                 Button { selectedCourse = course } label: {
                     VStack(alignment: .leading, spacing: height < 65 ? 2 : 4) {
-                        Text(course.title).font(.system(size: store.showsWeekend ? 10 : 12, weight: .semibold)).lineLimit(height < 65 ? (store.showsWeekend ? 2 : 1) : 3)
+                        Text(course.title).font(.system(size: store.showsWeekend ? 12 : 14, weight: .bold)).lineLimit(height < 65 ? 2 : 4)
                         Text(course.shortRoom).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2).foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
                         Spacer(minLength: 0)
                         if height >= 80 && !store.showsWeekend {
@@ -184,10 +187,14 @@ struct WeekScheduleView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: height)
                     .foregroundStyle(ink)
-                    .background(ongoing ? Color.primary : ended ? DesignSystem.paper : Color.primary.opacity(0.065), in: RoundedRectangle(cornerRadius: 7))
-                    .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(Color.primary.opacity(ended ? 0.15 : 0.04), lineWidth: 0.6) }
+                    .background(ongoing ? Color.primary : ended ? DesignSystem.paper : Color.primary.opacity(0.11), in: RoundedRectangle(cornerRadius: 9))
+                    .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(ended ? 0.2 : 0.25), lineWidth: 0.8) }
                 }
                 .buttonStyle(.plain).foregroundStyle(.primary).offset(y: min(totalHeight - 32, position(course.startTime)))
+                .draggable(CourseTossReaction.payload(course))
+                .accessibilityAction(named: "扔个纸团，保留课程") {
+                    toss.accept([CourseTossReaction.payload(course)], courses: courses)
+                }
                 .accessibilityLabel("\(days[day])，\(course.title)，\(course.startTime)至\(course.endTime)，\(course.room)")
             }
         }

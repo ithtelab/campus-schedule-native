@@ -13,7 +13,7 @@ enum CampusCharacterAssets {
         var original = frames(named: "CampusGirlActions")
         let corrected = frames(named: "CampusGirlStretchCorrection")
         guard original.count == 16, corrected.count == 16 else { return [] }
-        // Preserve the first 15 original frames exactly; only replace the missing-cap frame.
+        // Preserve identity; only the final stretch pose uses the corrected artwork.
         original[15] = corrected[15]
         return original
     }()
@@ -21,13 +21,7 @@ enum CampusCharacterAssets {
 
     private static func frames(named name: String) -> [UIImage] {
         guard let sheet = UIImage(named: name)?.cgImage else { return [] }
-        return (0..<16).compactMap { index in
-            let column = index % 4, row = index / 4
-            let x = sheet.width * column / 4, y = sheet.height * row / 4
-            let right = sheet.width * (column + 1) / 4, bottom = sheet.height * (row + 1) / 4
-            guard let frame = sheet.cropping(to: CGRect(x: CGFloat(x), y: CGFloat(y), width: CGFloat(right - x), height: CGFloat(bottom - y))) else { return nil }
-            return UIImage(cgImage: frame)
-        }
+        return (0..<16).compactMap { CampusSpriteImage.frame(sheet: sheet, index: $0, girl: name != "CampusBoyActions") }
     }
 
     static func image(style: CampusCharacterStyle, frame: Int) -> UIImage? {

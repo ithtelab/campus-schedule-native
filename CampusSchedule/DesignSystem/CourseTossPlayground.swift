@@ -1,0 +1,55 @@
+import SwiftUI
+import Observation
+
+@MainActor @Observable final class CourseTossReaction {
+    static let prefix = "campus-toss:"
+    private(set) var count = 0
+    private(set) var title = ""
+    static func payload(_ course: DemoCourse) -> String { prefix + course.id }
+    @discardableResult func accept(_ payloads: [String], courses: [DemoCourse]) -> Bool {
+        guard let payload = payloads.first, payload.hasPrefix(Self.prefix),
+              let course = courses.first(where: { $0.id == String(payload.dropFirst(Self.prefix.count)) }) else { return false }
+        title = course.title; count += 1
+        return true
+    }
+}
+
+struct CourseTossDock: View {
+    let courses: [DemoCourse]
+    let reaction: CourseTossReaction
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var targeted = false
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(reaction.count == 0 ? "不喜欢？扔个纸团。" : "\(reaction.title) · 扔掉烦恼")
+                    .font(.caption.weight(.medium)).lineLimit(1)
+                Text("拖到纸篓里，课程照常保留").font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 4)
+            ZStack {
+                RoundedRectangle(cornerRadius: 14).fill(targeted ? Color.primary : Color.primary.opacity(0.045))
+                Image(systemName: "trash").font(.system(size: 25, weight: .regular))
+                    .rotationEffect(.degrees(targeted ? -7 : 3))
+                    .foregroundStyle(targeted ? Color(uiColor: .systemBackground) : Color.primary)
+                if !reduceMotion {
+                    Image(systemName: "doc.fill").font(.caption)
+                        .phaseAnimator([0, 1, 2], trigger: reaction.count) { content, phase in
+                            content.opacity(phase == 1 ? 1 : 0)
+                                .offset(y: phase == 0 ? -30 : phase == 1 ? -15 : 8)
+                                .scaleEffect(phase == 2 ? 0.3 : 1).rotationEffect(.degrees(Double(phase) * 17))
+                        } animation: { _ in .easeIn(duration: 0.18) }
+                }
+            }
+            .frame(width: 58, height: 50)
+            .scaleEffect(targeted && !reduceMotion ? 1.08 : 1)
+            .animation(reduceMotion ? nil : .spring(response: 0.25), value: targeted)
+            .dropDestination(for: String.self) { payloads, _ in reaction.accept(payloads, courses: courses) }
+                isTargeted: { targeted = $0 }
+            .accessibilityLabel("纸篓，只播放互动，保留课程")
+        }
+        .padding(.horizontal, 20).padding(.vertical, 6)
+        .background(DesignSystem.paper)
+        .sensoryFeedback(.success, trigger: reaction.count)
+    }
+}

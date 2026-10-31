@@ -14,8 +14,21 @@ import Foundation
         if suppress { suppressed.insert(activity.attributes.occurrenceID) }
         await activity.end(nil, dismissalPolicy: .immediate)
     }
-    func start(_ item: CourseOccurrence, scheduledAt: Date? = nil) throws {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled, !suppressed.contains(item.id) else { return }
+    enum StartError: LocalizedError {
+        case outsideWindow, notAllowed, dismissed
+        var errorDescription: String? {
+            switch self {
+            case .outsideWindow: "实时活动仅在设置的课前提前量内或上课中开启。"
+            case .notAllowed: "请在系统设置中允许此 App 使用实时活动。"
+            case .dismissed: "本次课程活动已结束，不会自动重新开启。"
+            }
+        }
+    }
+    func start(_ item: CourseOccurrence, scheduledAt: Date? = nil, lead: Int = 10) throws {
+        guard item.end > Date() else { throw StartError.outsideWindow }
+        if scheduledAt == nil && !CourseLivePlan.canStartManually(item, now: Date(), lead: lead) { throw StartError.outsideWindow }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { throw StartError.notAllowed }
+        guard !suppressed.contains(item.id) else { throw StartError.dismissed }
         let attributes = CourseActivityAttributes(occurrenceID: item.id, title: item.title, room: item.room, start: item.start)
         let content = ActivityContent(state: CourseActivityAttributes.ContentState(end: item.end, nextTitle: item.nextTitle, nextRoom: item.nextRoom, beforeClass: Date() < item.start), staleDate: item.end)
         let activity: Activity<CourseActivityAttributes>
@@ -30,8 +43,10 @@ import Foundation
     private func observe(_ activity: Activity<CourseActivityAttributes>) {
         guard watchTasks[activity.id] == nil else { return }
         watchTasks[activity.id] = Task { @MainActor in
+            defer { watchTasks[activity.id] = nil }
             for await state in activity.activityStateUpdates {
                 if state == .dismissed { suppressed.insert(activity.attributes.occurrenceID); break }
+                if state == .ended { break }
             }
         }
     }
@@ -52,7 +67,7 @@ import Foundation
         // 只计划最近一次。系统活动数量和后台执行均受限制。
         guard let next = ScheduleRules.next(in: items.filter { !suppressed.contains($0.id) }, now: Date()) else { return }
         if !Activity<CourseActivityAttributes>.activities.contains(where: { $0.attributes.occurrenceID == next.id }) {
-            do { try start(next, scheduledAt: next.start.addingTimeInterval(-Double(lead * 60))) }
+            do { try start(next, scheduledAt: CourseLivePlan.earliestStart(for: next, lead: lead), lead: lead) }
             catch { return } // 主界面提供权限和手动启动提示；不影响本地通知。
         }
         endTask = Task { @MainActor in

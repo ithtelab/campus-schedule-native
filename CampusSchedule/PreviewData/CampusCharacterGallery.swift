@@ -10,6 +10,9 @@ struct CampusCharacterGallery: View {
     @State private var scheduleMode = false
 
     var body: some View {
+        if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] == "frames" {
+            frameGallery
+        } else {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
@@ -46,6 +49,25 @@ struct CampusCharacterGallery: View {
             .tint(DesignSystem.accent)
             .task { await smoke() }
         }
+        }
+    }
+
+    private var frameGallery: some View {
+        let style: CampusCharacterStyle = ProcessInfo.processInfo.environment["CAMPUS_FRAME_STYLE"] == "boy" ? .boy : .girl
+        return VStack(spacing: 8) {
+            Text("真实解码帧 · \(style.rawValue)").font(.headline)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 10) {
+                ForEach(0..<16, id: \.self) { frame in
+                    VStack(spacing: 2) {
+                        if let image = CampusCharacterAssets.image(style: style, frame: frame) {
+                            Image(uiImage: image).resizable().scaledToFit().frame(height: 130)
+                        }
+                        Text("\(frame)").font(.caption2.monospacedDigit())
+                    }
+                }
+            }
+        }.padding(12).frame(maxHeight: .infinity, alignment: .top)
+            .background(DesignSystem.background)
     }
 
     @MainActor private func smoke() async {
