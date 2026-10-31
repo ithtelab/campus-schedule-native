@@ -31,7 +31,7 @@ public struct ScheduleSummary: Equatable, Sendable {
     ///   - occurrences: 学期全部课程实例（已按周次展开）。
     ///   - now: 参考时刻。
     ///   - semesterStart: 学期第一周周一，用于定位「本周」。
-    public static func make(occurrences: [CourseOccurrence], now: Date,
+    static func make(occurrences: [CourseOccurrence], now: Date,
                             semesterStart: Date) -> ScheduleSummary {
         let calendar = ScheduleRules.calendar
         let currentWeek = max(1, ScheduleRules.week(on: now, semesterStart: semesterStart))
