@@ -2,7 +2,7 @@
 
 用户本次明确反馈：收不到内部测试邀请链接，公开测试也无法下载。不能直接沿用旧 App 6.1 的“点击安装后 App 不存在”作为本次症状。
 
-## 当前读回结果
+## 首次读回结果（后续变化见文末）
 
 北京时间约 19:08，重新从 Apple 查询新 App `6829142615`（课间册、`com.ithtelab.campustimetable`）：
 
@@ -29,6 +29,12 @@ Apple 于北京时间 **2026-10-31 19:11:34** 成功受理重发请求，邀请�
 
 已直接读取 Apple DocC 官方 JSON 结构，确认现有请求使用的 type / relationships 格式正确。[BetaTesterInvitation](https://developer.apple.com/documentation/appstoreconnectapi/betatesterinvitation) 响应只有 id、type 和导航 links，没有用户可兑换的邀请 URL 或兑换码；导航 self-link 不能当作用户邀请链接使用。当前公开接口也未提供邮箱实际送达日志。不重复发信、不删除测试者、不编造替代邀请链接。
 
-公开测试需要新 App 的外测组和通过 Beta App Review 的构建。[Apple TestFlight 说明](https://developer.apple.com/testflight/) 当前条件均不满足，本次未擅自重新创建外测组、启用链接或提交审核。
+公开测试需要新 App 的外测组和通过 Beta App Review 的构建。[Apple TestFlight 说明](https://developer.apple.com/testflight/) 首次核对时条件均不满足；取得明确授权前未创建外测组、启用链接或提交审核。
 
-重发后用户仍未收到，已保存事实并准备 [邮件邀请故障报告](Apple-课间册-内测邀请未收到.md)。尚未发送给 Apple。其他邮件正常后，可将具体邀请编号交 Apple 核查 TestFlight 专项投递链路；同时已准备 [新 App 15.1 公开测试方案](课间册-15.1-公开测试方案.md)，申请通过后可使用公开链接加入，不依赖邀请邮件。尚未实际建立外测组或提交该构建审核。
+重发后用户仍未收到，已保存事实并准备 [邮件邀请故障报告](Apple-课间册-内测邀请未收到.md)。尚未发送给 Apple。其他邮件正常后，可将具体邀请编号交 Apple 核查 TestFlight 专项投递链路。
+
+## 用户同意公开外测后的实际结果
+
+用户明确同意“提交 15.1 公开外测”后，北京时间 20:17 建立外测组并关联构建；实际提审一次，Apple 返回 HTTP 422 / ENTITY_UNPROCESSABLE / Please try again later.，请求编号 `IR6BIUU4F4VBPI64IXXUIVIUT4`。随后只读查询仍为 READY_FOR_BETA_SUBMISSION，审核记录为 null，没有进入审核。
+
+新链接 https://testflight.apple.com/join/s1RtwCzq 已启用，限 100 人；当前没有获批构建，公开下载仍未解决。详见 [15.1 执行记录](课间册-15.1-公开测试方案.md) 与 [本次提审错误报告](Apple-课间册-15.1-外测提审失败.md)。没有反复重发邀请、提审或重传来掩盖错误；未将链接生成当作能安装的凭证。
