@@ -56,15 +56,11 @@ private struct CourseTossOverlay: ViewModifier {
     let reaction: CourseTossReaction
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    // Without DragSession the dock cannot react to a drag starting, so it stays
-    // available whenever a course can be dragged.
-    private var dockVisible: Bool {
-        if #available(iOS 26.0, *) { reaction.isDragging }
-        else { !courses.isEmpty }
-    }
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottom) {
-            if dockVisible {
+            // isDragging is only ever set by the iOS 26 drag session, so the dock
+            // simply does not appear on earlier systems.
+            if reaction.isDragging {
                 CourseTossDock(courses: courses, reaction: reaction)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(DesignSystem.rule, lineWidth: 0.75) }
