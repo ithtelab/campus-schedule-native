@@ -1,6 +1,6 @@
 # 课间册 · iOS 原生工程
 
-当前状态：旧 App 已退役并由用户移除，新 App“课间册”已创建，Apple ID `6829142615`，主应用 `com.ithtelab.campustimetable`、组件 `.widgets` 已注册，工程版本为 0.1.0。共享组 `group.com.ithtelab.campustimetable` 已在两个标识上关联并解码验证通过，签名与上传链路就绪。新 App 尚未上传构建。操作说明见 [重新建立 Apple 应用](docs/重新建立Apple应用.md)。
+当前分发状态：新 App“课间册”（Apple ID `6829142615`）已有 15.1，Apple 处理 VALID、未过期，已关联本人内测组。用户反馈收不到邀请，当前测试者仍为 INVITED；已于 2026-10-31 19:11 重发一次，Apple 已受理，实际送达和安装待确认。新 App 暂无外测组或获批外测构建，旧 App 的公开链接已停用。详见 [邀请与公开下载排查](docs/TestFlight-课间册-邀请排查.md)。
 
 历史 TestFlight：6.1 安装失败，7.1 外测提交返回 Apple 422；现按用户要求，旧 App 的所有构建均已过期，旧公开链接停用。历史凭证见 [TestFlight 发布](docs/TestFlight发布.md)，不再把旧测试资格视为当前可用。界面和功能代码仍保留；本轮重建的是分发配置。
 

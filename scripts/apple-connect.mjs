@@ -568,7 +568,7 @@ try {
     case 'submit-external': await submitExternal(process.argv[3]); break;
     case 'external-link': await enableExternalLink(process.argv[3]); break;
     case 'reset-external-assignment': await resetExternalAssignment(process.argv[3]); break;
-    default: throw new Error('Use check-key, setup, tidy-identifiers, certificate, secrets, profiles, status, retirement-plan APP_ID, retire-app APP_ID, audit-build BUILD, diagnose-install BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
+    default: throw new Error('Use check-key, setup, tidy-identifiers, certificate, secrets, profiles, status, retirement-plan APP_ID, retire-app APP_ID, audit-build BUILD, diagnose-install BUILD, diagnose-review, resume-build BUILD, upload-status, internal-status, resend-owner-invitation BUILD, enable-internal BUILD, watch-internal BUILD, external-status, prepare-external BUILD, configure-external, submit-external BUILD or external-link BUILD');
   }
 } catch (error) {
   // Do not print subprocess buffers, request headers, tokens or private key content.
