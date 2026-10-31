@@ -1,0 +1,81 @@
+#!/usr/bin/env node
+// Blocks commits that would publish personal or credential material.
+// The repository is public, so a phone number, a personal mailbox or a signing
+// key in one commit is already disclosed by the time it is noticed.
+import { execFileSync } from 'node:child_process';
+
+// Deliberately narrow: public addresses that legitimately appear in a project
+// (Apple/Expo/GitHub product mailboxes, CI bot addresses) must not trip this.
+const RULES = [
+  {
+    name: '手机号码',
+    pattern: /(?<![0-9])(?:\+?86[- ]?)?1[3-9][0-9]{9}(?![0-9])/g,
+  },
+  {
+    name: '个人邮箱',
+    pattern: /[A-Za-z0-9._%+-]+@(?:icloud|me|mac)\.com\b/g,
+  },
+  {
+    name: '私钥内容',
+    pattern: /-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----/g,
+  },
+  {
+    name: 'Apple API 密钥',
+    pattern: /APPLE_API_PRIVATE_KEY\s*[:=]\s*['"]?[A-Za-z0-9+/=]{40,}/g,
+  },
+  {
+    name: '明文密码赋值',
+    pattern: /(?:password|passwd|p12Password)\s*[:=]\s*['"][^'"\s${}]{8,}['"]/gi,
+  },
+];
+
+const ALLOWED_MAILBOXES = new Set([
+  'noreply@github.com',
+  'actions@github.com',
+]);
+
+function staged() {
+  const out = execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color', '--diff-filter=ACMR'], {
+    encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+  });
+  const files = new Map();
+  let current = null;
+  for (const line of out.split(/\r?\n/)) {
+    const header = /^\+\+\+ b\/(.*)$/.exec(line);
+    if (header) { current = header[1]; files.set(current, []); continue; }
+    if (current && line.startsWith('+') && !line.startsWith('+++')) files.get(current).push(line.slice(1));
+  }
+  return files;
+}
+
+const findings = [];
+const files = staged();
+for (const [path, lines] of files) {
+  lines.forEach((text, index) => {
+    for (const rule of RULES) {
+      rule.pattern.lastIndex = 0;
+      let match;
+      while ((match = rule.pattern.exec(text)) !== null) {
+        let hit = match[0];
+        if (rule.name === '个人邮箱') {
+          const lower = hit.toLowerCase();
+          if (ALLOWED_MAILBOXES.has(lower) || lower.endsWith('@users.noreply.github.com')) continue;
+        }
+        // The redacted form is what should be committed instead.
+        findings.push({ path, line: index + 1, rule: rule.name, sample: hit.replace(/^(.{3}).*(.{2})$/, '$1***$2') });
+      }
+    }
+  });
+}
+
+if (findings.length === 0) process.exit(0);
+
+const BOLD = '\u001b[1m', RED = '\u001b[31m', DIM = '\u001b[2m', OFF = '\u001b[0m';
+console.error(`\n${RED}${BOLD}提交被拒绝：检测到可能泄露的隐私或凭据${OFF}\n`);
+for (const f of findings) {
+  console.error(`  ${BOLD}${f.path}${OFF} ${DIM}(新增内容第 ${f.line} 行)${OFF}`);
+  console.error(`    ${f.rule}：${f.sample}`);
+}
+console.error(`\n本仓库是公开的，一旦推送无法撤回。请把真实值移到 .tool-cache/（已被 .gitignore 忽略）`);
+console.error(`或改写为占位符后重新提交。确有需要时可用 git commit --no-verify 绕过。\n`);
+process.exit(1);
