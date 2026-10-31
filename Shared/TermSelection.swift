@@ -73,17 +73,23 @@ public enum TermSelection {
     /// 新学期的默认开学日期：延续上一个学期结束后的第一个周一。
     public static func suggestedStart(after terms: [TermSummary]) -> Date {
         let calendar = ScheduleRules.calendar
-        guard let latest = sorted(terms).first else {
-            // 没有历史时，用距离今天最近的周一。
-            let today = calendar.startOfDay(for: Date())
-            let weekday = calendar.component(.weekday, from: today)
-            let offset = (3 - weekday + 7) % 7  // 周一是 weekday 2
-            return calendar.date(byAdding: .day, value: offset, to: today) ?? today
+        let anchor: Date
+        if let latest = sorted(terms).first {
+            anchor = calendar.date(byAdding: .day, value: 7, to: latest.endDate) ?? latest.endDate
+        } else {
+            anchor = Date()
         }
-        let after = calendar.date(byAdding: .day, value: 7, to: latest.endDate) ?? latest.endDate
-        let weekday = calendar.component(.weekday, from: after)
-        let offset = (3 - weekday + 7) % 7
-        return calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: after)) ?? after
+        return nextMonday(onOrAfter: anchor)
+    }
+
+    /// 不早于给定时刻的最近一个周一。`weekday` 中 1 是周日、2 是周一。
+    static func nextMonday(onOrAfter date: Date) -> Date {
+        let calendar = ScheduleRules.calendar
+        let day = calendar.startOfDay(for: date)
+        let weekday = calendar.component(.weekday, from: day)
+        // 周一(2) 偏移 0，周二(3) 偏移 6，…，周日(1) 偏移 1。
+        let offset = (9 - weekday) % 7
+        return calendar.date(byAdding: .day, value: offset, to: day) ?? day
     }
 
     /// 删除某学期后该选中谁。

@@ -134,6 +134,25 @@ struct TermSelectionTests {
         #expect(calendar.component(.weekday, from: start) == 2)
     }
 
+    @Test func nextMondayCoversEveryWeekday() {
+        // 2026-09-07 是周一，连续七天覆盖整周。
+        for offset in 0..<7 {
+            let day = calendar.date(byAdding: .day, value: offset, to: date(2026, 9, 7))!
+            let result = TermSelection.nextMonday(onOrAfter: day)
+            #expect(calendar.component(.weekday, from: result) == 2)
+            #expect(result >= calendar.startOfDay(for: day))
+            // 结果必须是最近的周一，即相差不超过 6 天。
+            let gap = calendar.dateComponents([.day], from: calendar.startOfDay(for: day), to: result).day ?? 99
+            #expect((0...6).contains(gap))
+        }
+    }
+
+    @Test func nextMondayIsIdempotentOnMonday() {
+        let monday = date(2026, 9, 7)
+        let result = TermSelection.nextMonday(onOrAfter: monday)
+        #expect(result == calendar.startOfDay(for: monday))
+    }
+
     // MARK: 删除
 
     @Test func deletingActiveTermSelectsAnother() {
