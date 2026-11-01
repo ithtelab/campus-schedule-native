@@ -8,18 +8,23 @@ struct WeekScheduleView: View {
     @State private var selectedCourse: DemoCourse?
     @State private var showingWeeks = false
     @State private var showingEditor = false
+    @State private var showingImport = false
     @State private var toss = CourseTossReaction()
     private let days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
     private let rowHeight: CGFloat = 56
     private let groupGap: CGFloat = 22
     private var dayCount: Int { store.showsWeekend ? 7 : 5 }
     private var courses: [DemoCourse] { store.courses(in: store.selectedWeek) }
-    private var totalHeight: CGFloat { rowHeight * 10 + groupGap * 2 }
+    /// 网格总高度：按实际节次数计算，额外的高度来自上下午之间的分组间隔。
+    private var totalHeight: CGFloat {
+        CGFloat(max(1, store.periods.count)) * rowHeight + groupGap * CGFloat(periodGroupMarks.count)
+    }
 
     var body: some View {
         @Bindable var calendar = store
         NavigationStack {
             VStack(spacing: 0) {
+                nowStatusBar
                 weekHeader
                 TabView(selection: $calendar.selectedWeek) {
                     ForEach(1...store.totalWeeks, id: \.self) { week in
@@ -29,6 +34,7 @@ struct WeekScheduleView: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
             .background(DesignSystem.background)
+            .overlay { emptyTermGuide }
             .courseTossOverlay(courses: courses, reaction: toss)
             .navigationTitle("课表").navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -49,6 +55,7 @@ struct WeekScheduleView: View {
             .sheet(item: $selectedCourse) { CourseDetailView(course: $0) }
             .sheet(isPresented: $showingEditor) { CourseEditorView() }
             .sheet(isPresented: $showingWeeks) { weekPicker }
+            .sheet(isPresented: $showingImport) { ImportView() }
         }
     }
 
@@ -75,6 +82,65 @@ struct WeekScheduleView: View {
 
     /// 五天网格超过这个宽度后不再变宽，只增加两侧留白。
     private static let maximumContentWidth: CGFloat = 620
+
+    /// 顶部状态条：正在上课时显示地点与剩余时间，未到时显示下一节。
+    ///
+    /// 学生打开课表最想知道的就是这两件事，因此放在最上方而不是要求切换到今日页。
+    @ViewBuilder private var nowStatusBar: some View {
+        let phase = NowStatus.phase(for: store.occurrences, now: store.now)
+        if let title = NowStatus.title(phase), let detail = NowStatus.detail(phase) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(NowStatus.isUrgent(phase) ? DesignSystem.accent : DesignSystem.accent.opacity(0.35))
+                    .frame(width: 7, height: 7)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DesignSystem.paper)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(DesignSystem.rule).frame(height: 0.5)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title)，\(detail)")
+        }
+    }
+
+    /// 整个学期没有任何课程时的引导。
+    ///
+    /// 首次使用必须导入或添加课程，而这两个入口原本藏在设置里；这里直接给出来，
+    /// 免得用户对着空网格不知道下一步。
+    @ViewBuilder private var emptyTermGuide: some View {
+        // 判断整学期是否为空，而不是当前周：第 3 周没课不代表课表是空的。
+        if store.courses.isEmpty && !store.isPreview {
+            VStack(spacing: 16) {
+                Image(systemName: "calendar.badge.plus")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(.tertiary)
+                VStack(spacing: 6) {
+                    Text("还没有课程").font(.headline)
+                    Text("从教务系统导入，或手动添加第一门课。")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                HStack(spacing: 12) {
+                    Button("导入课表") { showingImport = true }
+                        .buttonStyle(.borderedProminent)
+                        .tint(DesignSystem.accent)
+                    Button("手动添加") { showingEditor = true }
+                        .buttonStyle(.bordered)
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DesignSystem.background)
+        }
+    }
 
     private var weekHeader: some View {
         Group {
@@ -228,8 +294,16 @@ struct WeekScheduleView: View {
                                 .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
                             Spacer(minLength: 0)
                             if height >= 80 && !store.showsWeekend {
-                                Text(course.startTime).font(.system(size: 9).monospacedDigit())
-                                    .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary).lineLimit(1)
+                                // 给出完整的起止时间，单看开始时刻无法判断几时下课。
+                                Text("\(course.startTime)–\(course.endTime)")
+                                    .font(.system(size: 9).monospacedDigit())
+                                    .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
+                                    .lineLimit(1).minimumScaleFactor(0.85)
+                            } else if height >= 52 && store.showsWeekend {
+                                // 七天视图列窄，只补结束时间也要能挤下。
+                                Text(course.endTime).font(.system(size: 8.5).monospacedDigit())
+                                    .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.75) : Color.secondary)
+                                    .lineLimit(1)
                             }
                         }
                         .padding(.leading, store.showsWeekend ? 4 : 6)
@@ -327,7 +401,9 @@ struct WeekScheduleView: View {
     }
 
     private func offset(_ period: Int) -> CGFloat {
-        CGFloat(period - 1) * rowHeight + (period >= 5 ? groupGap : 0) + (period >= 9 ? groupGap : 0)
+        // 每个分组标记之前都留出间隔，位置与「下午/晚上」标签使用同一份数据源。
+        let extra = CGFloat(periodGroupMarks.filter { period >= $0.period }.count) * groupGap
+        return CGFloat(period - 1) * rowHeight + extra
     }
     private func position(_ time: String) -> CGFloat {
         func minutes(_ text: String) -> Int {
