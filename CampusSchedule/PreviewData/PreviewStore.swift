@@ -546,6 +546,23 @@ final class PreviewStore {
         }
     }
 
+    /// 缩短学期周数后，把课程里超出范围的周次裁掉。
+    ///
+    /// 不裁剪的话课表显示正常（渲染时按 totalWeeks 过滤），但导出与 iCloud 同步
+    /// 会因为 weeksOutsideTerm 校验失败，用户会看到一个莫名其妙的错误。
+    func clampCourseWeeksToTerm() {
+        let limit = totalWeeks
+        mutateActive { term in
+            term.courses = term.courses.map { course in
+                var fixed = course
+                fixed.weeks = course.weeks.filter { $0 >= 1 && $0 <= limit }
+                return fixed
+            }
+            // 裁到没有周次的课程说明整门课都在被删掉的周里，一并移除。
+            term.courses.removeAll { $0.weeks.isEmpty }
+        }
+    }
+
     /// 缩短作息表后，清理引用了已删除节次的课程。
     ///
     /// 这些课程在网格上无法定位，留着会导致绘制越界。删除前记录数量以便提示用户。

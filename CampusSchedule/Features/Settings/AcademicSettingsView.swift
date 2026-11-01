@@ -112,6 +112,8 @@ struct AcademicSettingsView: View {
                         store.totalWeeks = weeks
                         store.selectedWeek = min(store.selectedWeek, weeks)
                         store.periods = periods
+                        // 先裁剪周次再刷新时间：避免了越界数据，也让导出保持可用。
+                        store.clampCourseWeeksToTerm()
                         store.refreshCourseTimes()
                         dismiss()
                     }
@@ -143,11 +145,15 @@ struct AcademicSettingsView: View {
 
     private func timeBinding(_ index: Int, start: Bool) -> Binding<Date> {
         Binding {
+            // 下标与时间都做保护：编辑过程中数组可能被增删，时间字符串也可能来自旧备份。
+            guard periods.indices.contains(index) else { return Date() }
             let value = start ? periods[index].start : periods[index].end
             let parts = value.split(separator: ":").compactMap { Int($0) }
+            guard parts.count == 2 else { return Date() }
             return Calendar.current.date(from: DateComponents(year: 2026, month: 1, day: 1,
                 hour: parts[0], minute: parts[1])) ?? Date()
         } set: { value in
+            guard periods.indices.contains(index) else { return }
             let hour = Calendar.current.component(.hour, from: value)
             let minute = Calendar.current.component(.minute, from: value)
             let formatted = String(format: "%02d:%02d", hour, minute)
