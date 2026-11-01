@@ -25,7 +25,7 @@ public enum NowStatus {
     /// - Parameters:
     ///   - occurrences: 课程实例，函数内部按当天与开始时间筛选排序。
     ///   - now: 当前时刻。
-    public static func phase(for occurrences: [CourseOccurrence], now: Date) -> Phase {
+    static func phase(for occurrences: [CourseOccurrence], now: Date) -> Phase {
         let calendar = ScheduleRules.calendar
         let today = occurrences
             .filter { calendar.isDate($0.start, inSameDayAs: now) }
