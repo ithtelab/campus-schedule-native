@@ -25,13 +25,8 @@ struct DemoCourse: Identifiable, Codable {
 
     var shortRoom: String { Self.shorten(room) }
 
-    /// 教室名的缩写规则。调课提示需要同时显示新旧教室，因此独立出来复用。
-    static func shorten(_ room: String) -> String {
-        room.replacingOccurrences(of: "教学楼 ", with: "")
-            .replacingOccurrences(of: "实验楼 · ", with: "实验 ")
-            .replacingOccurrences(of: "艺术楼 · ", with: "艺术 ")
-            .replacingOccurrences(of: " · ", with: " ")
-    }
+    /// 教室名的缩写规则。与状态条共用 `NowStatus.shorten`，只保留一个实现。
+    static func shorten(_ room: String) -> String { NowStatus.shorten(room) }
 }
 
 struct DemoPeriod: Identifiable, Codable {

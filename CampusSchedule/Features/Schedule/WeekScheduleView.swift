@@ -320,11 +320,15 @@ struct WeekScheduleView: View {
                             }
                             Spacer(minLength: 0)
                             if height >= 80 && !store.showsWeekend {
-                                // 给出完整的起止时间，单看开始时刻无法判断几时下课。
-                                Text("\(course.startTime)–\(course.endTime)")
-                                    .font(.system(size: 9).monospacedDigit())
-                                    .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
-                                    .lineLimit(1).minimumScaleFactor(0.85)
+                                // 一行放不下起止时间会被省略号截断，改成分两行：
+                                // 学生要知道几点下课，截断等于没给。
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(course.startTime)
+                                    Text(course.endTime)
+                                }
+                                .font(.system(size: 8.5).monospacedDigit())
+                                .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
+                                .lineLimit(1)
                             } else if height >= 52 && store.showsWeekend {
                                 // 七天视图列窄，只补结束时间也要能挤下。
                                 Text(course.endTime).font(.system(size: 8.5).monospacedDigit())

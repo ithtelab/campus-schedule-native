@@ -60,11 +60,13 @@ public enum NowStatus {
         switch phase {
         case .inClass(_, let room, let minutes):
             let left = minutes <= 0 ? "即将下课" : "还有 \(minutes) 分钟下课"
-            return room.isEmpty ? left : "\(room) · \(left)"
+            let place = shorten(room)
+            return place.isEmpty ? left : "\(place) · \(left)"
         case .upcoming(_, let room, let minutes, let startsAt):
             // 半小时内用「N 分钟后」更直观，更远时给出具体时间。
             let until = minutes <= soonWindowMinutes ? "\(minutes) 分钟后" : "\(startsAt) 开始"
-            return room.isEmpty ? until : "\(room) · \(until)"
+            let place = shorten(room)
+            return place.isEmpty ? until : "\(place) · \(until)"
         case .finished, .none:
             return nil
         }
@@ -74,6 +76,14 @@ public enum NowStatus {
     public static func isUrgent(_ phase: Phase) -> Bool {
         if case .inClass = phase { return true }
         return false
+    }
+
+    /// 教室名缩写。课表卡片与状态条共用同一份规则，避免两处写法不一致。
+    public static func shorten(_ room: String) -> String {
+        room.replacingOccurrences(of: "教学楼 ", with: "")
+            .replacingOccurrences(of: "实验楼 · ", with: "实验 ")
+            .replacingOccurrences(of: "艺术楼 · ", with: "艺术 ")
+            .replacingOccurrences(of: " · ", with: " ")
     }
 
     /// 当天课程的起始时间文案，状态条外也可能用到。
