@@ -265,6 +265,14 @@ struct WeekScheduleView: View {
                 PeriodGroupMark(period: evening, label: "晚上")]
     }
 
+    /// 教室文案。调课换教室时同时给出原地点，便于对照。
+    private func roomText(_ course: DemoCourse) -> String {
+        guard course.wasRescheduled, let original = course.originalRoom, !original.isEmpty else {
+            return course.shortRoom
+        }
+        return "\(course.shortRoom)（原 \(DemoCourse.shorten(original))）"
+    }
+
     private func dayColumn(_ day: Int, width: CGFloat, week: Int, courses: [DemoCourse]) -> some View {
         ZStack(alignment: .top) {
             ForEach(store.periods.map(\.id), id: \.self) { period in
@@ -289,9 +297,27 @@ struct WeekScheduleView: View {
                             .padding(.vertical, height < 65 ? 3 : 6)
                             .padding(.leading, store.showsWeekend ? 4 : 5)
                         VStack(alignment: .leading, spacing: height < 65 ? 2 : 4) {
-                            Text(course.title).font(.system(size: store.showsWeekend ? 12 : 14, weight: .bold)).lineLimit(height < 65 ? 2 : 4)
-                            Text(course.shortRoom).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2)
+                            HStack(alignment: .top, spacing: 3) {
+                                Text(course.title).font(.system(size: store.showsWeekend ? 12 : 14, weight: .bold)).lineLimit(height < 65 ? 2 : 4)
+                                // 单双周角标：学生按周次决定今天要不要来上课。
+                                if let badge = course.weekPattern.badge, height >= 52 {
+                                    Text(badge)
+                                        .font(.system(size: 8, weight: .heavy))
+                                        .padding(.horizontal, 3).padding(.vertical, 1)
+                                        .background(ongoing ? DesignSystem.inverse.opacity(0.25) : course.color.accentColor.opacity(0.28),
+                                                    in: RoundedRectangle(cornerRadius: 3))
+                                        .lineLimit(1)
+                                }
+                            }
+                            Text(roomText(course)).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2)
                                 .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
+                            if course.wasRescheduled && height >= 80 {
+                                // 明确标出「调课」，否则学生按原教室跑一趟才发现换了地方。
+                                Text("调课")
+                                    .font(.system(size: 8, weight: .semibold))
+                                    .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.85) : course.color.accentColor)
+                                    .lineLimit(1)
+                            }
                             Spacer(minLength: 0)
                             if height >= 80 && !store.showsWeekend {
                                 // 给出完整的起止时间，单看开始时刻无法判断几时下课。

@@ -16,8 +16,17 @@ struct DemoCourse: Identifiable, Codable {
     let endTime: String
     let color: CourseColor
     var weeks: Set<Int> = Set(1...20)
+    /// 该次安排被调课过（时间或地点与课程原定不同）。
+    var wasRescheduled = false
+    /// 原定教室，仅在调课换教室时有值。
+    var originalRoom: String?
+    /// 周次规律，用于课表角标。
+    var weekPattern: WeekPattern = .everyWeek
 
-    var shortRoom: String {
+    var shortRoom: String { Self.shorten(room) }
+
+    /// 教室名的缩写规则。调课提示需要同时显示新旧教室，因此独立出来复用。
+    static func shorten(_ room: String) -> String {
         room.replacingOccurrences(of: "教学楼 ", with: "")
             .replacingOccurrences(of: "实验楼 · ", with: "实验 ")
             .replacingOccurrences(of: "艺术楼 · ", with: "艺术 ")
@@ -173,6 +182,9 @@ final class PreviewStore {
                 startPeriod: base.startPeriod, endPeriod: base.endPeriod,
                 startTime: time(occurrence.start), endTime: time(occurrence.end), color: base.color, weeks: base.weeks)
             copy.sourceID = base.id
+            copy.wasRescheduled = item.wasRescheduled
+            copy.originalRoom = item.originalRoom
+            copy.weekPattern = item.weekPattern
             return copy
         }
     }
@@ -354,15 +366,29 @@ final class PreviewStore {
     var occurrences: [CourseOccurrence] {
         var result: [CourseOccurrence] = []
         for course in courses {
+            let pattern = WeekPattern.infer(from: course.weeks, totalWeeks: totalWeeks)
             for week in course.weeks where (1...totalWeeks).contains(week) {
                 let day = date(week: week, day: course.weekday)
                 let change = exceptions.last { $0.courseID == course.id && ScheduleRules.calendar.isDate($0.day, inSameDayAs: day) }
+                // 停课不在课表里占位：学生看到的应当是没有这节课，而不是一条划掉的记录。
+                // 需要回顾停课的话，课程详情里仍可查到。
                 if change?.cancelled == true { continue }
                 guard let start = change?.start ?? ScheduleRules.date(day: day, time: course.startTime),
                       let end = change?.end ?? ScheduleRules.date(day: day, time: course.endTime), end > start else { continue }
-                result.append(CourseOccurrence(id: course.id + ":" + String(Int(day.timeIntervalSince1970)), courseID: course.id,
-                    title: course.title, room: change?.room ?? course.room, start: start, end: end))
-                result[result.count - 1].remindersEnabled = course.remindersEnabled
+                var occurrence = CourseOccurrence(
+                    id: course.id + ":" + String(Int(day.timeIntervalSince1970)),
+                    courseID: course.id, title: course.title,
+                    room: change?.room ?? course.room, start: start, end: end)
+                occurrence.remindersEnabled = course.remindersEnabled
+                occurrence.weekPattern = pattern
+                // 与原定时间或地点不同即为调课，界面据此提示。
+                if let change, change.room != nil || change.start != nil || change.end != nil {
+                    occurrence.wasRescheduled = true
+                    if let newRoom = change.room, newRoom != course.room {
+                        occurrence.originalRoom = course.room
+                    }
+                }
+                result.append(occurrence)
             }
         }
         result = ScheduleRules.mergeContinuous(result)
@@ -524,6 +550,9 @@ final class PreviewStore {
                 weekday: (ScheduleRules.calendar.component(.weekday, from: item.start) + 5) % 7,
                 startPeriod: base.startPeriod, endPeriod: base.endPeriod, startTime: time(item.start), endTime: time(item.end), color: base.color, weeks: base.weeks)
             copy.sourceID = base.id
+            copy.wasRescheduled = item.wasRescheduled
+            copy.originalRoom = item.originalRoom
+            copy.weekPattern = item.weekPattern
             return copy
         }
     }

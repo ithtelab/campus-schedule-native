@@ -10,6 +10,43 @@ struct CourseOccurrence: Codable, Identifiable, Equatable, Sendable {
     var nextTitle: String?
     var nextRoom: String?
     var remindersEnabled = true
+
+    /// 这条安排相对课程原定时间发生了调整。
+    ///
+    /// 学生按原时间地点跑一趟才发现改了，因此界面必须显式提示。
+    var wasRescheduled = false
+    /// 原定教室，仅在 `wasRescheduled` 且教室变化时有值。
+    var originalRoom: String?
+    /// 是否属于单双周课程中的一种。用于课表角标。
+    var weekPattern: WeekPattern = .everyWeek
+}
+
+/// 课程的周次规律，只用于界面提示。
+enum WeekPattern: String, Codable, Sendable {
+    case everyWeek
+    case odd
+    case even
+    case custom
+
+    /// 从周次集合推断规律。空集合视为整学期。
+    static func infer(from weeks: Set<Int>, totalWeeks: Int) -> WeekPattern {
+        guard !weeks.isEmpty, weeks.count < totalWeeks else { return .everyWeek }
+        let odd = Set(stride(from: 1, through: totalWeeks, by: 2))
+        let even = Set(stride(from: 2, through: totalWeeks, by: 2))
+        if weeks == odd { return .odd }
+        if weeks == even { return .even }
+        return .custom
+    }
+
+    /// 角标文案，整学期课程没有角标。
+    var badge: String? {
+        switch self {
+        case .everyWeek: nil
+        case .odd: "单"
+        case .even: "双"
+        case .custom: "部分周"
+        }
+    }
 }
 
 enum ScheduleRules {
