@@ -278,6 +278,15 @@ final class PreviewStore {
             exams = seeded
         }
         if isPreview {
+            // 截图用：构造单双周课程与一次调课，验证角标与提示。
+            if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] == "changes" {
+                courses[1].weeks = Set(stride(from: 1, through: 20, by: 2))   // 单周
+                courses[5].weeks = Set(stride(from: 2, through: 20, by: 2))   // 双周
+                let day = date(week: 8, day: courses[3].weekday)
+                exceptions = [CourseException(courseID: courses[3].id, day: day,
+                                              cancelled: false, start: nil, end: nil,
+                                              room: "实验楼 · 605")]
+            }
             switch ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] {
             case "dense":
                 courses.append(.init(id: "layout-afternoon", title: "线性代数", room: "教学楼 A · 206", teacher: "李老师", weekday: 0,

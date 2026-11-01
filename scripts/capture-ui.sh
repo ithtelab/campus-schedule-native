@@ -45,6 +45,10 @@ for appearance in light dark; do
     sleep 3
     xcrun simctl io booted screenshot "screenshots/${screen}-${appearance}.png"
   done
+  # 单双周角标与调课提示。
+  SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=week SIMCTL_CHILD_CAMPUS_PREVIEW_LAYOUT=changes xcrun simctl launch --terminate-running-process booted "$bundle_id"
+  sleep 3
+  xcrun simctl io booted screenshot "screenshots/week-changes-${appearance}.png"
   # 课表顶部状态条：正在上课 / 下一节。
   SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=week SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=10:30 xcrun simctl launch --terminate-running-process booted "$bundle_id"
   sleep 3
