@@ -144,3 +144,40 @@ struct ImportPlannerTests {
         #expect(ImportPlanner.weekdayName(9) == "?")
     }
 }
+
+/// 节次数量可配置后的规划行为。
+struct ImportPlannerPeriodRangeTests {
+    func course(_ title: String, start: Int, end: Int) -> ParsedCourse {
+        ParsedCourse(title: title, weekday: 0, startPeriod: start, endPeriod: end)
+    }
+
+    @Test func acceptsCoursesWithinConfiguredPeriods() {
+        let plan = ImportPlanner.plan(ParseOutcome(courses: [course("第12节", start: 11, end: 12)]),
+                                      existing: [], totalWeeks: 20, periodCount: 14)
+        #expect(plan.courses.count == 1)
+    }
+
+    @Test func rejectsCoursesBeyondConfiguredPeriods() {
+        let plan = ImportPlanner.plan(ParseOutcome(courses: [course("第15节", start: 15, end: 16)]),
+                                      existing: [], totalWeeks: 20, periodCount: 14)
+        #expect(plan.courses.isEmpty)
+        #expect(plan.warnings.contains { $0.contains("14 节") })
+    }
+
+    @Test func warningExplainsHowToFix() {
+        let plan = ImportPlanner.plan(ParseOutcome(courses: [course("超范围", start: 13, end: 13)]),
+                                      existing: [], totalWeeks: 20, periodCount: 10)
+        // 提示必须告诉用户去哪里改，否则只知道失败不知道怎么办。
+        #expect(plan.warnings.contains { $0.contains("学期与作息") })
+    }
+
+    @Test func defaultPeriodCountIsTen() {
+        // 未显式传参时保持原行为，避免破坏既有调用点。
+        let fits = ImportPlanner.plan(ParseOutcome(courses: [course("第10节", start: 10, end: 10)]),
+                                      existing: [], totalWeeks: 20)
+        #expect(fits.courses.count == 1)
+        let overflows = ImportPlanner.plan(ParseOutcome(courses: [course("第11节", start: 11, end: 11)]),
+                                           existing: [], totalWeeks: 20)
+        #expect(overflows.courses.isEmpty)
+    }
+}

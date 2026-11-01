@@ -47,10 +47,10 @@ struct CourseEditorView: View {
                         ForEach(0..<7, id: \.self) { Text(weekdays[$0]).tag($0) }
                     }
                     Picker("开始节次", selection: $startPeriod) {
-                        ForEach(1...10, id: \.self) { Text("第 \($0) 节").tag($0) }
+                        ForEach(1...max(1, store.periods.count), id: \.self) { Text("第 \($0) 节").tag($0) }
                     }
                     Picker("结束节次", selection: $endPeriod) {
-                        ForEach(startPeriod...10, id: \.self) { Text("第 \($0) 节").tag($0) }
+                        ForEach(startPeriod...max(startPeriod, store.periods.count), id: \.self) { Text("第 \($0) 节").tag($0) }
                     }
                     LabeledContent("对应时间", value: "\(store.periods[startPeriod - 1].start)–\(store.periods[endPeriod - 1].end)")
                         .foregroundStyle(.secondary)

@@ -48,11 +48,14 @@ public enum ImportPlanner {
     ///   - parsed: 解析结果。
     ///   - existing: 当前学期的课程，用于冲突检测与替换计数。
     ///   - totalWeeks: 学期总周数，用于校验周次。
+    /// - Parameter periodCount: 当前学期配置的节次数。超过它的课程无法落到课表上，
+    ///   必须在这里就排除并告知用户，而不是等到写入时静默丢弃。
     public static func plan(_ parsed: ParseOutcome, existing: [ParsedCourse],
-                            totalWeeks: Int) -> Plan {
+                            totalWeeks: Int, periodCount: Int = 10) -> Plan {
         var normalized: [ParsedCourse] = []
         var warnings = parsed.warnings
         var dropped = 0
+        var outOfRange = 0
 
         for course in parsed.courses {
             // 周次为空表示整学期；超出学期范围的周次裁剪掉。
@@ -71,11 +74,19 @@ public enum ImportPlanner {
                 dropped += 1
                 continue
             }
+            // 节次超出本学期作息表的课程无法排进网格，先在预览阶段剔除。
+            guard course.endPeriod <= periodCount else {
+                outOfRange += 1
+                continue
+            }
             var fixed = course
             fixed.weeks = weeks
             normalized.append(fixed)
         }
         if dropped > 0 { warnings.append("有 \(dropped) 门课程的时间或周次不在本学期内，已忽略。") }
+        if outOfRange > 0 {
+            warnings.append("有 \(outOfRange) 门课程超出本学期的 \(periodCount) 节作息，已忽略。可在「学期与作息」里增加节次后重新导入。")
+        }
 
         var conflicts: [Conflict] = []
         for incoming in normalized {

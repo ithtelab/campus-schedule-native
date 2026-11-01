@@ -332,10 +332,16 @@ final class PreviewStore {
         restoreCloudSync = legacy.cloudSyncEnabled == true
     }
 
-    /// 学期内容的完整性检查。学期设置页固定 10 节，越界数据会让网格绘错。
+    /// 学期内容的完整性检查。
+    ///
+    /// 节次数允许 1…20：各校作息差异很大（有 8 节、有 14 节），早期版本固定 10 节
+    /// 会让非 10 节的学校无法录入。编号必须从 1 连续，网格按下标定位。
+    static let supportedPeriodRange = 1...20
+
     static func isValid(_ content: TermContent) -> Bool {
-        guard (1...53).contains(content.totalWeeks), content.periods.count == 10 else { return false }
-        guard content.periods.map(\.id) == Array(1...10) else { return false }
+        guard (1...53).contains(content.totalWeeks),
+              supportedPeriodRange.contains(content.periods.count) else { return false }
+        guard content.periods.map(\.id) == Array(1...content.periods.count) else { return false }
         guard content.periods.allSatisfy({
             ScheduleRules.date(day: Date(), time: $0.start) != nil && ScheduleRules.date(day: Date(), time: $0.end) != nil
         }) else { return false }
@@ -397,7 +403,9 @@ final class PreviewStore {
             return
         }
         do {
-            let localData = try persistence?.load()
+            // 云端只存归档格式：它有版本号与校验，恢复路径也复用它。
+            // 比较必须用同一种格式，否则「本地未改动」永远判不出来。
+            let localData = try? makeArchive().encoded()
             switch cloudSync.decision(local: localData) {
             case .idle:
                 cloudSyncStatus = "已是最新。"
@@ -434,7 +442,7 @@ final class PreviewStore {
     /// 远端变化：本地没改过就直接采用，改过则挂起等用户决定。
     private func handleRemoteChange(_ payload: StampedPayload) {
         guard cloudSyncEnabled, !payload.payload.isEmpty, payload.deviceID != cloudSync.deviceID else { return }
-        guard let localData = try? persistence?.load() else {
+        guard let localData = try? makeArchive().encoded() else {
             applyRemote(payload); return
         }
         switch CloudSyncPlan.decide(
@@ -538,6 +546,24 @@ final class PreviewStore {
         }
     }
 
+    /// 缩短作息表后，清理引用了已删除节次的课程。
+    ///
+    /// 这些课程在网格上无法定位，留着会导致绘制越界。删除前记录数量以便提示用户。
+    @discardableResult
+    func dropCoursesBeyondPeriod(_ lastValidPeriod: Int) -> Int {
+        guard let content = termContents[activeTermID] else { return 0 }
+        let removed = content.courses.filter { $0.startPeriod > lastValidPeriod || $0.endPeriod > lastValidPeriod }
+        guard !removed.isEmpty else { return 0 }
+        mutateActive { term in
+            term.courses.removeAll { $0.startPeriod > lastValidPeriod || $0.endPeriod > lastValidPeriod }
+            // 相关调课记录同时清理，避免悬挂引用。
+            let kept = Set(term.courses.map(\.id))
+            term.exceptions.removeAll { !kept.contains($0.courseID) }
+        }
+        errorMessage = "已移除 \(removed.count) 门课程，它们使用了被删除的节次。"
+        return removed.count
+    }
+
     // MARK: - 导出与恢复
 
     /// 把全部学期导出为可存档的格式。演示版与截图模式不产出真实数据。
@@ -603,8 +629,9 @@ final class PreviewStore {
             guard restoredCourses.count == term.courses.count else {
                 throw ArchiveError.courseOutsidePeriodRange(term.name, term.name)
             }
-            // 学期设置页假设恰好 10 节且编号 1…10；备份允许任意编号，这里拒绝会让设置页越界的数据。
-            guard restoredPeriods.map(\.id) == Array(1...restoredPeriods.count), restoredPeriods.count == 10 else {
+            // 编号必须从 1 连续，网格按下标定位；数量限制与学期内容校验保持一致。
+            guard restoredPeriods.map(\.id) == Array(1...restoredPeriods.count),
+                  Self.supportedPeriodRange.contains(restoredPeriods.count) else {
                 throw ArchiveError.emptyPeriods(term.name)
             }
             restored[term.id] = TermContent(
@@ -685,12 +712,19 @@ final class PreviewStore {
     ///
     /// 同名同时间的课程覆盖原条目而不是重复添加；其余追加。
     /// 时间标签根据节次从作息表推导，保证导入后立即显示正确时刻。
-    func applyImport(_ imported: [ParsedCourse]) {
-        guard !imported.isEmpty else { return }
+    /// - Returns: 实际写入的课程数。少于输入数量说明有课程被跳过，调用方应当提示用户。
+    @discardableResult
+    func applyImport(_ imported: [ParsedCourse]) -> Int {
+        guard !imported.isEmpty else { return 0 }
         let byIndex = Dictionary(uniqueKeysWithValues: periods.map { ($0.id, $0) })
         var result = courses
+        var written = 0
+        var skipped = 0
         for parsed in imported {
-            guard let start = byIndex[parsed.startPeriod], let end = byIndex[parsed.endPeriod] else { continue }
+            guard let start = byIndex[parsed.startPeriod], let end = byIndex[parsed.endPeriod] else {
+                skipped += 1
+                continue
+            }
             let course = DemoCourse(
                 id: "import-\(UUID().uuidString)",
                 title: parsed.title,
@@ -715,10 +749,15 @@ final class PreviewStore {
             } else {
                 result.append(course)
             }
+            written += 1
         }
         courses = result
-        errorMessage = nil
+        // 不静默吞掉：跳过任何课程都要让用户知道。
+        errorMessage = skipped > 0
+            ? "已导入 \(written) 门课程，另有 \(skipped) 门因节次超出当前作息被跳过。"
+            : nil
         save()
+        return written
     }
 
     /// 按课程名稳定地分配颜色，使同一门课在多次导入后保持一致。

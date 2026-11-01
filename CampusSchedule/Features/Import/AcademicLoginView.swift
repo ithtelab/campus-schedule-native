@@ -140,7 +140,8 @@ struct AcademicLoginView: View {
             ParsedCourse(title: $0.title, teacher: $0.teacher, room: $0.room, weekday: $0.weekday,
                          startPeriod: $0.startPeriod, endPeriod: $0.endPeriod, weeks: $0.weeks)
         }
-        return ImportPlanner.plan(outcome, existing: existing, totalWeeks: store.totalWeeks)
+        return ImportPlanner.plan(outcome, existing: existing, totalWeeks: store.totalWeeks,
+                            periodCount: store.periods.count)
     }
 
     private func finish(plan: ImportPlanner.Plan) {

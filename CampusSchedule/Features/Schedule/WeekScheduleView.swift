@@ -174,16 +174,34 @@ struct WeekScheduleView: View {
         }
         .frame(height: totalHeight, alignment: .top).padding(.horizontal, 12)
         .overlay(alignment: .topLeading) {
-            ForEach([5, 9], id: \.self) { period in
-                Text(period == 5 ? "下午" : "晚上").font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary)
-                    .padding(.leading, 16).offset(y: offset(period) - 19)
+            ForEach(periodGroupMarks, id: \.self) { mark in
+                Text(mark.label).font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary)
+                    .padding(.leading, 16).offset(y: offset(mark.period) - 19)
             }
         }
     }
 
+    /// 「下午」「晚上」两个分界标记。
+    ///
+    /// 各校节次数不同（8…14 节），因此按总节次三等分取近似位置，
+    /// 而不是写死第 5 节和第 9 节。
+    private struct PeriodGroupMark: Hashable {
+        let period: Int
+        let label: String
+    }
+
+    private var periodGroupMarks: [PeriodGroupMark] {
+        let ids = store.periods.map(\.id)
+        guard ids.count >= 6 else { return [] }
+        let afternoon = ids[ids.count / 3]
+        let evening = ids[ids.count * 2 / 3]
+        return [PeriodGroupMark(period: afternoon, label: "下午"),
+                PeriodGroupMark(period: evening, label: "晚上")]
+    }
+
     private func dayColumn(_ day: Int, width: CGFloat, week: Int, courses: [DemoCourse]) -> some View {
         ZStack(alignment: .top) {
-            ForEach(1...10, id: \.self) { period in
+            ForEach(store.periods.map(\.id), id: \.self) { period in
                 Rectangle().fill(Color.primary.opacity(0.045)).frame(height: 0.5).offset(y: offset(period))
             }
             ForEach(courses.filter { $0.weekday == day }) { course in
