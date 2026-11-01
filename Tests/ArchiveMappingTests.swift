@@ -49,38 +49,51 @@ struct ArchiveMappingTests {
 
     // MARK: 周次裁剪
 
+    struct Item {
+        var name: String
+        var weeks: Set<Int>
+    }
+
     @Test func clampsWeeksAndKeepsCoursesWithRemainingWeeks() {
-        let input: [(String, Set<Int>)] = [("a", [1, 2, 18]), ("b", [1])]
+        let input = [Item(name: "a", weeks: [1, 2, 18]), Item(name: "b", weeks: [1])]
         let result = ArchiveMapping.clampWeeks(
-            input, totalWeeks: 16, weeksOf: { $0.1 }, apply: { ($0.0, $0.1) }
+            input, totalWeeks: 16,
+            weeksOf: { $0.weeks },
+            apply: { item, weeks in Item(name: item.name, weeks: weeks) }
         )
         #expect(result.kept.count == 2)
-        #expect(result.kept[0].1 == [1, 2])
+        #expect(result.kept[0].weeks == [1, 2])
         #expect(result.removedCount == 0)
     }
 
     @Test func removesCourseWhoseWeeksAllFallOutside() {
-        let input: [(String, Set<Int>)] = [("早课", [1]), ("晚课", [18, 19])]
+        let input = [Item(name: "早课", weeks: [1]), Item(name: "晚课", weeks: [18, 19])]
         let result = ArchiveMapping.clampWeeks(
-            input, totalWeeks: 16, weeksOf: { $0.1 }, apply: { ($0.0, $0.1) }
+            input, totalWeeks: 16,
+            weeksOf: { $0.weeks },
+            apply: { item, weeks in Item(name: item.name, weeks: weeks) }
         )
         #expect(result.kept.count == 1)
-        #expect(result.kept[0].0 == "早课")
+        #expect(result.kept[0].name == "早课")
         #expect(result.removedCount == 1)
     }
 
     @Test func clampingToSameLengthChangesNothing() {
-        let input: [(String, Set<Int>)] = [("a", [1, 20])]
+        let input = [Item(name: "a", weeks: [1, 20])]
         let result = ArchiveMapping.clampWeeks(
-            input, totalWeeks: 20, weeksOf: { $0.1 }, apply: { ($0.0, $0.1) }
+            input, totalWeeks: 20,
+            weeksOf: { $0.weeks },
+            apply: { item, weeks in Item(name: item.name, weeks: weeks) }
         )
-        #expect(result.kept[0].1 == [1, 20])
+        #expect(result.kept[0].weeks == [1, 20])
         #expect(result.removedCount == 0)
     }
 
     @Test func emptyInputStaysEmpty() {
         let result = ArchiveMapping.clampWeeks(
-            [] as [(String, Set<Int>)], totalWeeks: 20, weeksOf: { $0.1 }, apply: { ($0.0, $0.1) }
+            [] as [Item], totalWeeks: 20,
+            weeksOf: { $0.weeks },
+            apply: { item, weeks in Item(name: item.name, weeks: weeks) }
         )
         #expect(result.kept.isEmpty)
         #expect(result.removedCount == 0)
