@@ -2,3 +2,5 @@
 *.png binary
 *.jpg binary
 *.jpeg binary
+# 脚本必须保持 LF：CRLF 会让 set -euo pipefail 在 Linux 上解析失败。
+*.sh text eol=lf
