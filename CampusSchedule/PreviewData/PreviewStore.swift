@@ -553,13 +553,17 @@ final class PreviewStore {
     func clampCourseWeeksToTerm() {
         let limit = totalWeeks
         mutateActive { term in
-            term.courses = term.courses.map { course in
-                var fixed = course
-                fixed.weeks = course.weeks.filter { $0 >= 1 && $0 <= limit }
-                return fixed
-            }
+            let result = ArchiveMapping.clampWeeks(
+                term.courses, totalWeeks: limit,
+                weeksOf: { $0.weeks },
+                apply: { course, weeks in
+                    var fixed = course
+                    fixed.weeks = weeks
+                    return fixed
+                }
+            )
             // 裁到没有周次的课程说明整门课都在被删掉的周里，一并移除。
-            term.courses.removeAll { $0.weeks.isEmpty }
+            term.courses = result.kept
         }
     }
 
@@ -647,8 +651,7 @@ final class PreviewStore {
                 throw ArchiveError.courseOutsidePeriodRange(term.name, term.name)
             }
             // 编号必须从 1 连续，网格按下标定位；数量限制与学期内容校验保持一致。
-            guard restoredPeriods.map(\.id) == Array(1...restoredPeriods.count),
-                  Self.supportedPeriodRange.contains(restoredPeriods.count) else {
+            guard ArchiveMapping.periodsAreContiguous(term.periods, range: Self.supportedPeriodRange) else {
                 throw ArchiveError.emptyPeriods(term.name)
             }
             restored[term.id] = TermContent(
@@ -724,6 +727,21 @@ final class PreviewStore {
     }
 
     // MARK: - 导入
+
+    /// 用当前学期的现状为一次解析结果生成导入方案。
+    ///
+    /// 导入页与网页登录页都要做同一件事：把现有课程转成可比较的形状、带上当前
+    /// 节次与周数上限。集中在这里，避免两处入口对同一规则各写一份。
+    func makeImportPlan(_ outcome: ParseOutcome) -> ImportPlanner.Plan {
+        let existing = courses.map {
+            ParsedCourse(title: $0.title, teacher: $0.teacher, room: $0.room,
+                         weekday: $0.weekday, startPeriod: $0.startPeriod,
+                         endPeriod: $0.endPeriod, weeks: $0.weeks)
+        }
+        return ImportPlanner.plan(outcome, existing: existing,
+                                  totalWeeks: totalWeeks, periodCount: periods.count)
+    }
+
 
     /// 把导入的课程合并进当前学期。
     ///
