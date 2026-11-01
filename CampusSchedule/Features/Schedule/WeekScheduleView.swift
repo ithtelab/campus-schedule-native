@@ -42,6 +42,22 @@ struct WeekScheduleView: View {
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Menu {
+                        // 学期切换放在这里：课表上看到的是哪个学期，是使用中最常需要确认的事。
+                        if store.terms.count > 1 {
+                            Menu("切换学期", systemImage: "square.stack") {
+                                ForEach(store.terms) { term in
+                                    Button {
+                                        store.selectTerm(term.id)
+                                    } label: {
+                                        if term.id == store.activeTermID {
+                                            Label(term.name, systemImage: "checkmark")
+                                        } else {
+                                            Text(term.name)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         Button("搜索课程", systemImage: "magnifyingglass") { showingSearch = true }
                         Button(store.showsWeekend ? "显示五天" : "显示七天", systemImage: "calendar") { store.showsWeekend.toggle() }
                     } label: { Image(systemName: "ellipsis") }
