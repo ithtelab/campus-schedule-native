@@ -56,6 +56,10 @@ for appearance in light dark; do
   SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=week SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=12:00 xcrun simctl launch --terminate-running-process booted "$bundle_id"
   sleep 3
   xcrun simctl io booted screenshot "screenshots/week-now-upcoming-${appearance}.png"
+  # 今日页顶部的考试倒计时条。
+  SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=10:30 SIMCTL_CHILD_CAMPUS_PREVIEW_EXAMS=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
+  sleep 3
+  xcrun simctl io booted screenshot "screenshots/today-exam-banner-${appearance}.png"
   # 今日页收尾的三种状态：有课未上完、全部上完、当天无课。
   SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_TIME=10:30 SIMCTL_CHILD_CAMPUS_PREVIEW_SCROLL=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
   sleep 3

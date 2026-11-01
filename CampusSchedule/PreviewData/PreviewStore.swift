@@ -255,7 +255,9 @@ final class PreviewStore {
             courses.append(.init(id: "layout-single", title: "学术写作", room: "图书馆 · 201", teacher: "李老师", weekday: 6,
                 startPeriod: 9, endPeriod: 9, startTime: "19:00", endTime: "19:45", color: .blue))
         }
-        if isPreview && ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "exams" {
+        // 今日页与考试页都需要示范考试，才能验证倒计时条的排版。
+        if isPreview && (ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "exams"
+                         || ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_EXAMS"] == "1") {
             // 截图专用示范数据，让考试页展示真实排版而不是空状态。
             let calendar = ScheduleRules.calendar
             let base = calendar.startOfDay(for: clockDate)

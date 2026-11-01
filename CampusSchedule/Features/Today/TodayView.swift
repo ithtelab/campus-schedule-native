@@ -28,6 +28,8 @@ struct TodayView: View {
                     // 卡片本身足够大，滚动时一直压在顶部会显得拥挤。
                     LazyVStack(alignment: .leading, spacing: 0) {
                         introduction.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 12)
+                        // 考试提醒放在课程卡之前：临近考试时它比今天的课更该被看到。
+                        examBanner
                         if let next {
                             focusCard(next)
                                 .padding(.horizontal, 20)
@@ -177,6 +179,48 @@ struct TodayView: View {
         }
         .buttonStyle(CampusPressStyle())
         .accessibilityElement(children: .combine)
+    }
+
+    /// 最近一场考试的提醒条。
+    ///
+    /// 只在两周内出现，避免平时占地方；已经考完的不显示。
+    @ViewBuilder private var examBanner: some View {
+        let upcoming = ExamPlan.upcoming(store.exams, now: store.now)
+        if let next = upcoming.first,
+           let days = ExamPlan.daysUntilNext(store.exams, now: store.now),
+           days <= 14 {
+            HStack(spacing: 10) {
+                Image(systemName: "graduationcap.fill")
+                    .font(.footnote)
+                    .foregroundStyle(DesignSystem.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(next.courseTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(examDetail(next, days: days))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Text(days == 0 ? "今天" : "\(days) 天")
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(DesignSystem.accent)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DesignSystem.paper)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(DesignSystem.rule).frame(height: 0.5)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("考试提醒：\(next.courseTitle)，\(examDetail(next, days: days))")
+        }
+    }
+
+    private func examDetail(_ exam: Exam, days: Int) -> String {
+        let date = exam.date.formatted(.dateTime.month().day())
+        let place = exam.room.isEmpty ? "" : " · \(exam.room)"
+        let when = days == 0 ? "\(exam.startTime) 开考" : "\(date) \(exam.startTime)"
+        return when + place
     }
 
     /// 列表收尾：三种状态各自说明今天的情况，并附本周与本月统计。
