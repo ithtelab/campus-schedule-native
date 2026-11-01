@@ -101,7 +101,7 @@ public enum NowStatus {
     }
 
     /// 统计某一周的完成情况。
-    public static func weekProgress(for occurrences: [CourseOccurrence],
+    static func weekProgress(for occurrences: [CourseOccurrence],
                                     week: Int, semesterStart: Date, now: Date) -> WeekProgress {
         let calendar = ScheduleRules.calendar
         let inWeek = occurrences.filter {
