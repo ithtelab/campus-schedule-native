@@ -127,18 +127,6 @@ struct RootView: View {
                 try? (passed ? "PASS: normal demo edition opens populated current-term data separately from personal storage" : "FAIL: demo edition routing")
                     .write(to: URL.documentsDirectory.appendingPathComponent("demo-edition-smoke.txt"), atomically: true, encoding: .utf8)
             }
-            if store.isPreview, ProcessInfo.processInfo.environment["CAMPUS_TOSS_SMOKE"] == "1", let first = store.todayCourses.first {
-                let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
-                let before = try? encoder.encode(store.courses)
-                let occurrences = store.occurrences
-                let reaction = CourseTossReaction()
-                let accepted = reaction.accept([CourseTossReaction.payload(first)], courses: store.todayCourses)
-                let rejected = !reaction.accept(["foreign-payload"], courses: store.todayCourses)
-                let after = try? encoder.encode(store.courses)
-                let passed = accepted && rejected && reaction.count == 1 && reaction.title == first.title && before != nil && before == after && occurrences == store.occurrences
-                try? (passed ? "PASS: toss reaction accepts known course, rejects foreign payload, preserves complete course and reminder instances" : "FAIL: toss mutated course data")
-                    .write(to: URL.documentsDirectory.appendingPathComponent("course-toss-smoke.txt"), atomically: true, encoding: .utf8)
-            }
             if store.isPreview {
                 let result = CampusArtAssets.available && CampusCharacterAssets.available ? "PASS: light/dark figures, two 16-frame action atlases and bundled handwriting font loaded" : "FAIL: campus art, animation atlas or handwriting font missing"
                 try? result.write(to: URL.documentsDirectory.appendingPathComponent("campus-assets-smoke.txt"), atomically: true, encoding: .utf8)

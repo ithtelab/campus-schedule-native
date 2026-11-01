@@ -13,7 +13,6 @@ struct TodayView: View {
     @State private var character = CampusCharacterPlayer(style: .girl)
     @State private var detailCharacter: CampusCharacterPlayer?
     @State private var courseFeedback = 0
-    @State private var toss = CourseTossReaction()
     private var time: String { store.timeText }
     private var daily: [DemoCourse] { store.todayCourses }
     private var next: DemoCourse? { daily.first { $0.endTime > time } }
@@ -50,7 +49,6 @@ struct TodayView: View {
                 }
             }
             .background(DesignSystem.background)
-            .courseTossOverlay(courses: daily, reaction: toss)
             .navigationTitle("今日").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -110,7 +108,6 @@ struct TodayView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(CampusPressStyle()).accessibilityHint("查看课程详情")
-                    .courseTossSource(course, courses: daily, reaction: toss)
                     if !typeSize.isAccessibilitySize {
                         CampusCharacter(player: character, contextDriven: true).frame(width: 78, height: 150)
                     }
@@ -179,7 +176,6 @@ struct TodayView: View {
             }
         }
         .buttonStyle(CampusPressStyle())
-        .courseTossSource(course, courses: daily, reaction: toss)
         .accessibilityElement(children: .combine)
     }
 

@@ -143,13 +143,6 @@ sleep 3
 xcrun simctl io booted screenshot screenshots/live-layout-preview.png
 cp "$data_path/Documents/live-layout-smoke.txt" screenshots/live-layout-test.txt
 if grep -q '^FAIL' screenshots/live-layout-test.txt; then exit 1; fi
-SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_TOSS_SMOKE=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
-sleep 3
-cp "$data_path/Documents/course-toss-smoke.txt" screenshots/course-toss-test.txt
-grep -q '^PASS' screenshots/course-toss-test.txt
-SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=week SIMCTL_CHILD_CAMPUS_TOSS_PREVIEW=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
-sleep 3
-xcrun simctl io booted screenshot screenshots/course-toss-visible-preview.png
 
 # 使用独立的个人数据模式检查 SwiftData 写入及进程重启后读回。
 SIMCTL_CHILD_CAMPUS_SMOKE_TEST=seed xcrun simctl launch --terminate-running-process booted "$bundle_id"

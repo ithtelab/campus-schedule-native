@@ -9,7 +9,6 @@ struct WeekScheduleView: View {
     @State private var showingWeeks = false
     @State private var showingEditor = false
     @State private var showingImport = false
-    @State private var toss = CourseTossReaction()
     private let days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
     private let rowHeight: CGFloat = 56
     private let groupGap: CGFloat = 22
@@ -35,7 +34,6 @@ struct WeekScheduleView: View {
             }
             .background(DesignSystem.background)
             .overlay { emptyTermGuide }
-            .courseTossOverlay(courses: courses, reaction: toss)
             .navigationTitle("课表").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -177,7 +175,9 @@ struct WeekScheduleView: View {
                         }
                         .foregroundStyle(.primary)
                     }
-                    Text("\(store.date(week: store.selectedWeek).formatted(.dateTime.month().day())) — \(store.date(week: store.selectedWeek, day: 6).formatted(.dateTime.month().day())) · \(courses.count) 次课")
+                    let progress = NowStatus.weekProgress(for: store.occurrences, week: store.selectedWeek,
+                                                          semesterStart: store.semesterStart, now: store.now)
+                    Text("\(store.date(week: store.selectedWeek).formatted(.dateTime.month().day())) — \(store.date(week: store.selectedWeek, day: 6).formatted(.dateTime.month().day())) · \(progress.text)")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -347,7 +347,6 @@ struct WeekScheduleView: View {
                     .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(borderColor, lineWidth: 0.8) }
                 }
                 .buttonStyle(.plain).foregroundStyle(.primary)
-                .courseTossSource(course, courses: courses, reaction: toss)
                 .accessibilityLabel("\(days[day])，\(course.title)，\(course.startTime)至\(course.endTime)，\(course.room)")
                 .offset(y: min(totalHeight - 32, position(course.startTime)))
             }
@@ -401,7 +400,6 @@ struct WeekScheduleView: View {
                             .fixedSize(horizontal: false, vertical: true).padding(.vertical, 10)
                         }
                         .buttonStyle(.plain)
-                        .courseTossSource(course, courses: courses, reaction: toss)
                     }
                 }
             }

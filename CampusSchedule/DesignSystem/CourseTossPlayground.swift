@@ -1,6 +1,12 @@
 import SwiftUI
 import Observation
 
+// 纸篓互动当前未接入界面。
+//
+// 它只在 iOS 27 的拖拽会话下会自动出现，其他系统完全没有入口；而且「扔进纸篓」
+// 并不删除课程，只是个动画，用户容易误以为删除失败。在没有明确产品意义之前先
+// 从课表页移除，代码保留以便将来改造成真实操作（例如「本节不再提醒」）。
+//
 @MainActor @Observable final class CourseTossReaction {
     static let prefix = "campus-toss:"
     private(set) var count = 0
@@ -73,21 +79,7 @@ private struct CourseTossOverlay: ViewModifier {
                         .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            // 没有拖拽会话时，用屏幕底部的隐形收纳区在拖入瞬间唤出纸篓。
-            .overlay(alignment: .bottom) {
-                if !usesDragSession {
-                    Color.clear
-                        .frame(height: 88)
-                        .contentShape(Rectangle())
-                        .dropDestination(for: String.self) { payloads, _ in
-                            let handled = reaction.accept(payloads, courses: courses)
-                            reaction.dismiss()
-                            return handled
-                        } isTargeted: { targeted in
-                            if targeted { reaction.setDragging(true) }
-                        }
-                }
-            }
+
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: reaction.isDragging)
             .onDisappear { reaction.dismiss() }
             .onChange(of: scenePhase) { _, value in if value != .active { reaction.dismiss() } }

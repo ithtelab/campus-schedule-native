@@ -78,6 +78,39 @@ public enum NowStatus {
         return false
     }
 
+    /// 一周的进度摘要：「已上 3/8 次」。
+    ///
+    /// 学生关心的是这周还剩多少，而不是总共有多少。已上的课用结束时刻判断，
+    /// 正在上的那节算作未完成，因为还没下课。
+    public struct WeekProgress: Equatable, Sendable {
+        public var completed: Int
+        public var total: Int
+
+        public init(completed: Int, total: Int) {
+            self.completed = completed
+            self.total = total
+        }
+
+        public var remaining: Int { max(0, total - completed) }
+
+        /// 全部上完时给出明确文案，否则显示进度。
+        public var text: String {
+            guard total > 0 else { return "本周无课" }
+            return completed >= total ? "本周 \(total) 次课已上完" : "本周 \(completed)/\(total) 次课"
+        }
+    }
+
+    /// 统计某一周的完成情况。
+    public static func weekProgress(for occurrences: [CourseOccurrence],
+                                    week: Int, semesterStart: Date, now: Date) -> WeekProgress {
+        let calendar = ScheduleRules.calendar
+        let inWeek = occurrences.filter {
+            ScheduleRules.week(on: $0.start, semesterStart: semesterStart) == week
+        }
+        let completed = inWeek.filter { $0.end <= now }.count
+        return WeekProgress(completed: completed, total: inWeek.count)
+    }
+
     /// 教室名缩写。课表卡片与状态条共用同一份规则，避免两处写法不一致。
     public static func shorten(_ room: String) -> String {
         room.replacingOccurrences(of: "教学楼 ", with: "")
