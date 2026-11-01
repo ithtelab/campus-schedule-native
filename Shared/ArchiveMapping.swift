@@ -18,6 +18,8 @@ public enum ArchiveMapping {
     /// 网格靠下标定位，编号有空洞会让课程画到错误位置，因此宁可整体拒绝。
     public static func periodsAreContiguous(_ periods: [ArchivedPeriod], range: ClosedRange<Int>) -> Bool {
         let sorted = periods.map(\.index).sorted()
+        // 空表直接拒绝：Array(1...0) 会因区间下界大于上界而崩溃。
+        guard !sorted.isEmpty else { return false }
         return sorted == Array(1...sorted.count) && range.contains(sorted.count)
     }
 
