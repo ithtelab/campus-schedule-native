@@ -182,9 +182,9 @@ final class PreviewStore {
                 startPeriod: base.startPeriod, endPeriod: base.endPeriod,
                 startTime: time(occurrence.start), endTime: time(occurrence.end), color: base.color, weeks: base.weeks)
             copy.sourceID = base.id
-            copy.wasRescheduled = item.wasRescheduled
-            copy.originalRoom = item.originalRoom
-            copy.weekPattern = item.weekPattern
+            copy.wasRescheduled = occurrence.wasRescheduled
+            copy.originalRoom = occurrence.originalRoom
+            copy.weekPattern = occurrence.weekPattern
             return copy
         }
     }
