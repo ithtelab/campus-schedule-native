@@ -9,6 +9,7 @@ struct WeekScheduleView: View {
     @State private var showingWeeks = false
     @State private var showingEditor = false
     @State private var showingImport = false
+    @State private var showingSearch = false
     private let days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
     private let rowHeight: CGFloat = 56
     private let groupGap: CGFloat = 22
@@ -41,6 +42,7 @@ struct WeekScheduleView: View {
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Menu {
+                        Button("搜索课程", systemImage: "magnifyingglass") { showingSearch = true }
                         Button(store.showsWeekend ? "显示五天" : "显示七天", systemImage: "calendar") { store.showsWeekend.toggle() }
                     } label: { Image(systemName: "ellipsis") }
                     .accessibilityLabel("课表显示选项")
@@ -54,6 +56,7 @@ struct WeekScheduleView: View {
             .sheet(isPresented: $showingEditor) { CourseEditorView() }
             .sheet(isPresented: $showingWeeks) { weekPicker }
             .sheet(isPresented: $showingImport) { ImportView() }
+            .sheet(isPresented: $showingSearch) { CourseSearchView() }
         }
     }
 
