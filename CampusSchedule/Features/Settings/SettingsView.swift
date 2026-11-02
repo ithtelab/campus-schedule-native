@@ -151,8 +151,8 @@ struct SettingsView: View {
                 default: break
                 }
             }
-            .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications(revert: true) } }
-            .onChange(of: settings.endReminder) { _, enabled in if enabled { authorizeNotifications(revert: false, revertEnd: true) } }
+            .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications(revertReminders: true) } }
+            .onChange(of: settings.endReminder) { _, enabled in if enabled { authorizeNotifications(revertReminders: false, revertEndReminder: true) } }
         }
     }
 
@@ -202,7 +202,7 @@ struct SettingsView: View {
         UIApplication.shared.open(url)
     }
 
-    private func authorizeNotifications(revert reminder: Bool = true, revertEnd: Bool = false) {
+    private func authorizeNotifications(revertReminders: Bool = true, revertEndReminder: Bool = false) {
         guard !store.isPreview else { return }
         Task {
             do {
@@ -210,13 +210,13 @@ struct SettingsView: View {
                     store.synchronize()
                 } else {
                     // 把开关退回关闭，让界面与实际能力一致。
-                    if revert { store.reminderPreview = false }
-                    if revertEnd { store.endReminder = false }
+                    if revertReminders { store.reminderPreview = false }
+                    if revertEndReminder { store.endReminder = false }
                     store.errorMessage = "通知权限未开启。请在系统设置中允许「课间册」发送通知后重新开启提醒。"
                 }
             } catch {
-                if revert { store.reminderPreview = false }
-                if revertEnd { store.endReminder = false }
+                if revertReminders { store.reminderPreview = false }
+                if revertEndReminder { store.endReminder = false }
                 store.errorMessage = error.localizedDescription
             }
         }
