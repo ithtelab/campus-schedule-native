@@ -95,9 +95,15 @@ struct SettingsView: View {
                 } header: { Text("备份") }
                 footer: { Text("导出的文件包含本学期课程、作息与调课记录，可换机迁移或自行保存。恢复会用备份内容替换当前学期。") }
                 if let message = store.errorMessage {
-                    Section("需要处理") { Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.primary) }
+                    Section("需要处理") {
+                        Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.primary)
+                        // 通知被拒后系统不会再弹窗，只能由用户自己去设置里改，
+                        // 所以给一个直达入口而不是只留一句话。
+                        if message.contains("通知") {
+                            Button("打开系统设置", systemImage: "gear") { openSystemSettings() }
+                        }
+                    }
                 }
-                Section("外观") { LabeledContent("显示模式", value: "跟随系统") }
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
@@ -145,8 +151,8 @@ struct SettingsView: View {
                 default: break
                 }
             }
-            .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications() } }
-            .onChange(of: settings.endReminder) { _, enabled in if enabled { authorizeNotifications() } }
+            .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications(revert: true) } }
+            .onChange(of: settings.endReminder) { _, enabled in if enabled { authorizeNotifications(revert: false, revertEnd: true) } }
         }
     }
 
@@ -187,13 +193,32 @@ struct SettingsView: View {
             store.errorMessage = "恢复失败：\(error.localizedDescription)"
         }
     }
-    private func authorizeNotifications() {
+    /// 请求通知权限。被拒时把开关恢复为关闭。
+    ///
+    /// 不恢复的话开关会显示「已开启」但实际永远不会发出通知，用户要到提醒
+    /// 没响时才发现。权限一旦被拒，系统不会再弹窗，只能引导用户去设置里改。
+    private func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    private func authorizeNotifications(revert reminder: Bool = true, revertEnd: Bool = false) {
         guard !store.isPreview else { return }
         Task {
             do {
-                if try await CourseNotifications.shared.authorize() { store.synchronize() }
-                else { store.errorMessage = "通知权限未开启，请到系统设置中允许通知。" }
-            } catch { store.errorMessage = error.localizedDescription }
+                if try await CourseNotifications.shared.authorize() {
+                    store.synchronize()
+                } else {
+                    // 把开关退回关闭，让界面与实际能力一致。
+                    if revert { store.reminderPreview = false }
+                    if revertEnd { store.endReminder = false }
+                    store.errorMessage = "通知权限未开启。请在系统设置中允许「课间册」发送通知后重新开启提醒。"
+                }
+            } catch {
+                if revert { store.reminderPreview = false }
+                if revertEnd { store.endReminder = false }
+                store.errorMessage = error.localizedDescription
+            }
         }
     }
 }

@@ -75,7 +75,8 @@ struct TodayView: View {
 
     private var introduction: some View {
         VStack(alignment: .leading, spacing: 15) {
-            CampusHeading(title: next == nil && !daily.isEmpty ? "下课啦。" : "今天，去上课。")
+            // 三种状态各说各话：没课还写「去上课」是自相矛盾。
+            CampusHeading(title: daily.isEmpty ? "今天没有课。" : (next == nil ? "下课啦。" : "今天，去上课。"))
             let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout())
             layout {
                 Text(store.now, format: .dateTime.month().day().weekday(.wide)).font(.caption)
