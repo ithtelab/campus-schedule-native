@@ -33,7 +33,6 @@ struct RootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var linkedCourse: DemoCourse?
     @State private var linkedOccurrenceID: String?
-    @State private var pendingCourseLink: CourseDeepLink.Target?
     @State private var courseNavigationRevision = 0
     @State private var linkUnavailable = false
     enum Screen: String, CaseIterable, Identifiable {
@@ -63,47 +62,51 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if horizontalSizeClass == .regular {
+            if let linkedCourse {
+                CourseNowView(course: linkedCourse, occurrenceID: linkedOccurrenceID, onClose: closeLinkedCourse)
+            } else if linkUnavailable {
+                NavigationStack {
+                    ContentUnavailableView {
+                        Label("课程安排已更新", systemImage: "calendar.badge.clock")
+                    } description: {
+                        Text("这条组件记录已不在当前课表中，请查看更新后的安排。")
+                    } actions: {
+                        Button("查看课表", action: closeLinkedCourse)
+                    }
+                    .navigationTitle("本次课程").navigationBarTitleDisplayMode(.inline)
+                }
+            } else if horizontalSizeClass == .regular {
                 splitLayout
             } else {
                 tabLayout
             }
         }
         .tint(DesignSystem.accent)
-        .alert("课程安排已更新", isPresented: $linkUnavailable) {
-            Button("查看课表", role: .cancel) { selectedScreen = .week }
-        } message: { Text("这条组件记录已不在当前课表中，请查看更新后的安排。") }
         .safeAreaInset(edge: .top) {
             if store.storageReadOnly {
-                Button { selectedScreen = .settings } label: {
+                Button { closeLinkedCourse(); selectedScreen = .settings } label: {
                     Label("课表读取失败，原数据已保护。前往设置恢复", systemImage: "exclamationmark.shield")
                         .font(.footnote).frame(maxWidth: .infinity, alignment: .leading).padding(12)
                 }
                 .foregroundStyle(.primary).background(DesignSystem.surface)
             }
         }
-        .sheet(item: $linkedCourse) {
-            CourseNowView(course: $0, occurrenceID: linkedOccurrenceID).environment(store)
-        }
-        // Rebuild presentation hosts, while retaining this RootView's store, to discard a previously open editor.
+        // A dedicated root screen avoids competing with a previously presented editor sheet.
         .id(courseNavigationRevision)
         .onOpenURL { url in
             guard url.scheme == "campusschedule" else { return }
             linkedCourse = nil; linkedOccurrenceID = nil; linkUnavailable = false
-            pendingCourseLink = CourseDeepLink.target(url)
-            selectedScreen = pendingCourseLink == nil ? .today : .week
+            if let target = CourseDeepLink.target(url) {
+                selectedScreen = .week
+                linkedCourse = store.resolveCourseLink(target)
+                linkUnavailable = linkedCourse == nil
+                let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences, now: store.now)
+                linkedOccurrenceID = target.occurrenceID ?? occurrence?.id
+                if let occurrence {
+                    store.selectedWeek = min(store.totalWeeks, max(1, ScheduleRules.week(on: occurrence.start, semesterStart: store.semesterStart)))
+                }
+            } else { selectedScreen = .today }
             courseNavigationRevision += 1
-        }
-        .task(id: courseNavigationRevision) {
-            guard let target = pendingCourseLink else { return }
-            pendingCourseLink = nil
-            linkedCourse = store.resolveCourseLink(target)
-            linkUnavailable = linkedCourse == nil
-            let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences, now: store.now)
-            linkedOccurrenceID = target.occurrenceID ?? occurrence?.id
-            if let occurrence {
-                store.selectedWeek = min(store.totalWeeks, max(1, ScheduleRules.week(on: occurrence.start, semesterStart: store.semesterStart)))
-            }
         }
         .onChange(of: phase) { _, value in
             if value == .active && !(ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] ?? "").hasPrefix("live") {
@@ -117,6 +120,11 @@ struct RootView: View {
             ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_ACCESSIBILITY"] == "1" ? .accessibility3 : systemTypeSize)
         .environment(\.campusSuppressMotion,
             ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1")
+    }
+
+    private func closeLinkedCourse() {
+        linkedCourse = nil; linkedOccurrenceID = nil; linkUnavailable = false
+        selectedScreen = .week
     }
 
     /// iPad：侧边栏常驻，内容区随选择切换。

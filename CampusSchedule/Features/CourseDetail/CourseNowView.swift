@@ -4,8 +4,8 @@ import SwiftUI
 struct CourseNowView: View {
     let course: DemoCourse
     var occurrenceID: String?
+    var onClose: () -> Void
     @Environment(PreviewStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
     private var occurrence: CourseOccurrence? {
         CourseDeepLink.occurrence(for: .init(courseID: course.id, termID: store.activeTermID, occurrenceID: occurrenceID),
                                   in: store.occurrences, now: store.now)
@@ -61,10 +61,9 @@ struct CourseNowView: View {
             }
             .background(DesignSystem.background)
             .navigationTitle("本次课程").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成", action: onClose) } }
             .accessibilityIdentifier("course.now")
         }
-        .presentationDetents([.large])
     }
 
     private func status(_ item: CourseOccurrence, now: Date) -> String {

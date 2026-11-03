@@ -30,9 +30,9 @@ final class CourseLinkUITests: XCTestCase {
             assertSession(app, title: "高等数学", screenshot: "course-now-repeated-\(suffix)")
             app.open(try XCTUnwrap(URL(string: "campusschedule://course?id=removed-course")))
             confirmSystemOpenIfNeeded(app)
-            XCTAssertTrue(app.alerts["课程安排已更新"].waitForExistence(timeout: 15))
+            XCTAssertTrue(app.staticTexts["课程安排已更新"].waitForExistence(timeout: 15))
             capture(app, name: "course-now-unavailable-\(suffix)")
-            app.alerts.buttons["查看课表"].tap()
+            app.buttons["查看课表"].tap()
         }
     }
 
