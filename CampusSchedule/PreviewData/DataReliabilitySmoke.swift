@@ -20,16 +20,19 @@ import Foundation
         check(store.applyImport([odd, even]) == 2, "separate week sets")
         check(store.courses.filter { $0.title == odd.title }.count == 2, "odd and even retained")
         let sourceTerm = store.activeTermID
-        let beforeOpening = try? store.makeArchive().encoded()
+        // Preview stores deliberately cannot export an archive. Compare the actual in-memory data instead.
+        let navigationEncoder = JSONEncoder()
+        navigationEncoder.outputFormatting = [.sortedKeys]
+        let beforeOpening = try? navigationEncoder.encode(store.termContents)
         let linked = store.resolveCourseLink(.init(courseID: course.id, termID: sourceTerm))
         check(linked?.id == course.id, "course link resolves existing course")
         check(store.resolveCourseLink(.init(courseID: course.id, termID: "missing-term")) == nil,
               "stale semester link rejected")
         check(store.activeTermID == sourceTerm, "invalid link preserves semester")
-        if let beforeOpening, let afterOpening = try? store.makeArchive().encoded() {
-            check(CloudSyncPlan.canonicalPayload(beforeOpening) == CloudSyncPlan.canonicalPayload(afterOpening),
+        if let beforeOpening, let afterOpening = try? navigationEncoder.encode(store.termContents) {
+            check(beforeOpening == afterOpening,
                   "opening course does not edit data")
-        } else { check(false, "navigation archive comparison") }
+        } else { check(false, "navigation memory comparison") }
         let stalePlan = store.makeImportPlan(.init(courses: [parsed]))
         let newTerm = store.addTerm()
         store.selectTerm(newTerm)
