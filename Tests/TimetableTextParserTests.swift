@@ -35,7 +35,7 @@ struct TimetableTextParserTests {
     }
 
     @Test func weeksMentionedButUnreadableReturnsEmpty() {
-        #expect(TimetableTextParser.parseWeeks("每周") == Set())
+        #expect(TimetableTextParser.parseWeeks("未知周") == Set())
     }
 
     @Test func clampsToTotalWeeks() {

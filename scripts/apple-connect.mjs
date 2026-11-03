@@ -503,6 +503,36 @@ async function configureExternal() {
   console.log('Saved authorized review contact, no-login instructions, accurate beta description and feedback email; private contact values omitted');
   await externalStatus();
 }
+async function setReleaseInfo(buildNumber, filename) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const release = JSON.parse(readFileSync(resolve(root, need(filename, 'public release metadata JSON file')), 'utf8'));
+  if (release.appID !== record.id) throw new Error('Release metadata targets a different app');
+  if (typeof release.reviewNotes !== 'string' || !release.reviewNotes.trim() || release.reviewNotes.length > 4000) throw new Error('Review notes must contain 1–4000 characters');
+  for (const locale of ['zh-Hans', 'en-US']) {
+    for (const field of ['description', 'whatsNew']) {
+      const value = release.localizations?.[locale]?.[field];
+      if (typeof value !== 'string' || !value.trim() || value.length > 4000) throw new Error(`Invalid ${locale} ${field}`);
+    }
+  }
+  const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'specific build'), limit: '10' } })).data;
+  const build = need(builds.find(item => item.attributes.version === buildNumber && item.attributes.processingState === 'VALID' && !item.attributes.expired), 'valid unexpired build');
+  const buildTexts = (await api(`/v1/builds/${build.id}/betaBuildLocalizations`)).data;
+  const appTexts = (await api(`/v1/apps/${record.id}/betaAppLocalizations`)).data;
+  const review = (await api(`/v1/apps/${record.id}/betaAppReviewDetail`)).data;
+  if (['contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone'].some(key => !review.attributes[key])) throw new Error('Existing authorized review contact must be complete');
+  for (const locale of ['zh-Hans', 'en-US']) {
+    const text = release.localizations[locale];
+    const existingBuildText = buildTexts.find(item => item.attributes.locale === locale);
+    if (existingBuildText) await api(`/v1/betaBuildLocalizations/${existingBuildText.id}`, { method: 'PATCH', data: { type: 'betaBuildLocalizations', id: existingBuildText.id, attributes: { whatsNew: text.whatsNew } } });
+    else await api('/v1/betaBuildLocalizations', { method: 'POST', data: { type: 'betaBuildLocalizations', attributes: { locale, whatsNew: text.whatsNew }, relationships: { build: { data: { type: 'builds', id: build.id } } } } });
+    const existingAppText = need(appTexts.find(item => item.attributes.locale === locale), `existing ${locale} beta description`);
+    await api(`/v1/betaAppLocalizations/${existingAppText.id}`, { method: 'PATCH', data: { type: 'betaAppLocalizations', id: existingAppText.id, attributes: { description: text.description } } });
+  }
+  await api(`/v1/betaAppReviewDetails/${review.id}`, { method: 'PATCH', data: { type: 'betaAppReviewDetails', id: review.id, attributes: { notes: release.reviewNotes, demoAccountRequired: false } } });
+  const receipt = { appID: record.id, build: buildNumber, buildID: build.id, locales: ['zh-Hans', 'en-US'], contactPreserved: true, verifiedAt: new Date().toISOString() };
+  writeFileSync(resolve(local, `release-metadata-${buildNumber}.json`), JSON.stringify(receipt, null, 2));
+  console.log(JSON.stringify(receipt));
+}
 async function submitExternal(buildNumber) {
   const record = need(await findApp(), 'App Store Connect app');
   const builds = (await api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), limit: '10' } })).data;
@@ -565,6 +595,7 @@ try {
     case 'external-status': await externalStatus(); break;
     case 'prepare-external': await prepareExternal(process.argv[3]); break;
     case 'configure-external': await configureExternal(); break;
+    case 'set-release-info': await setReleaseInfo(process.argv[3], process.argv[4]); break;
     case 'submit-external': await submitExternal(process.argv[3]); break;
     case 'external-link': await enableExternalLink(process.argv[3]); break;
     case 'reset-external-assignment': await resetExternalAssignment(process.argv[3]); break;

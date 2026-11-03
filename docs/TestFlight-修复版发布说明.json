@@ -1,0 +1,14 @@
+{
+  "appID": "6829142615",
+  "reviewNotes": "Native campus timetable demo. No account, subscription or payment is required to review the built-in sample timetable. On launch, an isolated sample schedule uses the real date and time. Imported courses and edits apply only to the current demo session and reset after relaunch; existing personal SwiftData files remain isolated. Optional school timetable import opens a third-party academic website in an ephemeral WKWebView; testers use their own school credentials, which are not persisted by the app. No school account is needed for the sample schedule or manual editing. Some academic websites only support HTTP, so NSAllowsArbitraryLoadsInWebContent is enabled for WebKit while ordinary URLSession ATS protection remains enabled; certificate checks are not bypassed. Local notification permission is optional. Home Screen and Lock Screen widgets are included. Full background automatic Live Activity ending remains unverified and must not be assumed reliable. Teacher mode, anniversaries and countdown-event widgets are not included in this build.",
+  "localizations": {
+    "zh-Hans": {
+      "description": "课间册是面向校园的原生课表演示工具。无需登录即可查看样例、编辑课程、体验学校网页导入、考试列表、课表联动手绘人物及桌面和锁屏课程组件。本版使用独立演示数据：导入与修改仅在本次会话生效，重启恢复样例，已有个人数据保持隔离。学校导入需按各校实际页面验证，不代表全部入口已适配。实时活动的完整后台自动结束仍待完善；纪念日、教师模式及其专属组件尚未提供。",
+      "whatsNew": "请测试：教务网页加载、课表提取和单双周；考试首次点＋；三种外观切换；设置页校园人物；小组件人物点击与课程跳转；作息取消、重复导入和备份提示。注意：仍为演示版，导入和修改重启后恢复样例。教师模式、纪念日和倒数日未加入。实时活动后台自动结束仍需验证。"
+    },
+    "en-US": {
+      "description": "A native campus timetable demo with an isolated sample schedule, course editing, optional academic website import, exam lists, monochrome illustrated characters, and Home Screen and Lock Screen course widgets. No account is needed for the sample schedule. Imports and edits last only for the current demo session and reset after relaunch; existing personal data remains separate. School import compatibility needs per-school verification. Full background automatic Live Activity ending is not yet reliable. Teacher mode and anniversary/countdown-event widgets are not included.",
+      "whatsNew": "Test academic website loading and import, odd/even weeks, the first tap on Add Exam, appearance selection, the redesigned settings header, widget character taps and course links, cancelled timetable edits, repeated imports and backup scope. This is still a demo: imports and edits reset after relaunch. Teacher mode and anniversary/countdown events are not included. Background automatic Live Activity ending remains to be verified."
+    }
+  }
+}
