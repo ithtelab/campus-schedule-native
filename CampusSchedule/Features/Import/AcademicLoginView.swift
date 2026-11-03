@@ -12,6 +12,8 @@ struct AcademicLoginView: View {
     let school: SchoolEntry
     @State private var extractedHTML: String?
     @State private var isLoading = true
+    @State private var hasLoadedPage = false
+    @State private var loadError: String?
     @State private var lastError: String?
     @State private var plan: ImportPlanner.Plan?
     @State private var extracting = false
@@ -21,7 +23,7 @@ struct AcademicLoginView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let url = URL(string: school.url), !school.url.isEmpty {
+                if school.hasWebEntrance, let url = URL(string: school.url) {
                     webContent(url)
                 } else {
                     emptyAddressView
@@ -33,7 +35,7 @@ struct AcademicLoginView: View {
                 ToolbarItem(placement: .topBarLeading) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("提取课表") { extract() }
-                        .disabled(isLoading || extracting)
+                        .disabled(isLoading || extracting || !hasLoadedPage)
                 }
             }
             .sheet(item: $plan) { plan in
@@ -59,8 +61,26 @@ struct AcademicLoginView: View {
             if isLoading {
                 ProgressView("正在加载…").frame(height: 2)
             }
-            WebViewHost(url: url, webViewRef: $webViewRef,
-                        isLoading: $isLoading, lastError: $lastError)
+            ZStack {
+                WebViewHost(url: url, webViewRef: $webViewRef,
+                            isLoading: $isLoading, hasLoadedPage: $hasLoadedPage,
+                            loadError: $loadError)
+                    .opacity(loadError == nil ? 1 : 0)
+                if let loadError {
+                    ContentUnavailableView {
+                        Label("教务页面未能打开", systemImage: "network.slash")
+                    } description: {
+                        Text(loadError)
+                    } actions: {
+                        Button("重新加载") {
+                            self.loadError = nil
+                            isLoading = true
+                            hasLoadedPage = false
+                            webViewRef?.load(URLRequest(url: webViewRef?.url ?? url))
+                        }
+                    }
+                }
+            }
             instruction
         }
     }
@@ -72,6 +92,10 @@ struct AcademicLoginView: View {
                 .font(.footnote)
             Text("账密不会被保存，登录状态只在本次会话有效。")
                 .font(.caption2).foregroundStyle(.secondary)
+            if (webViewRef?.url ?? URL(string: school.url))?.scheme == "http" {
+                Text("学校页面使用 HTTP 连接，请在可信网络下登录。")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -105,34 +129,9 @@ struct AcademicLoginView: View {
     }
 
     private func planFromHTML(_ html: String) throws {
-        // 1) 内嵌 JSON：正方、URP 等把课表放在脚本变量里，最可靠。
-        for candidate in AcademicSystemProfile.embeddedJSON(from: html) {
-            if let outcome = AcademicSystemProfile.courses(fromEmbeddedJSON: candidate,
-                                                           totalWeeks: store.totalWeeks),
-               !outcome.courses.isEmpty {
-                finish(plan: makePlan(outcome))
-                return
-            }
-        }
-
-        // 2) 表格结构：绝大多数教务系统。
-        let tables = HTMLTableExtractor.extractTables(from: html)
-        var best: ParseOutcome?
-        for table in tables {
-            let outcome = TimetableTextParser.parseGrid(table, totalWeeks: store.totalWeeks)
-            if outcome.courses.count > (best?.courses.count ?? 0) { best = outcome }
-        }
-        if let outcome = best, !outcome.courses.isEmpty {
-            finish(plan: makePlan(outcome))
-            return
-        }
-
-        // 3) 整页文本：纯 div 布局，靠每行的星期与节次识别。
-        let textFallback = TimetableTextParser.parseLines(html, totalWeeks: store.totalWeeks)
-        guard !textFallback.courses.isEmpty else {
-            throw tables.isEmpty ? ImportFailure.noTable : ImportFailure.noCourses
-        }
-        finish(plan: makePlan(textFallback))
+        let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: store.totalWeeks)
+        guard !outcome.courses.isEmpty else { throw ImportFailure.noCourses }
+        finish(plan: makePlan(outcome))
     }
 
     private func makePlan(_ outcome: ParseOutcome) -> ImportPlanner.Plan {
@@ -160,7 +159,8 @@ private struct WebViewHost: UIViewRepresentable {
     let url: URL
     @Binding var webViewRef: WKWebView?
     @Binding var isLoading: Bool
-    @Binding var lastError: String?
+    @Binding var hasLoadedPage: Bool
+    @Binding var loadError: String?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -170,6 +170,7 @@ private struct WebViewHost: UIViewRepresentable {
         configuration.websiteDataStore = .nonPersistent()
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         webView.customUserAgent = WebContentCollector.desktopUserAgent
         webView.load(URLRequest(url: url))
@@ -179,28 +180,64 @@ private struct WebViewHost: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {}
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         private let parent: WebViewHost
         init(_ parent: WebViewHost) { self.parent = parent }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             parent.isLoading = true
+            parent.hasLoadedPage = false
+            parent.loadError = nil
         }
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.isLoading = false
+            parent.hasLoadedPage = true
+            parent.loadError = nil
         }
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
-            parent.isLoading = false
-            parent.lastError = error.localizedDescription
+            fail(error)
         }
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
+            fail(error)
+        }
+
+        private func fail(_ error: any Error) {
+            let failure = error as NSError
+            // 登录跳转取消旧导航是正常行为，不把新页面盖成错误页。
+            if failure.domain == NSURLErrorDomain && failure.code == NSURLErrorCancelled { return }
             parent.isLoading = false
-            let code = (error as NSError).code
-            parent.lastError = code == NSURLErrorNotConnectedToInternet
-                ? "没有网络连接。"
-                : code == NSURLErrorCannotFindHost
-                    ? "找不到服务器，可能需要连接校园网。"
-                    : error.localizedDescription
+            parent.hasLoadedPage = false
+            switch failure.domain == NSURLErrorDomain ? failure.code : 0 {
+            case NSURLErrorNotConnectedToInternet:
+                parent.loadError = "没有网络连接，请联网后重试。"
+            case NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost, NSURLErrorTimedOut:
+                parent.loadError = "暂时无法连接学校教务系统，可能需要校园网或学校官方 VPN。"
+            case NSURLErrorAppTransportSecurityRequiresSecureConnection:
+                parent.loadError = "学校页面的连接被系统安全策略拦截，请更新 App 后重试。"
+            case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted,
+                 NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateHasUnknownRoot,
+                 NSURLErrorServerCertificateNotYetValid:
+                parent.loadError = "学校网站的安全连接验证失败，请联系学校确认入口或稍后重试。"
+            default:
+                parent.loadError = "教务页面加载失败，请重新加载后重试。"
+            }
+        }
+
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            // target=_blank 的教务入口在当前会话打开，保留内存 Cookie。
+            if navigationAction.targetFrame == nil,
+               let scheme = navigationAction.request.url?.scheme?.lowercased(),
+               scheme == "http" || scheme == "https" {
+                webView.load(navigationAction.request)
+            }
+            return nil
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            parent.isLoading = false
+            parent.hasLoadedPage = false
+            parent.loadError = "页面进程已结束，请重新加载。"
         }
     }
 }

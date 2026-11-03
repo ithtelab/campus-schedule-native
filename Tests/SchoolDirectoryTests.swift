@@ -28,9 +28,9 @@ struct SchoolDirectoryTests {
     @Test func keepsConfidence() throws {
         let directory = try SchoolDirectory.decode(sample)
         #expect(directory.entries[0].confidence == 3)
-        #expect(directory.entries[0].confidenceText == "已验证")
-        #expect(directory.entries[2].confidenceText == "实验性")
-        #expect(directory.entries[3].confidenceText == "需适配")
+        #expect(directory.entries[0].confidenceText == "原目录等级 3")
+        #expect(directory.entries[2].confidenceText == "原目录等级 1")
+        #expect(directory.entries[3].confidenceText == "原目录未评级")
     }
 
     @Test func unknownProfileIndexBecomesNilSystem() throws {
@@ -132,8 +132,20 @@ struct SchoolDirectoryTests {
                                "schools.json 未打包进测试目标")
         let directory = try SchoolDirectory.decode(Data(contentsOf: url))
         #expect(directory.count > 2500)
-        #expect(directory.summary.verified > 0)
+        let summary = directory.summary
+        #expect(summary.verified + summary.usable + summary.experimental + summary.needsAdapter == directory.count)
+        #expect(directory.webEntranceCount < directory.count)
         #expect(directory.entries.allSatisfy { !$0.name.isEmpty })
+    }
+
+    @Test func onlyWebEntrancesAreListedAndCounted() throws {
+        let directory = try SchoolDirectory.decode(sample)
+        #expect(directory.count == 4)
+        #expect(directory.webEntranceCount == 3)
+        #expect(directory.search("").count == 3)
+        #expect(directory.search("通用导入").isEmpty)
+        #expect(directory.search("", limit: -1).isEmpty)
+        #expect(!SchoolEntry(name: "本地文件", url: "file:///tmp/school.html", system: nil, confidence: 3).hasWebEntrance)
     }
 }
 

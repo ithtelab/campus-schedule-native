@@ -75,6 +75,10 @@ for bundle, identifier in [(app, config['ios']['bundleIdentifier']), (app / 'Plu
     assert info['CFBundleVersion'] == os.environ['CAMPUS_PUBLISHED_BUILD'], 'App and extension build numbers must match'
     assert info['CFBundleShortVersionString'] == config['version'], 'Wrong marketing version'
     assert info['CampusAppGroup'] == config['extra']['nativeAppGroup'], 'Unexpanded shared group build setting'
+    if bundle == app:
+        transport = info.get('NSAppTransportSecurity', {})
+        assert transport.get('NSAllowsArbitraryLoadsInWebContent') is True, 'Packaged academic WebView HTTP compatibility is missing'
+        assert transport.get('NSAllowsArbitraryLoads') is not True, 'General ATS must stay enabled'
     assert (bundle / 'PrivacyInfo.xcprivacy').is_file(), 'Missing privacy manifest'
     result = subprocess.run(['codesign', '-d', '--entitlements', ':-', str(bundle)], check=True, capture_output=True)
     entitlements = plistlib.loads(result.stdout)

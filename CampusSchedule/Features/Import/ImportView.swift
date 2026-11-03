@@ -71,19 +71,18 @@ struct ImportView: View {
             }
             if let directory, query.isEmpty {
                 Section {
-                    let summary = directory.summary
-                    LabeledContent("收录学校", value: "\(directory.count) 所")
-                    LabeledContent("已验证", value: "\(summary.verified) 所")
-                    LabeledContent("可用", value: "\(summary.usable) 所")
+                    LabeledContent("收录教务入口", value: "\(directory.webEntranceCount) 个")
                 } header: { Text("目录") }
-                footer: { Text("目录不含登录状态，仅提供各校教务入口。导入需要你自己粘贴或上传课表内容。") }
+                footer: { Text("选择学校后登录教务系统，进入课表页面再提取。收录入口不代表已逐校验证导入兼容性。") }
             }
             Section {
                 ForEach(results) { entry in
                     row(entry)
                 }
             } header: {
-                if !query.isEmpty { Text("\(results.count) 个结果") }
+                if !query.isEmpty {
+                    Text(results.count == 60 ? "显示前 60 个匹配入口" : "\(results.count) 个匹配入口")
+                }
             }
         }
         .searchable(text: $query, prompt: "搜索学校名称或教务地址")
@@ -101,7 +100,6 @@ struct ImportView: View {
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(DesignSystem.accent.opacity(0.12), in: Capsule())
                     }
-                    Text(entry.confidenceText).font(.caption2).foregroundStyle(.secondary)
                 }
                 if !entry.url.isEmpty {
                     Text(entry.url).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
@@ -208,6 +206,9 @@ struct ImportView: View {
         let parsed: ParseOutcome
         if let share = ShareCodeParser.parse(text, totalWeeks: store.totalWeeks) {
             parsed = share
+        } else if text.range(of: #"<(?:html|table|div|script|body)\b"#,
+                             options: [.regularExpression, .caseInsensitive]) != nil {
+            parsed = AcademicSystemProfile.parsePage(text, totalWeeks: store.totalWeeks)
         } else {
             // 再按自由文本尝试：教务系统整页复制通常是每行一节课。
             let lineOutcome = TimetableTextParser.parseLines(text, totalWeeks: store.totalWeeks)

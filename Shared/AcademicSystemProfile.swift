@@ -9,6 +9,25 @@ import Foundation
 /// 保持一条解析路径，避免为每所学校维护解析逻辑。
 public enum AcademicSystemProfile {
 
+    /// 网页提取与 HTML 文件导入共用，避免把原始 HTML 当作纯文本解析。
+    public static func parsePage(_ html: String, totalWeeks: Int) -> ParseOutcome {
+        for candidate in embeddedJSON(from: html) {
+            if let outcome = courses(fromEmbeddedJSON: candidate, totalWeeks: totalWeeks),
+               !outcome.courses.isEmpty { return outcome }
+        }
+        let outcomes = HTMLTableExtractor.extractTables(from: html).map {
+            TimetableTextParser.parseGrid($0, totalWeeks: totalWeeks)
+        }
+        if let best = outcomes.max(by: { $0.courses.count < $1.courses.count }), !best.courses.isEmpty {
+            return best
+        }
+        // 保留块之间的换行，同时去掉脚本和样式，避免误把页面代码识别为课程。
+        let visibleHTML = html.replacingOccurrences(
+            of: #"<(script|style)\b[^>]*>[\s\S]*?</\1\s*>"#, with: "",
+            options: [.regularExpression, .caseInsensitive])
+        return TimetableTextParser.parseLines(HTMLTableExtractor.cellText(visibleHTML), totalWeeks: totalWeeks)
+    }
+
     /// 页面里的内嵌 JSON 候选容器。正方、URP 等把课表数据放在 `var xxx = {...}`。
     public static func embeddedJSON(from html: String) -> [String] {
         var results: [String] = []

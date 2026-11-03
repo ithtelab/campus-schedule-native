@@ -6,24 +6,31 @@ import WebKit
 /// 标记为 `@MainActor`：`WKWebView` 只能在主线程访问，返回值也不该跨隔离域传递。
 @MainActor
 enum WebContentCollector {
-    /// 读取整页 HTML。先滚动到底再读，确保懒加载的表格行都已渲染。
+    /// 读取当前页面和已加载的同源 frame；不绕过跨域访问限制。
     static func collect(from webView: WKWebView) async throws -> String {
-        // 逐步滚动触发懒加载，然后回到顶部。
-        await withCheckedContinuation { continuation in
-            webView.evaluateJavaScript(
-                """
-                (function () {
-                  var step = Math.max(200, window.innerHeight);
-                  var y = 0;
-                  while (y < document.body.scrollHeight) { window.scrollTo(0, y); y += step; }
-                  window.scrollTo(0, 0);
-                  return true;
-                })()
-                """
-            ) { _, _ in continuation.resume() }
-        }
         let html: String = try await withCheckedThrowingContinuation { continuation in
-            webView.evaluateJavaScript("document.documentElement.outerHTML") { result, error in
+            webView.evaluateJavaScript("""
+                (function () {
+                  var queue = [document], seen = [], pages = [], size = 0;
+                  while (queue.length && seen.length < 32) {
+                    var doc = queue.shift();
+                    if (!doc || seen.indexOf(doc) >= 0) continue;
+                    seen.push(doc);
+                    if (doc.documentElement) {
+                      var html = doc.documentElement.outerHTML;
+                      size += html.length;
+                      if (size > 4 * 1024 * 1024) throw new Error('页面内容过大，请切到单独的课表页后重试。');
+                      pages.push(html);
+                    }
+                    var frames = doc.querySelectorAll('iframe, frame');
+                    for (var i = 0; i < frames.length && queue.length < 32; i++) {
+                      try { if (frames[i].contentDocument) queue.push(frames[i].contentDocument); }
+                      catch (_) { /* 跨域 frame 由浏览器保护，不读取。 */ }
+                    }
+                  }
+                  return pages.join('\\n');
+                })()
+                """) { result, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let text = result as? String, !text.isEmpty {

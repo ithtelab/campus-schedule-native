@@ -93,11 +93,19 @@ public struct SchoolEntry: Sendable, Identifiable, Equatable {
 
     public var confidenceText: String {
         switch confidence {
-        case 3: "已验证"
-        case 2: "可用"
-        case 1: "实验性"
-        default: "需适配"
+        case 3: "原目录等级 3"
+        case 2: "原目录等级 2"
+        case 1: "原目录等级 1"
+        default: "原目录未评级"
         }
+    }
+
+    /// 目录评级并非本 App 的逐校验证结果；只把 HTTP(S) 地址作为教务入口展示。
+    public var hasWebEntrance: Bool {
+        guard let components = URLComponents(string: url),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host, !host.isEmpty else { return false }
+        return scheme == "https" || scheme == "http"
     }
 }
 
@@ -112,6 +120,8 @@ public struct SchoolDirectory: Sendable {
     }
 
     public var count: Int { entries.count }
+
+    public var webEntranceCount: Int { entries.filter(\.hasWebEntrance).count }
 
     /// 紧凑的目录编码，字段名压到最短以控制包体。
     ///
@@ -176,14 +186,14 @@ public struct SchoolDirectory: Sendable {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             // 空查询给出置信度最高的若干所，而不是全部 2862 条。
-            return Array(entries.sorted(by: Self.byConfidence).prefix(limit))
+            return Array(entries.filter(\.hasWebEntrance).sorted(by: Self.byConfidence).prefix(max(0, limit)))
         }
         let matches = entries.filter { entry in
-            entry.name.localizedCaseInsensitiveContains(trimmed)
+            entry.hasWebEntrance && (entry.name.localizedCaseInsensitiveContains(trimmed)
                 || entry.url.localizedCaseInsensitiveContains(trimmed)
-                || (entry.system?.displayName.localizedCaseInsensitiveContains(trimmed) ?? false)
+                || (entry.system?.displayName.localizedCaseInsensitiveContains(trimmed) ?? false))
         }
-        return Array(matches.sorted(by: Self.byConfidence).prefix(limit))
+        return Array(matches.sorted(by: Self.byConfidence).prefix(max(0, limit)))
     }
 
     /// 置信度高优先；同级按名称排序，保证结果稳定。
