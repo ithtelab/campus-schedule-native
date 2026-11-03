@@ -49,9 +49,9 @@ struct CourseLiveWidget: Widget {
                 start: context.attributes.start, end: context.state.end,
                 teacher: context.attributes.teacher,
                 nextRoom: context.state.nextRoom, stale: context.isStale)
-            .environment(\.colorScheme, .dark)
-            .activityBackgroundTint(Color(white: 0.07))
-            .activitySystemActionForegroundColor(.white)
+            // 不指定背景与配色：锁屏和灵动岛属于系统界面，由系统按壁纸明暗
+            // 决定底色与前景色才能保证可读。此前强制深底白字，在浅色壁纸上
+            // 会突兀成一块黑卡，也与 App 本身的纸色风格不连续。
             .widgetURL(CourseDeepLink.activityURL(courseID: context.attributes.courseID, termID: context.attributes.termID,
                                                   occurrenceID: context.attributes.occurrenceID))
         } dynamicIsland: { context in
@@ -75,6 +75,7 @@ struct CourseLiveWidget: Widget {
                         .frame(maxWidth: 56, alignment: .leading)
                         .accessibilityHidden(true)
                 } else {
+                    // 灵动岛内部恒为深底，这里的白色不随外观变化。
                     CampusBookMark().stroke(.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)).frame(width: 14, height: 17)
                 }
             } compactTrailing: {
@@ -99,7 +100,6 @@ struct CourseLiveWidget: Widget {
             }
             .widgetURL(CourseDeepLink.activityURL(courseID: context.attributes.courseID, termID: context.attributes.termID,
                                                   occurrenceID: context.attributes.occurrenceID))
-            .keylineTint(.white)
         }
     }
 }
