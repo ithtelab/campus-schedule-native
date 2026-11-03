@@ -6,12 +6,19 @@ import AppIntents
 struct ScheduleProvider: TimelineProvider {
     func placeholder(in context: Context) -> ScheduleEntry { .init(date: Date(), courses: []) }
     func getSnapshot(in context: Context, completion: @escaping (ScheduleEntry) -> Void) {
-        completion(.init(date: Date(), courses: SystemSnapshot.read()))
+        let payload = SystemSnapshot.readPayload()
+        completion(.init(date: Date(), courses: payload?.courses ?? [],
+                         leadMinutes: payload?.reminderLeadMinutes ?? 10, interaction: CampusWidgetInteractionStore.read()))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> Void) {
-        let courses = SystemSnapshot.read()
+        let payload = SystemSnapshot.readPayload()
+        let courses = payload?.courses ?? []
+        let lead = payload?.reminderLeadMinutes ?? 10
+        let interaction = CampusWidgetInteractionStore.read()
         let now = Date()
-        let entries = WidgetTimelinePlan.dates(courses: courses, now: now).map { ScheduleEntry(date: $0, courses: courses) }
+        let entries = WidgetTimelinePlan.dates(courses: courses, now: now, leadMinutes: lead).map {
+            ScheduleEntry(date: $0, courses: courses, leadMinutes: lead, interaction: interaction)
+        }
         completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(3600 * 12))))
     }
 }

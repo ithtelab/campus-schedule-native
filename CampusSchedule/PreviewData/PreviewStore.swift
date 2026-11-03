@@ -541,7 +541,7 @@ final class PreviewStore {
             do {
                 try await Task.sleep(for: .milliseconds(250))
                 try Task.checkCancellation()
-                try SystemSnapshot.write(items)
+                try SystemSnapshot.write(items, leadMinutes: reminderMinutes)
                 WidgetCenter.shared.reloadAllTimelines()
                 try await CourseNotifications.shared.replace(courses: items, enabled: reminderPreview, lead: reminderMinutes, endEnabled: endReminder, endLead: endLead)
                 await CourseLiveActivities.shared.reconcile(items: items, enabled: liveEnabled, lead: reminderMinutes)

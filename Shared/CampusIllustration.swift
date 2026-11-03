@@ -54,12 +54,20 @@ import UIKit
         guard let sheet = UIImage(named: "CampusGirlActions")?.cgImage else { return nil }
         return frame(sheet: sheet, index: 0, girl: true, padded: false)
     }()
+
+    static func widgetFrame(_ index: Int) -> UIImage? {
+        if index == 0 { return reading }
+        let name = index == 15 ? "CampusGirlStretchCorrection" : "CampusGirlActions"
+        guard let sheet = UIImage(named: name)?.cgImage else { return reading }
+        return frame(sheet: sheet, index: index, girl: true, padded: false)
+    }
 }
 
 struct CampusWidgetFigure: View {
+    var frame: Int = 0
     var body: some View {
-        if let image = CampusSpriteImage.reading {
-            Image(uiImage: image).resizable().scaledToFit().accessibilityHidden(true)
+        if let image = CampusSpriteImage.widgetFrame(frame) {
+            Image(uiImage: image).renderingMode(.original).resizable().scaledToFit().accessibilityHidden(true)
         }
     }
 }

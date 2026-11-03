@@ -10,15 +10,31 @@ enum SystemSnapshot {
         var version = 1
         var generatedAt = Date()
         var courses: [CourseOccurrence]
+        var reminderLeadMinutes: Int? = nil
     }
-    static func read() -> [CourseOccurrence] {
+    static func readPayload() -> Payload? {
         guard let url, let data = try? Data(contentsOf: url),
-              let payload = try? JSONDecoder().decode(Payload.self, from: data), payload.version == 1 else { return [] }
-        return payload.courses
+              let payload = try? JSONDecoder().decode(Payload.self, from: data), payload.version == 1 else { return nil }
+        return payload
     }
-    static func write(_ courses: [CourseOccurrence]) throws {
+    static func read() -> [CourseOccurrence] { readPayload()?.courses ?? [] }
+    static func write(_ courses: [CourseOccurrence], leadMinutes: Int = 10) throws {
         guard let url else { return }
-        try JSONEncoder().encode(Payload(courses: courses)).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try JSONEncoder().encode(Payload(courses: courses, reminderLeadMinutes: leadMinutes)).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
+}
+
+enum CampusWidgetInteractionStore {
+    private static let key = "campusWidgetCharacter-v1"
+    static func read() -> CampusWidgetInteraction? {
+        guard !SystemSnapshot.group.isEmpty,
+              let data = UserDefaults(suiteName: SystemSnapshot.group)?.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(CampusWidgetInteraction.self, from: data)
+    }
+    static func write(_ value: CampusWidgetInteraction) throws {
+        guard !SystemSnapshot.group.isEmpty,
+              let defaults = UserDefaults(suiteName: SystemSnapshot.group) else { return }
+        defaults.set(try JSONEncoder().encode(value), forKey: key)
     }
 }
 

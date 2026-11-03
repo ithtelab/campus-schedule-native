@@ -30,11 +30,13 @@ enum NotificationPlan {
 }
 
 enum WidgetTimelinePlan {
-    static func dates(courses: [CourseOccurrence], now: Date) -> [Date] {
+    static func dates(courses: [CourseOccurrence], now: Date, leadMinutes: Int = 10) -> [Date] {
         let tomorrow = ScheduleRules.calendar.date(byAdding: .day, value: 1, to: ScheduleRules.calendar.startOfDay(for: now))!
         let horizon = tomorrow.addingTimeInterval(86400)
         var dates: Set<Date> = [now, tomorrow]
         for course in courses where course.end > now && course.start < horizon {
+            let preparation = course.start.addingTimeInterval(-Double(min(120, max(0, leadMinutes))) * 60)
+            if preparation > now { dates.insert(preparation) }
             if course.start > now { dates.insert(course.start) }
             dates.insert(course.end)
         }
