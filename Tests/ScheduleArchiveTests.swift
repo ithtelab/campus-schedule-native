@@ -187,10 +187,12 @@ struct ScheduleArchiveTests {
         }
     }
 
-    @Test func rejectsArchiveWithoutAnyCourse() {
+    @Test func acceptsEmptyTimetableForBackupAndSync() throws {
         var empty = semester()
         empty.courses = []
-        #expect(throws: ArchiveError.emptySemesterList) { try archive([empty]).validated() }
+        let restored = try ScheduleArchive.decoded(from: archive([empty]).encoded())
+        #expect(restored.semesters.count == 1)
+        #expect(restored.courseCount == 0)
     }
 
     // MARK: 调课记录

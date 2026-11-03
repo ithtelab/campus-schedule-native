@@ -27,6 +27,15 @@ struct DemoCourse: Identifiable, Codable {
 
     /// 教室名的缩写规则。与状态条共用 `NowStatus.shorten`，只保留一个实现。
     static func shorten(_ room: String) -> String { NowStatus.shorten(room) }
+
+    func replacingTimes(start: String, end: String) -> DemoCourse {
+        var result = DemoCourse(id: id, title: title, room: room, teacher: teacher,
+            weekday: weekday, startPeriod: startPeriod, endPeriod: endPeriod,
+            startTime: start, endTime: end, color: color, weeks: weeks)
+        result.sourceID = sourceID; result.remindersEnabled = remindersEnabled
+        result.wasRescheduled = wasRescheduled; result.originalRoom = originalRoom; result.weekPattern = weekPattern
+        return result
+    }
 }
 
 struct DemoPeriod: Identifiable, Codable {
@@ -95,6 +104,7 @@ final class PreviewStore {
 
     /// 写入活动学期后统一保存，避免每个字段各写一次。
     private func mutateActive(_ change: (inout TermContent) -> Void) {
+        guard !storageReadOnly else { errorMessage = storageIssue; return }
         guard var content = termContents[activeTermID] else { return }
         change(&content)
         termContents[activeTermID] = content
@@ -153,7 +163,8 @@ final class PreviewStore {
         .init(id: "design-fri", title: "设计基础", room: "艺术楼 · 401", teacher: "周老师", weekday: 4, startPeriod: 5, endPeriod: 6, startTime: "14:00", endTime: "15:35", color: .orange)
     ]
 
-    var isPreview: Bool { ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] != nil }
+    private let testingInMemory: Bool
+    var isPreview: Bool { testingInMemory || ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] != nil }
     var isDemoEdition: Bool {
         !isPreview && ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == nil
             && ProcessInfo.processInfo.environment["CAMPUS_PERSONAL_DATA"] != "1"
@@ -184,6 +195,10 @@ final class PreviewStore {
         }
     }
     var errorMessage: String?
+    private(set) var storageIssue: String?
+    var storageReadOnly: Bool { storageIssue != nil }
+    @ObservationIgnored private var originalRecoveryData: Data?
+    @ObservationIgnored private var batchDepth = 0
     var liveEnabled = false { didSet { save() } }
     var endReminder = false { didSet { save() } }
     var endLead = 0 { didSet { save() } }
@@ -191,10 +206,16 @@ final class PreviewStore {
     /// 用户是否开启了 iCloud 同步。默认关闭，与产品约定一致。
     var cloudSyncEnabled = false {
         didSet {
-            guard cloudSyncEnabled != oldValue else { return }
-            if cloudSyncEnabled { beginCloudSync() } else { stopCloudSync() }
+            guard cloudSyncEnabled != oldValue, !adjustingCloudToggle else { return }
+            if cloudSyncEnabled {
+                if !beginCloudSync() {
+                    adjustingCloudToggle = true; cloudSyncEnabled = false; adjustingCloudToggle = false
+                }
+            } else { stopCloudSync() }
+            save()
         }
     }
+    @ObservationIgnored private var adjustingCloudToggle = false
     /// 同步状态文案，设置在界面展示。
     private(set) var cloudSyncStatus: String?
     /// 云端与本地都改过时挂起，等待用户选择。
@@ -221,7 +242,8 @@ final class PreviewStore {
         var cloudSyncEnabled: Bool?
     }
 
-    init() {
+    init(testingInMemory: Bool = false, recoveryTestData: Data? = nil) {
+        self.testingInMemory = testingInMemory
         // 先建立活动学期，之后的字段读写都落到这个容器里。
         let initialID = "term-" + UUID().uuidString
         termContents[initialID] = TermContent(
@@ -302,14 +324,28 @@ final class PreviewStore {
                 let storage = try LocalPersistence()
                 persistence = storage
                 if let data = try storage.load() {
-                    loadSaved(data)
+                    if !loadSaved(data) {
+                        originalRecoveryData = data
+                        storageIssue = errorMessage ?? "本地数据读取失败，已保护原始数据。"
+                        termContents = [:]
+                    }
                 } else {
                     // 全新安装：保留空学期，等待用户添加课程。
                     courses = []; reminderPreview = false
                 }
                 if termContents.isEmpty { courses = [] }
                 if activeContent == nil { courses = [] }
-            } catch { errorMessage = "本地数据无法读取，未覆盖原有文件：\(error.localizedDescription)" }
+            } catch {
+                originalRecoveryData = try? persistence?.recoveryData()
+                storageIssue = "本地数据无法读取，已保护原始数据：\(error.localizedDescription)"
+                errorMessage = storageIssue
+                termContents = [:]
+            }
+        }
+        if testingInMemory, let recoveryTestData, !loadSaved(recoveryTestData) {
+            originalRecoveryData = recoveryTestData
+            storageIssue = errorMessage ?? "原始数据无法读取。"
+            termContents = [:]
         }
         selectedWeek = min(totalWeeks, max(1, currentWeek))
         ready = true
@@ -318,29 +354,29 @@ final class PreviewStore {
     }
 
     /// 读取存储内容，优先多学期格式，失败后尝试单学期旧格式迁移。
-    private func loadSaved(_ data: Data) {
+    private func loadSaved(_ data: Data) -> Bool {
         let decoder = JSONDecoder()
         if let saved = try? decoder.decode(Saved.self, from: data) {
-            guard !saved.terms.isEmpty else { errorMessage = "本地数据中没有学期。"; return }
+            guard !saved.terms.isEmpty else { errorMessage = "本地数据中没有学期。"; return false }
             guard saved.terms.allSatisfy({ _, content in Self.isValid(content) }) else {
-                errorMessage = "本地数据校验未通过，未覆盖原有文件。"; return
+                errorMessage = "本地数据校验未通过，未覆盖原有文件。"; return false
             }
             termContents = saved.terms
             activeTermID = saved.terms[saved.activeTermID] != nil ? saved.activeTermID : (saved.terms.keys.sorted().first ?? "")
             reminderPreview = saved.reminders; reminderMinutes = saved.lead
             endReminder = saved.endReminder; endLead = saved.endLead; liveEnabled = saved.liveEnabled
             restoreCloudSync = saved.cloudSyncEnabled == true
-            return
+            return true
         }
         guard let legacy = try? decoder.decode(LegacySaved.self, from: data) else {
             errorMessage = "本地数据无法读取，未覆盖原有文件。"
-            return
+            return false
         }
         let content = TermContent(name: legacy.semesterName, startDate: legacy.semesterStart,
                                   totalWeeks: legacy.totalWeeks, periods: legacy.periods,
                                   courses: legacy.courses, exceptions: legacy.exceptions)
         guard Self.isValid(content) else {
-            errorMessage = "本地数据校验未通过，未覆盖原有文件。"; return
+            errorMessage = "本地数据校验未通过，未覆盖原有文件。"; return false
         }
         let migratedID = "term-migrated"
         termContents = [migratedID: content]
@@ -348,6 +384,7 @@ final class PreviewStore {
         reminderPreview = legacy.reminders; reminderMinutes = legacy.lead
         endReminder = legacy.endReminder; endLead = legacy.endLead; liveEnabled = legacy.liveEnabled
         restoreCloudSync = legacy.cloudSyncEnabled == true
+        return true
     }
 
     /// 学期内容的完整性检查。
@@ -360,14 +397,60 @@ final class PreviewStore {
         guard (1...53).contains(content.totalWeeks),
               supportedPeriodRange.contains(content.periods.count) else { return false }
         guard content.periods.map(\.id) == Array(1...content.periods.count) else { return false }
-        guard content.periods.allSatisfy({
-            ScheduleRules.date(day: Date(), time: $0.start) != nil && ScheduleRules.date(day: Date(), time: $0.end) != nil
-        }) else { return false }
+        for (index, period) in content.periods.enumerated() {
+            guard ScheduleArchive.isClockTime(period.start), ScheduleArchive.isClockTime(period.end),
+                  period.start < period.end,
+                  index == 0 || content.periods[index - 1].end <= period.start else { return false }
+        }
         let indices = Set(content.periods.map(\.id))
-        return content.courses.allSatisfy { course in
+        let courseIDs = Set(content.courses.map(\.id))
+        guard courseIDs.count == content.courses.count,
+              content.courses.allSatisfy({ course in
             (0...6).contains(course.weekday) && indices.contains(course.startPeriod)
                 && indices.contains(course.endPeriod) && course.endPeriod >= course.startPeriod
+                && !course.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !course.weeks.isEmpty && course.weeks.allSatisfy { (1...content.totalWeeks).contains($0) }
+        }) else { return false }
+        return content.exceptions.allSatisfy { courseIDs.contains($0.courseID) }
+            && Set(content.exams.map(\.id)).count == content.exams.count
+            && content.exams.allSatisfy { ExamPlan.validate($0) == .valid }
+    }
+
+    func academicChangesRemovingCourses(periodCount: Int, weeks: Int) -> [String] {
+        courses.filter { $0.startPeriod < 1 || $0.endPeriod > periodCount
+            || $0.weeks.filter { (1...max(1, weeks)).contains($0) }.isEmpty }.map(\.title)
+    }
+
+    @discardableResult
+    func applyAcademicSettings(termID: String, name: String, start: Date, weeks: Int, periods: [DemoPeriod]) -> Bool {
+        guard !storageReadOnly, termID == activeTermID, var content = termContents[termID] else {
+            errorMessage = storageIssue ?? "当前学期已切换，请重新打开学期设置。"; return false
         }
+        let day = ScheduleRules.calendar.startOfDay(for: start)
+        guard ScheduleRules.calendar.component(.weekday, from: day) == 2 else { return false }
+        let offset = ScheduleRules.calendar.dateComponents([.day], from: content.startDate, to: day).day ?? 0
+        let adjusted = ArchiveMapping.adjustCourses(content.courses, totalWeeks: weeks, periodCount: periods.count,
+            periodsOf: { ($0.startPeriod, $0.endPeriod) }, weeksOf: { $0.weeks },
+            apply: { course, weeks in var result = course; result.weeks = weeks; return result })
+        let times = Dictionary(grouping: periods, by: \.id)
+        guard times.values.allSatisfy({ $0.count == 1 }) else { return false }
+        content.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        content.startDate = day; content.totalWeeks = weeks; content.periods = periods
+        content.courses = adjusted.kept.map { course in
+            course.replacingTimes(start: times[course.startPeriod]?.first?.start ?? course.startTime,
+                                  end: times[course.endPeriod]?.first?.end ?? course.endTime)
+        }
+        let kept = Set(content.courses.map(\.id))
+        content.exceptions = content.exceptions.filter { kept.contains($0.courseID) }.map { ArchiveMapping.shifted($0, days: offset) }
+        guard !content.name.isEmpty, Self.isValid(content) else { errorMessage = "学期或作息数据不合法，未保存。"; return false }
+        do { try backupBeforeReplacing() }
+        catch { errorMessage = "无法保留修改前的副本，未保存：\(error.localizedDescription)"; return false }
+        let saved = commitBatch {
+            termContents[termID] = content
+            selectedWeek = min(weeks, max(1, selectedWeek))
+        }
+        if saved { errorMessage = nil }
+        return saved
     }
     var occurrences: [CourseOccurrence] {
         var result: [CourseOccurrence] = []
@@ -406,9 +489,18 @@ final class PreviewStore {
         }
         return result
     }
-    func save() {
-        if ready && isDemoEdition { synchronize(); return }
-        guard ready, !isPreview, let persistence else { return }
+    @discardableResult
+    func save() -> Bool {
+        guard batchDepth == 0 else { return true }
+        guard !storageReadOnly else { errorMessage = storageIssue; return false }
+        if ready && isDemoEdition { synchronize(); return true }
+        guard ready else { return true }
+        if isPreview { return true }
+        guard let persistence else { return false }
+        guard !termContents.isEmpty, termContents[activeTermID] != nil,
+              termContents.values.allSatisfy({ Self.isValid($0) }) else {
+            errorMessage = "课表数据未通过校验，原始存储未改写。"; return false
+        }
         do {
             let data = Saved(activeTermID: activeTermID, terms: termContents,
                 reminders: reminderPreview, lead: reminderMinutes, endReminder: endReminder,
@@ -420,31 +512,65 @@ final class PreviewStore {
             if cloudSyncEnabled, let archive = try? makeArchive().encoded() {
                 scheduleCloudPush(archive)
             }
-        } catch { errorMessage = "保存失败：\(error.localizedDescription)" }
+            return true
+        } catch { errorMessage = "保存失败：\(error.localizedDescription)"; return false }
+    }
+
+    /// 多字段编辑只落盘一次；失败时恢复内存中的原学期与设置。
+    @discardableResult
+    private func commitBatch(_ changes: () -> Void) -> Bool {
+        let oldTerms = termContents, oldActive = activeTermID, oldWeek = selectedWeek
+        batchDepth += 1
+        changes()
+        batchDepth -= 1
+        if save() { return true }
+        batchDepth += 1
+        termContents = oldTerms; activeTermID = oldActive; selectedWeek = oldWeek
+        batchDepth -= 1
+        return false
+    }
+
+    func recoveryDataForExport() throws -> Data {
+        if let originalRecoveryData { return originalRecoveryData }
+        if let data = try persistence?.recoveryData() { return data }
+        throw CocoaError(.fileReadNoSuchFile)
+    }
+
+    private func backupBeforeReplacing() throws {
+        guard !isDemoEdition, !isPreview else { return }
+        // 正常数据保留为可再次导入的标准备份；损坏数据保留原始载荷。
+        let archive: Data? = storageReadOnly ? nil : (try? makeArchive().encoded())
+        try persistence?.backupCurrent(archive: archive)
+    }
+
+    func previousBackupForExport() throws -> Data {
+        guard let persistence else { throw CocoaError(.fileReadNoSuchFile) }
+        return try persistence.latestArchiveBackup()
     }
 
     // MARK: - iCloud 同步
 
-    private func beginCloudSync() {
+    private func beginCloudSync() -> Bool {
+        guard !storageReadOnly else { cloudSyncStatus = storageIssue; return false }
         guard !isDemoEdition, !isPreview else {
             cloudSyncStatus = "演示版不参与 iCloud 同步。"
-            return
+            return false
         }
         guard cloudSync.isAvailable else {
             cloudSyncStatus = CloudSyncError.unavailable.errorDescription
-            return
+            return false
         }
         do {
+            guard !cloudSync.remoteIsCorrupt else { throw CloudSyncError.decodeFailed }
             // 云端只存归档格式：它有版本号与校验，恢复路径也复用它。
             // 比较必须用同一种格式，否则「本地未改动」永远判不出来。
-            let localData = try? makeArchive().encoded()
+            let localData = try makeArchive().encoded()
             switch cloudSync.decision(local: localData) {
             case .idle:
                 cloudSyncStatus = "已是最新。"
             case .pushLocal:
-                guard let localData else { throw CloudSyncError.decodeFailed }
                 try cloudSync.push(localData)
-                cloudSyncStatus = "已上传本机课表。"
+                cloudSyncStatus = "已交给 iCloud 同步，其他设备更新可能稍有延迟。"
             case .applyRemote:
                 guard let remote = cloudSync.remote(), let term = try? ScheduleArchive.decoded(from: remote.payload) else {
                     throw CloudSyncError.decodeFailed
@@ -458,13 +584,16 @@ final class PreviewStore {
             }
         } catch {
             cloudSyncStatus = error.localizedDescription
+            return false
         }
         cloudSync.startObserving { [weak self] payload in
             self?.handleRemoteChange(payload)
         }
+        return true
     }
 
     private func stopCloudSync() {
+        cloudPushTask?.cancel()
         cloudSync.stopObserving()
         cloudSync.resetSyncState()
         pendingCloudConflict = nil
@@ -473,9 +602,10 @@ final class PreviewStore {
 
     /// 远端变化：本地没改过就直接采用，改过则挂起等用户决定。
     private func handleRemoteChange(_ payload: StampedPayload) {
-        guard cloudSyncEnabled, !payload.payload.isEmpty, payload.deviceID != cloudSync.deviceID else { return }
+        guard cloudSyncEnabled, !storageReadOnly, payload.deviceID != cloudSync.deviceID else { return }
+        guard !payload.payload.isEmpty else { cloudSyncStatus = "iCloud 同步空间不足，课表已保留在本机。"; return }
         guard let localData = try? makeArchive().encoded() else {
-            applyRemote(payload); return
+            cloudSyncStatus = "本机课表尚未通过校验，未应用云端内容。"; return
         }
         switch CloudSyncPlan.decide(
             local: StampedPayload(updatedAt: Date(), deviceID: cloudSync.deviceID, payload: localData),
@@ -529,19 +659,21 @@ final class PreviewStore {
                 try Task.checkCancellation()
                 guard cloudSyncEnabled, pendingCloudConflict == nil else { return }
                 try cloudSync.push(data)
-                cloudSyncStatus = "已同步到 iCloud。"
+                cloudSyncStatus = "已交给 iCloud 同步，其他设备更新可能稍有延迟。"
             } catch is CancellationError {} catch { cloudSyncStatus = error.localizedDescription }
         }
     }
     func synchronize() {
-        guard !isPreview else { return }
+        guard !isPreview, !storageReadOnly else { return }
         syncTask?.cancel()
         let items = occurrences
+        let snapshotTerm = activeTermID
+        let snapshotLead = reminderMinutes
         syncTask = Task { @MainActor in
             do {
                 try await Task.sleep(for: .milliseconds(250))
                 try Task.checkCancellation()
-                try SystemSnapshot.write(items, leadMinutes: reminderMinutes)
+                try SystemSnapshot.write(items, leadMinutes: snapshotLead, termID: snapshotTerm)
                 WidgetCenter.shared.reloadAllTimelines()
                 try await CourseNotifications.shared.replace(courses: items, enabled: reminderPreview, lead: reminderMinutes, endEnabled: endReminder, endLead: endLead)
                 await CourseLiveActivities.shared.reconcile(items: items, enabled: liveEnabled, lead: reminderMinutes)
@@ -701,32 +833,59 @@ final class PreviewStore {
             )
         }
 
-        termContents = restored
+        guard restored.values.allSatisfy({ Self.isValid($0) }) else { throw CocoaError(.fileReadCorruptFile) }
+        if persistence == nil && !isPreview && !isDemoEdition { persistence = try LocalPersistence() }
+        // 包括读取失败的原始载荷；副本失败则整个恢复停止。
+        try backupBeforeReplacing()
+        let oldIssue = storageIssue
+        storageIssue = nil
         // 恢复后把当前学期指向按日期应当显示的那个，而不是备份里第一个。
         let summaries = restored.map { TermSummary(id: $0.key, name: $0.value.name,
                                                    startDate: $0.value.startDate, totalWeeks: $0.value.totalWeeks) }
-        activeTermID = TermSelection.preferred(in: summaries, on: now)?.id ?? restored.keys.sorted().first ?? ""
-        selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
-        errorMessage = nil
-        save()
+        let selected = TermSelection.preferred(in: summaries, on: now)?.id ?? restored.keys.sorted().first ?? ""
+        guard commitBatch({
+            termContents = restored
+            activeTermID = selected
+            selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
+        }) else {
+            storageIssue = oldIssue
+            throw CocoaError(.fileWriteUnknown)
+        }
+        originalRecoveryData = nil; errorMessage = nil
     }
 
     // MARK: - 学期管理
 
     /// 切换当前学期。
     func selectTerm(_ id: String, now: Date = Date()) {
-        guard termContents[id] != nil, id != activeTermID else { return }
-        activeTermID = id
-        selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
-        save()
+        guard !storageReadOnly, termContents[id] != nil, id != activeTermID else { return }
+        commitBatch {
+            activeTermID = id
+            selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
+        }
+    }
+
+    func resolveCourseLink(_ target: CourseDeepLink.Target) -> DemoCourse? {
+        guard !storageReadOnly else { return nil }
+        if let term = target.termID {
+            guard termContents[term]?.courses.contains(where: { $0.id == target.courseID }) == true else { return nil }
+            selectTerm(term)
+            guard activeTermID == term else { return nil }
+        } else if !courses.contains(where: { $0.id == target.courseID }) {
+            let matches = termContents.filter { $0.value.courses.contains { $0.id == target.courseID } }.map(\.key)
+            guard matches.count == 1 else { return nil }
+            selectTerm(matches[0])
+        }
+        return courses.first { $0.id == target.courseID }
     }
 
     /// 新建学期，返回新学期标识。节次时间沿用当前学期的作息，减少重复输入。
     @discardableResult
     func addTerm(name: String? = nil, start: Date? = nil, totalWeeks weeks: Int = 20) -> String {
+        guard !storageReadOnly else { errorMessage = storageIssue; return activeTermID }
         let id = "term-" + UUID().uuidString
         let suggested = name ?? TermSelection.uniqueName("新学期", existing: terms)
-        termContents[id] = TermContent(
+        let content = TermContent(
             name: suggested,
             startDate: start ?? TermSelection.suggestedStart(after: terms),
             totalWeeks: weeks,
@@ -734,31 +893,43 @@ final class PreviewStore {
             courses: [],
             exceptions: []
         )
-        save()
-        return id
+        return commitBatch({ termContents[id] = content }) ? id : activeTermID
     }
 
     /// 删除学期。至少保留一个，避免界面进入没有任何学期的状态。
     @discardableResult
     func deleteTerm(_ id: String, now: Date = Date()) -> Bool {
-        guard termContents.count > 1, termContents[id] != nil else { return false }
-        termContents.removeValue(forKey: id)
-        if activeTermID == id {
-            activeTermID = TermSelection.afterRemoving(id, from: terms, on: now)?.id
-                ?? termContents.keys.sorted().first ?? ""
-            selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
+        guard !storageReadOnly, termContents.count > 1, termContents[id] != nil else { return false }
+        do { try backupBeforeReplacing() } catch { errorMessage = "无法备份原学期，未删除。"; return false }
+        return commitBatch {
+            termContents.removeValue(forKey: id)
+            if activeTermID == id {
+                activeTermID = TermSelection.afterRemoving(id, from: terms, on: now)?.id
+                    ?? termContents.keys.sorted().first ?? ""
+                selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
+            }
         }
-        save()
-        return true
     }
 
     /// 重命名学期。
     func renameTerm(_ id: String, to name: String) {
-        guard var content = termContents[id] else { return }
+        guard !storageReadOnly, var content = termContents[id] else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         content.name = trimmed
-        termContents[id] = content
+        commitBatch { termContents[id] = content }
+    }
+
+    @discardableResult
+    func deleteCourse(_ id: String) -> Bool {
+        guard !storageReadOnly else { return false }
+        do { try backupBeforeReplacing() } catch { errorMessage = "无法保留课程副本，未删除。"; return false }
+        return commitBatch {
+            mutateActive { term in
+                term.courses.removeAll { $0.id == id }
+                term.exceptions.removeAll { $0.courseID == id }
+            }
+        }
     }
 
     // MARK: - 导入
@@ -773,8 +944,18 @@ final class PreviewStore {
                          weekday: $0.weekday, startPeriod: $0.startPeriod,
                          endPeriod: $0.endPeriod, weeks: $0.weeks)
         }
-        return ImportPlanner.plan(outcome, existing: existing,
-                                  totalWeeks: totalWeeks, periodCount: periods.count)
+        var plan = ImportPlanner.plan(outcome, existing: existing,
+                                      totalWeeks: totalWeeks, periodCount: periods.count)
+        plan.targetTermID = activeTermID
+        return plan
+    }
+
+    @discardableResult
+    func applyImport(_ plan: ImportPlanner.Plan) -> Int {
+        guard plan.targetTermID == activeTermID else {
+            errorMessage = "当前学期已改变，请重新预览导入内容。"; return 0
+        }
+        return applyImport(plan.courses)
     }
 
 
@@ -785,18 +966,23 @@ final class PreviewStore {
     /// - Returns: 实际写入的课程数。少于输入数量说明有课程被跳过，调用方应当提示用户。
     @discardableResult
     func applyImport(_ imported: [ParsedCourse]) -> Int {
-        guard !imported.isEmpty else { return 0 }
+        guard !storageReadOnly, !imported.isEmpty else { return 0 }
+        // 确认之前作息或周数可能改变，写入前再做一次边界校验。
+        let reviewed = makeImportPlan(ParseOutcome(courses: imported))
         let byIndex = Dictionary(uniqueKeysWithValues: periods.map { ($0.id, $0) })
         var result = courses
         var written = 0
         var skipped = 0
-        for parsed in imported {
+        for parsed in reviewed.courses {
             guard let start = byIndex[parsed.startPeriod], let end = byIndex[parsed.endPeriod] else {
                 skipped += 1
                 continue
             }
+            let existing = result.map { ParsedCourse(title: $0.title, teacher: $0.teacher, room: $0.room,
+                weekday: $0.weekday, startPeriod: $0.startPeriod, endPeriod: $0.endPeriod, weeks: $0.weeks) }
+            let matchingIndex = ImportPlanner.replacementIndex(for: parsed, in: existing, totalWeeks: totalWeeks)
             let course = DemoCourse(
-                id: "import-\(UUID().uuidString)",
+                id: matchingIndex.map { result[$0].id } ?? "import-\(UUID().uuidString)",
                 title: parsed.title,
                 room: parsed.room,
                 teacher: parsed.teacher,
@@ -805,28 +991,29 @@ final class PreviewStore {
                 endPeriod: parsed.endPeriod,
                 startTime: start.start,
                 endTime: end.end,
-                color: Self.color(for: parsed.title),
+                color: matchingIndex.map { result[$0].color } ?? Self.color(for: parsed.title),
                 weeks: parsed.weeks.isEmpty ? Set(1...totalWeeks) : parsed.weeks
             )
             // 同名同节次同天视为同一门课，替换以保留用户之后的手动修改位置。
-            if let index = result.firstIndex(where: {
-                $0.title == course.title && $0.weekday == course.weekday
-                    && $0.startPeriod == course.startPeriod && $0.endPeriod == course.endPeriod
-            }) {
+            if let index = matchingIndex {
+                // 保留身份与用户设置，调停课记录继续引用同一门课程。
                 var replacement = course
                 replacement.remindersEnabled = result[index].remindersEnabled
+                replacement.sourceID = result[index].sourceID
                 result[index] = replacement
             } else {
                 result.append(course)
             }
             written += 1
         }
-        courses = result
+        do { try backupBeforeReplacing() }
+        catch { errorMessage = "无法备份导入前的数据，未导入。"; return 0 }
+        guard commitBatch({ courses = result }) else { return 0 }
         // 不静默吞掉：跳过任何课程都要让用户知道。
+        skipped += imported.count - reviewed.courses.count
         errorMessage = skipped > 0
-            ? "已导入 \(written) 门课程，另有 \(skipped) 门因节次超出当前作息被跳过。"
+            ? "已导入 \(written) 门课程，另有 \(skipped) 条未写入，请检查导入预览和学期作息。"
             : nil
-        save()
         return written
     }
 

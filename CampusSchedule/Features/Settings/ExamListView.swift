@@ -4,7 +4,6 @@ import SwiftUI
 struct ExamListView: View {
     @Environment(PreviewStore.self) private var store
     @State private var editing: Exam?
-    @State private var showingEditor = false
     @State private var pendingDeletion: Exam?
 
     private var ordered: [Exam] { ExamPlan.chronological(store.exams) }
@@ -29,15 +28,16 @@ struct ExamListView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("添加", systemImage: "plus") { edit(nil) }
+                    .accessibilityIdentifier("exam.add")
             }
         }
-        .sheet(isPresented: $showingEditor) {
-            if let editing {
-                ExamEditorView(exam: editing) { updated in
-                    save(updated)
-                    showingEditor = false
-                } onCancel: { showingEditor = false }
-            }
+        .sheet(item: $editing) { exam in
+            ExamEditorView(exam: exam) { updated in
+                save(updated)
+                editing = nil
+            } onCancel: { editing = nil }
+            .id(exam.id)
+            .environment(store)
         }
         .confirmationDialog("删除这场考试？", isPresented: .init(
             get: { pendingDeletion != nil },
@@ -50,6 +50,11 @@ struct ExamListView: View {
             Button("取消", role: .cancel) { pendingDeletion = nil }
         } message: { exam in
             Text("「\(exam.courseTitle)」会从列表中移除。")
+        }
+        .task {
+            if store.isPreview && ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "exam-editor" {
+                edit(nil)
+            }
         }
     }
 
@@ -91,7 +96,6 @@ struct ExamListView: View {
     private func edit(_ exam: Exam?) {
         editing = exam ?? Exam(courseTitle: "", date: store.now,
                                startTime: "09:00", endTime: "11:00")
-        showingEditor = true
     }
 
     private func save(_ exam: Exam) {
@@ -122,6 +126,7 @@ struct ExamEditorView: View {
             Form {
                 Section {
                     TextField("考试科目", text: $draft.courseTitle)
+                        .accessibilityIdentifier("exam.title")
                     DatePicker("日期", selection: $draft.date, displayedComponents: .date)
                     HStack {
                         TextField("开始", text: $draft.startTime).monospacedDigit()

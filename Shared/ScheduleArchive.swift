@@ -206,7 +206,6 @@ public extension ScheduleArchive {
         guard semesters.count <= 40 else { throw ArchiveError.tooManySemesters(semesters.count) }
 
         var semesterIDs = Set<String>()
-        var totalCourses = 0
         for semester in semesters {
             guard semesterIDs.insert(semester.id).inserted else {
                 throw ArchiveError.duplicateSemesterID(semester.id)
@@ -233,7 +232,6 @@ public extension ScheduleArchive {
 
             var courseIDs = Set<String>()
             for course in semester.courses {
-                totalCourses += 1
                 guard courseIDs.insert(course.id).inserted else {
                     throw ArchiveError.duplicateCourseID(course.id)
                 }
@@ -273,7 +271,7 @@ public extension ScheduleArchive {
                 }
             }
         }
-        guard totalCourses > 0 else { throw ArchiveError.emptySemesterList }
+        // 空课表和只有考试的学期也必须能备份、同步和恢复。
         return self
     }
 

@@ -15,11 +15,14 @@ public enum HTMLTableExtractor {
         var tables: [[[String]]] = []
         var cursor = normalized.startIndex
 
-        while let tableStart = findTag("table", in: normalized, from: cursor) {
+        var scanned = 0
+        while scanned < 64, let tableStart = findTag("table", in: normalized, from: cursor) {
+            scanned += 1
             guard let tableEnd = matchingClose("table", in: normalized, from: tableStart.openEnd) else { break }
             let body = String(normalized[tableStart.openEnd..<tableEnd])
             tables.append(extractRows(from: body))
-            cursor = tableEnd
+            // 外层布局表格里也可能嵌有真正的课表，分别作为候选解析。
+            cursor = tableStart.openEnd
         }
         return tables.filter { !$0.isEmpty }
     }
@@ -27,18 +30,67 @@ public enum HTMLTableExtractor {
     /// 抽取单个表格的行列。
     static func extractRows(from tableBody: String) -> [[String]] {
         var rows: [[String]] = []
+        var carried: [Int: (String, Int)] = [:]
+        var spans: [(row: Int, column: Int, rows: Int, columns: Int)] = []
         var cursor = tableBody.startIndex
-        while let rowOpen = findTag("tr", in: tableBody, from: cursor) {
+        while rows.count < 2000, let rowOpen = findTag("tr", in: tableBody, from: cursor) {
             guard let rowEnd = matchingClose("tr", in: tableBody, from: rowOpen.openEnd) else { break }
             let rowBody = String(tableBody[rowOpen.openEnd..<rowEnd])
-            rows.append(extractCells(from: rowBody))
+            var current = carried.mapValues { $0.0 }
+            var following: [Int: (String, Int)] = [:]
+            for (column, span) in carried where span.1 > 1 { following[column] = (span.0, span.1 - 1) }
+            var column = 0
+            for cell in cells(from: rowBody) {
+                while column < 64 && (column..<(min(64, column + cell.columns))).contains(where: { current[$0] != nil }) { column += 1 }
+                guard column + cell.columns <= 64 else { break }
+                for offset in 0..<cell.columns {
+                    current[column + offset] = cell.text
+                    if cell.rows > 1 { following[column + offset] = (cell.text, cell.rows - 1) }
+                }
+                if cell.rows > 1 { spans.append((rows.count, column, cell.rows, cell.columns)) }
+                column += cell.columns
+            }
+            let width = (current.keys.max() ?? -1) + 1
+            rows.append((0..<width).map { current[$0] ?? "" })
+            carried = following
             cursor = rowEnd
+        }
+        let header = rows.firstIndex { Set($0.compactMap(TimetableTextParser.parseWeekday)).count >= 3 }
+        if let header {
+            let weekdays = Set(rows[header].indices.filter { TimetableTextParser.parseWeekday(rows[header][$0]) != nil })
+            func periods(_ row: [String]) -> (start: Int, end: Int)? {
+                row.enumerated().filter { !weekdays.contains($0.offset) }
+                    .compactMap { TimetableTextParser.parsePeriods($0.element) }.first
+            }
+            for span in spans where span.row > header && span.row + span.rows <= rows.count {
+                guard let first = periods(rows[span.row]), let last = periods(rows[span.row + span.rows - 1]) else { continue }
+                for column in span.column..<(span.column + span.columns) where weekdays.contains(column) {
+                    guard rows[span.row].indices.contains(column), !rows[span.row][column].isEmpty else { continue }
+                    rows[span.row][column] += "\n第\(first.start)-\(last.end)节"
+                    for row in (span.row + 1)..<(span.row + span.rows) where rows[row].indices.contains(column) {
+                        rows[row][column] = ""
+                    }
+                }
+            }
         }
         return rows
     }
 
     static func extractCells(from rowBody: String) -> [String] {
-        var cells: [String] = []
+        cells(from: rowBody).map(\.text)
+    }
+
+    private struct Cell { var text: String; var rows: Int; var columns: Int }
+
+    private static func span(_ name: String, in tag: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: "(?:^|\\s)" + name + "\\s*=\\s*[\"']?([0-9]+)", options: [.caseInsensitive]),
+              let match = regex.firstMatch(in: tag, range: NSRange(tag.startIndex..., in: tag)),
+              let range = Range(match.range(at: 1), in: tag), let value = Int(tag[range]) else { return 1 }
+        return min(64, max(1, value))
+    }
+
+    private static func cells(from rowBody: String) -> [Cell] {
+        var cells: [Cell] = []
         var cursor = rowBody.startIndex
         while true {
             let nextTd = findTag("td", in: rowBody, from: cursor)
@@ -53,9 +105,10 @@ public enum HTMLTableExtractor {
             }
             guard let cell = chosen,
                   let cellEnd = matchingClose(cell.tag, in: rowBody, from: cell.openEnd) else { break }
-            // 行/列合并会让网格错位，这里放弃跨列，仅在文本里保留内容。
+            let tagStart = rowBody[..<cell.openEnd].lastIndex(of: "<") ?? rowBody.startIndex
+            let tag = String(rowBody[tagStart..<cell.openEnd])
             let raw = String(rowBody[cell.openEnd..<cellEnd])
-            cells.append(cellText(raw))
+            cells.append(Cell(text: cellText(raw), rows: span("rowspan", in: tag), columns: span("colspan", in: tag)))
             cursor = cellEnd
         }
         return cells
@@ -128,7 +181,7 @@ public enum HTMLTableExtractor {
         while let open = text.range(of: "<\(name)", options: [.caseInsensitive], range: searchFrom..<text.endIndex) {
             // 排除 <tablex> 这类前缀相同的标签。
             let after = open.upperBound
-            if after < text.endIndex, text[after].isLetter { searchFrom = after; continue }
+            if after < text.endIndex, !text[after].isWhitespace && text[after] != ">" && text[after] != "/" { searchFrom = after; continue }
             guard let close = text[after...].firstIndex(of: ">") else { return nil }
             return (name, text.index(after: close))
         }
@@ -137,8 +190,17 @@ public enum HTMLTableExtractor {
 
     /// 从给定位置起找到最近的同名结束标签，返回 `</name>` 之后的位置。
     static func matchingClose(_ name: String, in text: String, from index: String.Index) -> String.Index? {
-        guard let range = text.range(of: "</\(name)", options: [.caseInsensitive], range: index..<text.endIndex),
-              let close = text[range.upperBound...].firstIndex(of: ">") else { return nil }
-        return text.index(after: close)
+        guard let regex = try? NSRegularExpression(pattern: "<(/?)" + name + "(?=[\\s>/])[^>]*>", options: [.caseInsensitive]) else { return nil }
+        var cursor = index, depth = 1
+        while cursor < text.endIndex,
+              let match = regex.firstMatch(in: text, range: NSRange(cursor..<text.endIndex, in: text)),
+              let range = Range(match.range, in: text), let closing = Range(match.range(at: 1), in: text) {
+            if !text[closing].isEmpty { depth -= 1 }
+            else if !text[range].hasSuffix("/>") { depth += 1 }
+            if depth == 0 { return range.upperBound }
+            guard depth <= 64 else { return nil }
+            cursor = range.upperBound
+        }
+        return nil
     }
 }

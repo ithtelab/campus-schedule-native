@@ -3,17 +3,21 @@ import SwiftUI
 
 @main
 struct CampusScheduleApp: App {
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     var body: some Scene {
         WindowGroup {
-            if ProcessInfo.processInfo.environment["CAMPUS_LIVE_PREVIEW"] != nil {
-                CourseLiveGallery()
-            } else if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] != nil {
-                CampusCharacterGallery()
-            } else if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
-                WidgetGalleryView()
-            } else {
-                RootView()
+            Group {
+                if ProcessInfo.processInfo.environment["CAMPUS_LIVE_PREVIEW"] != nil {
+                    CourseLiveGallery()
+                } else if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] != nil {
+                    CampusCharacterGallery()
+                } else if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
+                    WidgetGalleryView()
+                } else {
+                    RootView()
+                }
             }
+            .preferredColorScheme(appearance.colorScheme)
         }
         // iPad 允许任意尺寸窗口，才能在分屏与台前调度里按需调整。
         .windowResizability(.contentMinSize)
@@ -28,6 +32,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var phase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var linkedCourse: DemoCourse?
+    @State private var linkUnavailable = false
     enum Screen: String, CaseIterable, Identifiable {
         case today, week, settings
         var id: String { rawValue }
@@ -47,7 +52,7 @@ struct RootView: View {
         }
     }
 
-    @State private var store = PreviewStore()
+    @State private var store = PreviewStore(testingInMemory: ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "data-reliability")
     // 云端显式选择页面；本演示版正常启动突出课表，个人存储保持隔离。
     @State private var selectedScreen = Screen(
         rawValue: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] ?? ProcessInfo.processInfo.environment["CAMPUS_DEMO_SCREEN"] ?? "week"
@@ -63,8 +68,24 @@ struct RootView: View {
         }
         .tint(DesignSystem.accent)
         .onOpenURL { url in
-            if url.host == "course", let id = url.pathComponents.last { linkedCourse = store.courses.first { $0.id == id } }
-            else { selectedScreen = .today }
+            guard url.scheme == "campusschedule" else { return }
+            if let target = CourseDeepLink.target(url) {
+                selectedScreen = .week
+                linkedCourse = store.resolveCourseLink(target)
+                linkUnavailable = linkedCourse == nil
+            } else { selectedScreen = .today }
+        }
+        .alert("课程安排已更新", isPresented: $linkUnavailable) {
+            Button("查看课表", role: .cancel) { selectedScreen = .week }
+        } message: { Text("这条组件记录已不在当前课表中，请查看更新后的安排。") }
+        .safeAreaInset(edge: .top) {
+            if store.storageReadOnly {
+                Button { selectedScreen = .settings } label: {
+                    Label("课表读取失败，原数据已保护。前往设置恢复", systemImage: "exclamationmark.shield")
+                        .font(.footnote).frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                }
+                .foregroundStyle(.primary).background(DesignSystem.surface)
+            }
         }
         .sheet(item: $linkedCourse) { CourseDetailView(course: $0).environment(store) }
         .onChange(of: phase) { _, value in
@@ -122,6 +143,11 @@ struct RootView: View {
 
     /// 环境变量驱动的自动检查，仅在 CI 与截图流程中启用。
     private func runSmokeChecksIfRequested() async {
+            if ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "data-reliability" {
+                try? DataReliabilitySmoke.run().write(to: URL.documentsDirectory.appendingPathComponent("data-reliability-smoke.txt"),
+                                                     atomically: true, encoding: .utf8)
+                return
+            }
             if ProcessInfo.processInfo.environment["CAMPUS_DEMO_SMOKE"] == "1" {
                 let passed = store.isDemoEdition && !store.isPreview && !store.courses.isEmpty && store.currentWeek == 8
                 try? (passed ? "PASS: normal demo edition opens populated current-term data separately from personal storage" : "FAIL: demo edition routing")

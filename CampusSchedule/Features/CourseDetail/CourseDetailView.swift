@@ -54,14 +54,13 @@ struct CourseDetailView: View {
             .sheet(isPresented: $editing) { CourseEditorView(editing: original) }
             .sheet(isPresented: $changing) { CourseExceptionView(course: original) }
             .sheet(isPresented: $makeup) { CourseEditorView(template: original) }
-            .alert("无法开启实时活动", isPresented: Binding(get: { activityMessage != nil }, set: { if !$0 { activityMessage = nil } })) {
+            .alert("未能完成操作", isPresented: Binding(get: { activityMessage != nil }, set: { if !$0 { activityMessage = nil } })) {
                 Button("好") { activityMessage = nil }
             } message: { Text(activityMessage ?? "") }
             .confirmationDialog("删除课程及其所有安排？", isPresented: $deleting, titleVisibility: .visible) {
                 Button("删除", role: .destructive) {
-                    store.courses.removeAll { $0.id == original.id }
-                    store.exceptions.removeAll { $0.courseID == original.id }
-                    dismiss()
+                    if store.deleteCourse(original.id) { dismiss() }
+                    else { activityMessage = store.errorMessage ?? "未能删除课程。" }
                 }
             }
         }

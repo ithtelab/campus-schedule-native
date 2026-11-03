@@ -15,6 +15,7 @@ public enum ImportPlanner {
         public var replacedCount: Int
         /// 解析阶段的提示。
         public var warnings: [String]
+        public var targetTermID: String? = nil
 
         public init(courses: [ParsedCourse], conflicts: [Conflict],
                     replacedCount: Int, warnings: [String]) {
@@ -88,10 +89,23 @@ public enum ImportPlanner {
             warnings.append("有 \(outOfRange) 门课程超出本学期的 \(periodCount) 节作息，已忽略。可在「学期与作息」里增加节次后重新导入。")
         }
 
+        var seen: Set<ParsedCourse> = []
+        normalized = normalized.filter { seen.insert($0).inserted }
+        // 同一身份但信息矛盾时，不以数组顺序偷偷决定保留哪一份。
+        let grouped = Dictionary(grouping: normalized) { course in
+            let weeks = course.weeks.isEmpty ? Set(1...max(1, totalWeeks)) : course.weeks
+            return key(course) + "|" + weeks.sorted().map(String.init).joined(separator: ",")
+        }
+        let ambiguous = Set(grouped.filter { $0.value.count > 1 }.values.flatMap { $0 })
+        if !ambiguous.isEmpty {
+            warnings.append("同一课程时段存在不同的教师或教室信息，已跳过冲突条目，请核对原始课表。")
+            normalized.removeAll { ambiguous.contains($0) }
+        }
         var conflicts: [Conflict] = []
         for incoming in normalized {
             for other in existing {
                 guard other.weekday == incoming.weekday else { continue }
+                if sameIdentity(incoming, other, totalWeeks: totalWeeks) { continue }
                 guard overlaps(incoming, other) else { continue }
                 // 周次不相交时不算冲突：单双周分开的课程本就是设计如此。
                 if !incoming.weeks.isEmpty, !other.weeks.isEmpty,
@@ -106,14 +120,25 @@ public enum ImportPlanner {
         }
 
         // 同名同时间视为同一门课，导入时覆盖而不是新增。
-        let existingKeys = Set(existing.map { key($0) })
-        let replaced = normalized.filter { existingKeys.contains(key($0)) }.count
+        let replaced = normalized.filter { replacementIndex(for: $0, in: existing, totalWeeks: totalWeeks) != nil }.count
         return Plan(courses: normalized, conflicts: conflicts,
                     replacedCount: replaced, warnings: warnings)
     }
 
     static func key(_ course: ParsedCourse) -> String {
         "\(course.title)|\(course.weekday)|\(course.startPeriod)|\(course.endPeriod)"
+    }
+
+    /// 周次不同的记录不自动覆盖；避免单双周后写的条目吃掉先写的条目。
+    public static func sameIdentity(_ lhs: ParsedCourse, _ rhs: ParsedCourse, totalWeeks: Int) -> Bool {
+        func weeks(_ value: ParsedCourse) -> Set<Int> {
+            value.weeks.isEmpty ? Set(1...max(1, totalWeeks)) : value.weeks
+        }
+        return key(lhs) == key(rhs) && weeks(lhs) == weeks(rhs)
+    }
+
+    public static func replacementIndex(for course: ParsedCourse, in existing: [ParsedCourse], totalWeeks: Int) -> Int? {
+        existing.firstIndex { sameIdentity(course, $0, totalWeeks: totalWeeks) }
     }
 
     static func overlaps(_ lhs: ParsedCourse, _ rhs: ParsedCourse) -> Bool {

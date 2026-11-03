@@ -101,12 +101,21 @@ public enum TimetableTextParser {
             .replacingOccurrences(of: "单", with: "")
             .replacingOccurrences(of: "双", with: "")
 
+        if ["每", "全", "全部", "整学期"].contains(cleaned) {
+            return Set(1...upperBound)
+        }
+        if cleaned.isEmpty, isOddOnly != isEvenOnly {
+            return Set((1...upperBound).filter { isOddOnly ? $0 % 2 == 1 : $0 % 2 == 0 })
+        }
+
         for segment in cleaned.split(whereSeparator: { $0 == "," || $0 == ";" || $0 == "、" }) {
             let piece = String(segment)
             guard !piece.isEmpty else { continue }
             if let range = parseRange(piece) {
                 // 严格限制在学期范围内，越界周次丢弃而不是保留。
-                for week in range where week >= 1 && week <= upperBound {
+                let lower = max(1, range.lowerBound), upper = min(upperBound, range.upperBound)
+                guard lower <= upper else { continue }
+                for week in lower...upper {
                     if isOddOnly && week % 2 == 0 { continue }
                     if isEvenOnly && week % 2 == 1 { continue }
                     result.insert(week)
@@ -260,7 +269,10 @@ public enum TimetableTextParser {
             remainder.append(token)
         }
 
-        for token in remainder {
+        for rawToken in remainder {
+            let token = rawToken.replacingOccurrences(of: #"第?[0-9]{1,2}(?:[-–,][0-9]{1,2})?节"#,
+                with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+            if token.isEmpty { continue }
             if room.isEmpty, looksLikeRoom(token) { room = token; continue }
             titleParts.append(token)
         }
@@ -334,7 +346,8 @@ public enum TimetableTextParser {
         var skipped = 0
         for row in rows[dataStart...] {
             // 行首通常写着节次，例如「1-2节」「第3节」或纯数字。
-            let rowPeriod = row.first.flatMap { parsePeriods($0) }
+            let rowPeriod = row.enumerated().filter { columnWeekdays[$0.offset] == nil }
+                .compactMap { parsePeriods($0.element) }.first
             for (column, cell) in row.enumerated() {
                 guard !cell.isEmpty else { continue }
                 // 表头列没有对应星期就跳过（例如首列是节次）。

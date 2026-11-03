@@ -101,7 +101,8 @@ public enum ShareCodeParser {
         for piece in normalized.split(whereSeparator: { $0 == "," || $0 == ";" || $0 == "、" }) {
             let parts = piece.split(separator: "-", omittingEmptySubsequences: false)
             if parts.count == 2, let lower = Int(parts[0]), let upper = Int(parts[1]), lower <= upper {
-                result.append(contentsOf: lower...upper)
+                let boundedLower = max(1, lower), boundedUpper = min(53, upper)
+                if boundedLower <= boundedUpper { result.append(contentsOf: boundedLower...boundedUpper) }
             } else if parts.count == 1, let single = Int(piece), single > 0 {
                 result.append(single)
             }

@@ -63,7 +63,7 @@ struct AcademicSystemProfileTests {
         let json = """
         [{"courseName":"体育","weekday":0,"startSection":1,"endSection":2}]
         """
-        let outcome = try #require(AcademicSystemProfile.courses(fromEmbeddedJSON: json, totalWeeks: 20))
+        let outcome = try #require(AcademicSystemProfile.courses(fromEmbeddedJSON: json, totalWeeks: 20, numbering: .mondayZero))
         #expect(outcome.courses.first?.weekday == 0)
     }
 

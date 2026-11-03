@@ -11,6 +11,7 @@ enum SystemSnapshot {
         var generatedAt = Date()
         var courses: [CourseOccurrence]
         var reminderLeadMinutes: Int? = nil
+        var termID: String? = nil
     }
     static func readPayload() -> Payload? {
         guard let url, let data = try? Data(contentsOf: url),
@@ -18,9 +19,9 @@ enum SystemSnapshot {
         return payload
     }
     static func read() -> [CourseOccurrence] { readPayload()?.courses ?? [] }
-    static func write(_ courses: [CourseOccurrence], leadMinutes: Int = 10) throws {
+    static func write(_ courses: [CourseOccurrence], leadMinutes: Int = 10, termID: String? = nil) throws {
         guard let url else { return }
-        try JSONEncoder().encode(Payload(courses: courses, reminderLeadMinutes: leadMinutes)).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try JSONEncoder().encode(Payload(courses: courses, reminderLeadMinutes: leadMinutes, termID: termID)).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }
 

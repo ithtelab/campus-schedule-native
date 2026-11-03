@@ -7,6 +7,7 @@ struct ScheduleEntry: TimelineEntry {
     var courses: [CourseOccurrence]
     var leadMinutes: Int = 10
     var interaction: CampusWidgetInteraction? = nil
+    var termID: String? = nil
 }
 struct ScheduleWidgetContent: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

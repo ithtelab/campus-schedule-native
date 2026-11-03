@@ -7,10 +7,14 @@ struct AcademicSettingsView: View {
     @State private var start = Date()
     @State private var weeks = 20
     @State private var periods: [DemoPeriod] = []
+    @State private var termID = ""
+    @State private var confirmingRemoval = false
+    @State private var saveError: String?
+    private var affected: [String] { store.academicChangesRemovingCourses(periodCount: periods.count, weeks: weeks) }
 
     private var valid: Bool {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              Calendar.current.component(.weekday, from: start) == 2,
+              ScheduleRules.calendar.component(.weekday, from: start) == 2,
               PreviewStore.supportedPeriodRange.contains(periods.count) else { return false }
         for index in periods.indices {
             guard periods[index].start < periods[index].end else { return false }
@@ -49,10 +53,7 @@ struct AcademicSettingsView: View {
 
     private func removeLastPeriod() {
         guard periods.count > PreviewStore.supportedPeriodRange.lowerBound else { return }
-        let removed = periods.count
         periods.removeLast()
-        // 引用被删节次的课程需要一并调整，否则会指向不存在的节次。
-        store.dropCoursesBeyondPeriod(removed)
     }
 
     private static func minutes(_ value: String) -> Int? {
@@ -81,7 +82,7 @@ struct AcademicSettingsView: View {
                 Section {
                     TextField("学期名称", text: $name)
                     DatePicker("第一周周一", selection: $start, displayedComponents: .date)
-                    Stepper("共 \(weeks) 个教学周", value: $weeks, in: 1...30)
+                    Stepper("共 \(weeks) 个教学周", value: $weeks, in: 1...53)
                 } header: { Text("学期") }
                 footer: { Text("第一周从周一开始。设置后，课表的日期与教学周会一起调整。") }
 
@@ -101,31 +102,36 @@ struct AcademicSettingsView: View {
                 if !valid {
                     Section { Label("请检查：开学日为周一，各节时间先后有序且不重叠", systemImage: "exclamationmark.circle").foregroundStyle(.primary) }
                 }
+                if let saveError { Section { Text(saveError).font(.footnote) } }
             }
             .navigationTitle("学期与作息").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
-                        store.semesterName = name
-                        store.semesterStart = Calendar.current.startOfDay(for: start)
-                        store.totalWeeks = weeks
-                        store.selectedWeek = min(store.selectedWeek, weeks)
-                        store.periods = periods
-                        // 先裁剪周次再刷新时间：避免了越界数据，也让导出保持可用。
-                        store.clampCourseWeeksToTerm()
-                        store.refreshCourseTimes()
-                        dismiss()
+                        if affected.isEmpty { save() } else { confirmingRemoval = true }
                     }
-                    .disabled(!valid)
+                    .disabled(!valid || store.storageReadOnly || termID != store.activeTermID)
                 }
             }
             .task {
                 name = store.semesterName; start = store.semesterStart
                 weeks = store.totalWeeks; periods = store.periods
+                termID = store.activeTermID
+            }
+            .confirmationDialog("部分课程超出新作息或教学周", isPresented: $confirmingRemoval, titleVisibility: .visible) {
+                Button("移除 \(affected.count) 门课程并保存", role: .destructive) { save() }
+                Button("继续编辑", role: .cancel) {}
+            } message: {
+                Text("将移除：\(affected.joined(separator: "、"))。相关调停课记录也会移除。保存前会保留原始副本。")
             }
         }
         .presentationDetents([.large])
+    }
+
+    private func save() {
+        if store.applyAcademicSettings(termID: termID, name: name, start: start, weeks: weeks, periods: periods) { dismiss() }
+        else { saveError = store.errorMessage ?? "未能保存，请检查学期设置。" }
     }
 
     private func periodRow(_ index: Int) -> some View {
@@ -150,12 +156,12 @@ struct AcademicSettingsView: View {
             let value = start ? periods[index].start : periods[index].end
             let parts = value.split(separator: ":").compactMap { Int($0) }
             guard parts.count == 2 else { return Date() }
-            return Calendar.current.date(from: DateComponents(year: 2026, month: 1, day: 1,
+            return ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 1, day: 1,
                 hour: parts[0], minute: parts[1])) ?? Date()
         } set: { value in
             guard periods.indices.contains(index) else { return }
-            let hour = Calendar.current.component(.hour, from: value)
-            let minute = Calendar.current.component(.minute, from: value)
+            let hour = ScheduleRules.calendar.component(.hour, from: value)
+            let minute = ScheduleRules.calendar.component(.minute, from: value)
             let formatted = String(format: "%02d:%02d", hour, minute)
             if start { periods[index].start = formatted } else { periods[index].end = formatted }
         }

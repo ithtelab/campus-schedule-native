@@ -55,7 +55,8 @@ final class CloudSync {
     /// 云端存在但无法解码时，明确报告而不是静默覆盖。
     var remoteIsCorrupt: Bool {
         guard let data = store.data(forKey: Key.stamped) else { return false }
-        return (try? JSONDecoder().decode(StampedPayload.self, from: data)) == nil
+        guard let stamped = try? JSONDecoder().decode(StampedPayload.self, from: data) else { return true }
+        return (try? ScheduleArchive.decoded(from: stamped.payload)) == nil
     }
 
     // MARK: 推送
@@ -63,6 +64,12 @@ final class CloudSync {
     /// 把本地内容写入 iCloud。成功后才记录为「已同步」。
     func push(_ payload: Data, at date: Date = Date()) throws {
         guard isAvailable else { throw CloudSyncError.unavailable }
+        guard !remoteIsCorrupt else { throw CloudSyncError.decodeFailed }
+        let payload = CloudSyncPlan.canonicalPayload(payload)
+        if let remote = remote(), CloudSyncPlan.canonicalPayload(remote.payload) == payload {
+            lastSyncedPayload = payload
+            return
+        }
         let stamped = StampedPayload(updatedAt: date, deviceID: deviceID, payload: payload)
         try CloudSyncPlan.validateSize(stamped)
         let encoded = try JSONEncoder().encode(stamped)
@@ -73,7 +80,7 @@ final class CloudSync {
 
     /// 采用远端内容后调用，把云端内容记为已同步，避免下次又判定成冲突。
     func markSynced(_ payload: Data) {
-        lastSyncedPayload = payload
+        lastSyncedPayload = CloudSyncPlan.canonicalPayload(payload)
     }
 
     // MARK: 变更监听

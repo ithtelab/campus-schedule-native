@@ -32,6 +32,22 @@ public enum SyncDecision: Equatable, Sendable {
 }
 
 public enum CloudSyncPlan {
+    /// 导出时间、App 版本和数组顺序不是业务改动。旧同步载荷同样在比较时规范化。
+    public static func canonicalPayload(_ data: Data) -> Data {
+        guard var archive = try? ScheduleArchive.decoded(from: data) else { return data }
+        archive.exportedAt = Date(timeIntervalSince1970: 0)
+        archive.appVersion = nil
+        archive.semesters = archive.semesters.map { semester in
+            var result = semester
+            result.periods.sort { $0.index < $1.index }
+            result.courses = result.courses.map { course in var value = course; value.weeks.sort(); return value }
+                .sorted { $0.id < $1.id }
+            result.exceptions.sort { $0.id < $1.id }
+            result.exams.sort { $0.id < $1.id }
+            return result
+        }.sorted { $0.id < $1.id }
+        return (try? archive.encoded()) ?? data
+    }
     /// NSUbiquitousKeyValueStore 对单个值有大小限制，超限写入会被拒绝，
     /// 因此在写入前判断而不是等系统报错。
     public static let maximumPayloadBytes = 900_000
@@ -45,11 +61,14 @@ public enum CloudSyncPlan {
     /// - Returns: 应当执行的动作。
     public static func decide(local: StampedPayload?, remote: StampedPayload?,
                               lastSyncedPayload: Data?) -> SyncDecision {
+        let local = local.map { StampedPayload(updatedAt: $0.updatedAt, deviceID: $0.deviceID, payload: canonicalPayload($0.payload)) }
+        let remote = remote.map { StampedPayload(updatedAt: $0.updatedAt, deviceID: $0.deviceID, payload: canonicalPayload($0.payload)) }
+        let lastSyncedPayload = lastSyncedPayload.map(canonicalPayload)
         switch (local, remote) {
         case (nil, nil):
             return .idle
 
-        case (let local?, nil):
+        case (_?, nil):
             // 云端空、本地有内容：推上去。
             return .pushLocal
 

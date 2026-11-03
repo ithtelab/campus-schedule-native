@@ -3,9 +3,10 @@ import SwiftUI
 /// 导入前的预览与确认。用户在这里看到将要写入的全部内容。
 struct ImportPreviewView: View {
     let plan: ImportPlanner.Plan
-    let onConfirm: (ImportPlanner.Plan) -> Void
+    let onConfirm: (ImportPlanner.Plan) -> Bool
     let onCancel: () -> Void
-    @Environment(\.dismiss) private var dismiss
+    @Environment(PreviewStore.self) private var store
+    @State private var writeError: String?
 
     private var grouped: [(weekday: Int, courses: [ParsedCourse])] {
         Dictionary(grouping: plan.courses, by: \.weekday)
@@ -17,9 +18,9 @@ struct ImportPreviewView: View {
         NavigationStack {
             List {
                 Section {
-                    LabeledContent("课程", value: "\(plan.courses.count) 门")
+                    LabeledContent("课程安排", value: "\(plan.courses.count) 条")
                     if plan.replacedCount > 0 {
-                        LabeledContent("覆盖同名课程", value: "\(plan.replacedCount) 门")
+                        LabeledContent("更新已有安排", value: "\(plan.replacedCount) 条")
                     }
                     if !plan.conflicts.isEmpty {
                         LabeledContent("时间重叠", value: "\(plan.conflicts.count) 处")
@@ -30,6 +31,7 @@ struct ImportPreviewView: View {
                 ForEach(plan.warnings, id: \.self) { warning in
                     Section { Label(warning, systemImage: "info.circle").font(.footnote).foregroundStyle(.secondary) }
                 }
+                if let writeError { Section { Text(writeError).font(.footnote) } }
 
                 if !plan.conflicts.isEmpty {
                     Section {
@@ -55,9 +57,11 @@ struct ImportPreviewView: View {
             .navigationTitle("确认导入")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("取消") { onCancel(); dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { Button("取消") { onCancel() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("导入") { onConfirm(plan); dismiss() }
+                    Button("导入") {
+                        if !onConfirm(plan) { writeError = store.errorMessage ?? "导入未完成，请核对当前学期后重试。" }
+                    }
                         .fontWeight(.semibold)
                         .disabled(!plan.isApplicable)
                 }

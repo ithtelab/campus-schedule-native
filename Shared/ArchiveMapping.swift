@@ -6,6 +6,26 @@ import Foundation
 /// 无法整体搬进 Shared；但其中的**判断规则**可以。集中在这里后，Store 只负责
 /// 按结论写入状态，规则本身可以单独测试。
 public enum ArchiveMapping {
+    /// 先规划再提交，编辑表单取消时不会触碰原课程。
+    public static func adjustCourses<T>(_ items: [T], totalWeeks: Int, periodCount: Int,
+                                        periodsOf: (T) -> (Int, Int), weeksOf: (T) -> Set<Int>,
+                                        apply: (T, Set<Int>) -> T) -> (kept: [T], removedCount: Int) {
+        let valid = items.filter {
+            let (start, end) = periodsOf($0)
+            return start >= 1 && end >= start && end <= periodCount
+        }
+        let result = clampWeeks(valid, totalWeeks: totalWeeks, weeksOf: weeksOf, apply: apply)
+        return (result.kept, items.count - result.kept.count)
+    }
+
+    static func shifted(_ exception: CourseException, days: Int) -> CourseException {
+        var result = exception
+        let calendar = ScheduleRules.calendar
+        result.day = calendar.date(byAdding: .day, value: days, to: exception.day) ?? exception.day
+        result.start = exception.start.flatMap { calendar.date(byAdding: .day, value: days, to: $0) }
+        result.end = exception.end.flatMap { calendar.date(byAdding: .day, value: days, to: $0) }
+        return result
+    }
 
     /// 把「第 n 节」映射为时间。节次编号不连续时返回 nil，而不是按下标猜。
     public static func time(period index: Int, in periods: [ArchivedPeriod], isStart: Bool) -> String? {

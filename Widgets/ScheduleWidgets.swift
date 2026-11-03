@@ -8,7 +8,7 @@ struct ScheduleProvider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (ScheduleEntry) -> Void) {
         let payload = SystemSnapshot.readPayload()
         completion(.init(date: Date(), courses: payload?.courses ?? [],
-                         leadMinutes: payload?.reminderLeadMinutes ?? 10, interaction: CampusWidgetInteractionStore.read()))
+                         leadMinutes: payload?.reminderLeadMinutes ?? 10, interaction: CampusWidgetInteractionStore.read(), termID: payload?.termID))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> Void) {
         let payload = SystemSnapshot.readPayload()
@@ -17,7 +17,7 @@ struct ScheduleProvider: TimelineProvider {
         let interaction = CampusWidgetInteractionStore.read()
         let now = Date()
         let entries = WidgetTimelinePlan.dates(courses: courses, now: now, leadMinutes: lead).map {
-            ScheduleEntry(date: $0, courses: courses, leadMinutes: lead, interaction: interaction)
+            ScheduleEntry(date: $0, courses: courses, leadMinutes: lead, interaction: interaction, termID: payload?.termID)
         }
         completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(3600 * 12))))
     }
@@ -28,7 +28,7 @@ struct ScheduleWidgetView: View {
     var body: some View {
         ScheduleWidgetContent(family: family, entry: entry)
             .containerBackground(Color(uiColor: .secondarySystemBackground), for: .widget)
-            .widgetURL(URL(string: "campusschedule://course/" + (ScheduleRules.next(in: entry.courses, now: entry.date)?.courseID ?? "")))
+            .widgetURL(CourseDeepLink.url(courseID: ScheduleRules.next(in: entry.courses, now: entry.date)?.courseID, termID: entry.termID))
     }
 }
 struct TimetableWidget: Widget {

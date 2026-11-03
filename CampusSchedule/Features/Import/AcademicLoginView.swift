@@ -17,6 +17,7 @@ struct AcademicLoginView: View {
     @State private var lastError: String?
     @State private var plan: ImportPlanner.Plan?
     @State private var extracting = false
+    @State private var numbering: AcademicSystemProfile.WeekdayNumbering = .automatic
     /// 由 WebViewHost 在创建时回填，供提取按钮读取页面。
     @State private var webViewRef: WKWebView?
 
@@ -37,12 +38,20 @@ struct AcademicLoginView: View {
                     Button("提取课表") { extract() }
                         .disabled(isLoading || extracting || !hasLoadedPage)
                 }
+                ToolbarItem(placement: .bottomBar) {
+                    Menu {
+                        Picker("星期格式", selection: $numbering) {
+                            ForEach(AcademicSystemProfile.WeekdayNumbering.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                    } label: { Label("星期格式", systemImage: "calendar") }
+                }
             }
             .sheet(item: $plan) { plan in
                 ImportPreviewView(plan: plan) { confirmed in
-                    store.applyImport(confirmed.courses)
+                    guard store.applyImport(confirmed) > 0 else { return false }
                     self.plan = nil
                     dismiss()
+                    return true
                 } onCancel: { self.plan = nil }
             }
             .alert("无法访问", isPresented: .init(
@@ -129,8 +138,10 @@ struct AcademicLoginView: View {
     }
 
     private func planFromHTML(_ html: String) throws {
-        let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: store.totalWeeks)
-        guard !outcome.courses.isEmpty else { throw ImportFailure.noCourses }
+        let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: store.totalWeeks, numbering: numbering)
+        guard !outcome.courses.isEmpty else {
+            throw NSError(domain: "AcademicImport", code: 1, userInfo: [NSLocalizedDescriptionKey: outcome.warnings.first ?? ImportFailure.noCourses.localizedDescription])
+        }
         finish(plan: makePlan(outcome))
     }
 

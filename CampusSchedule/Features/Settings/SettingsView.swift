@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 /// 包一层用于 `fileExporter`：需要可识别、可命名，且能延迟生成字节。
 struct BackupDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.json] }
+    static var readableContentTypes: [UTType] { [.json, .data] }
 
     var data: Data
     var filename: String
@@ -32,6 +32,7 @@ enum SettingsRoute: Hashable {
 
 struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     @State private var showingAcademicSettings = false
     @State private var showingTermList = false
     @State private var showingImport = false
@@ -39,6 +40,7 @@ struct SettingsView: View {
     @State private var showingExporter = false
     @State private var showingImporter = false
     @State private var backupDocument: BackupDocument?
+    @State private var exportContentType: UTType = .json
     @State private var pendingArchive: ScheduleArchive?
     @State private var showingRestorePrompt = false
     var body: some View {
@@ -46,19 +48,13 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             Form {
                 Section {
-                    HStack(spacing: 16) {
-                        CampusNotebook().stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                            .frame(width: 34, height: 38).rotationEffect(.degrees(-5)).accessibilityHidden(true)
-                        CampusHeading(title: "校园日常")
-                    }
-                    .padding(.vertical, 12)
+                    SettingsCampusHeader()
                 }
                 Section("课表") {
                     Button("学期与作息", systemImage: "calendar.badge.clock") { showingAcademicSettings = true }
                     Button("全部学期", systemImage: "list.bullet.rectangle") { showingTermList = true }
                     Button("导入课表", systemImage: "square.and.arrow.down.on.square") { showingImport = true }
                     NavigationLink("考试安排", value: SettingsRoute.exams)
-                    LabeledContent("当前学期", value: store.semesterName)
                 }
                 Section {
                     Toggle("上课提醒", isOn: $settings.reminderPreview).tint(DesignSystem.switchTint)
@@ -79,21 +75,40 @@ struct SettingsView: View {
                     Toggle("课程实时活动", isOn: $settings.liveEnabled).tint(DesignSystem.switchTint)
                 } header: { Text("锁屏与灵动岛") }
                 footer: { Text("在锁屏与灵动岛查看课程安排。") }
+                Section("外观") {
+                    Picker("显示模式", selection: $appearance) {
+                        ForEach(AppAppearance.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .accessibilityIdentifier("settings.appearance")
+                }
                 Section {
                     Toggle("iCloud 同步", isOn: $settings.cloudSyncEnabled).tint(DesignSystem.switchTint)
+                        .disabled(store.storageReadOnly || store.isDemoEdition || store.isPreview)
                     if let status = store.cloudSyncStatus {
                         Text(status).font(.footnote).foregroundStyle(.secondary)
                     }
                 } header: { Text("多设备") }
-                footer: { Text("开启后课表会保存到你的 iCloud，在登录同一 Apple 账户的其他设备上自动出现。关闭后本机数据保留，不再上传。") }
+                footer: { Text("个人课表可通过同一 Apple 账户同步，其他设备更新可能稍有延迟。关闭后本机数据保留。演示课表不参与同步。") }
                 Section("组件") {
                     Text("在桌面或锁屏编辑模式中搜索“课间册”，添加当前与下一节课组件。")
                 }
                 Section {
                     Button("导出备份", systemImage: "square.and.arrow.up") { exportBackup() }
+                        .disabled(store.storageReadOnly)
                     Button("从备份恢复", systemImage: "square.and.arrow.down") { showingImporter = true }
+                    Button("导出修改前的副本", systemImage: "clock.arrow.circlepath") { exportPreviousBackup() }
+                        .disabled(store.isDemoEdition || store.isPreview)
                 } header: { Text("备份") }
-                footer: { Text("导出的文件包含本学期课程、作息与调课记录，可换机迁移或自行保存。恢复会用备份内容替换当前学期。") }
+                footer: { Text("备份包含全部学期、课程、考试和调停课记录。恢复会替换本机全部学期，覆盖前会保留原始副本。") }
+                if store.storageReadOnly {
+                    Section("原始数据已保护") {
+                        Text(store.storageIssue ?? "读取失败，已停止写入。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button("导出原始数据", systemImage: "doc.badge.arrow.up") { exportOriginalData() }
+                    }
+                }
                 if let message = store.errorMessage {
                     Section("需要处理") {
                         Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.primary)
@@ -116,7 +131,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showingTermList) { TermListView() }
             .sheet(isPresented: $showingImport) { ImportView() }
             .fileExporter(isPresented: $showingExporter, document: backupDocument,
-                          contentType: .json, defaultFilename: backupDocument?.filename ?? "课间册.json") { result in
+                          contentType: exportContentType, defaultFilename: backupDocument?.filename ?? "课间册.json") { result in
                 if case .failure(let error) = result {
                     store.errorMessage = "导出未完成：\(error.localizedDescription)"
                 }
@@ -126,10 +141,14 @@ struct SettingsView: View {
                 handleImport(result)
             }
             .alert("恢复备份？", isPresented: $showingRestorePrompt, presenting: pendingArchive) { archive in
-                Button("替换当前学期", role: .destructive) { applyRestore(archive) }
+                Button("替换全部学期", role: .destructive) { applyRestore(archive) }
                 Button("取消", role: .cancel) { pendingArchive = nil }
             } message: { archive in
-                Text("将用备份覆盖当前学期：\n\n\(archive.summary)\n\n当前数据会被替换，且无法撤销。建议先导出一次现有课表。")
+                if store.storageReadOnly {
+                    Text("本机数据暂时无法读取，将先保留原始文件，再用备份恢复全部学期：\n\n\(archive.summary)\n\n不能保留原始文件时将停止恢复。")
+                } else {
+                    Text("将覆盖本机全部 \(store.terms.count) 个学期：\n\(store.terms.map(\.name).joined(separator: "、"))\n\n替换为备份中的 \(archive.semesters.count) 个学期：\n\(archive.summary)\n\n覆盖前会自动保留原始副本；不能保留副本时将停止恢复。")
+                }
             }
             .alert("iCloud 与本机都有改动", isPresented: .init(
                 get: { store.pendingCloudConflict != nil },
@@ -147,7 +166,7 @@ struct SettingsView: View {
                 case "academic": showingAcademicSettings = true
                 case "terms": showingTermList = true
                 case "import": showingImport = true
-                case "exams": path.append(SettingsRoute.exams)
+                case "exams", "exam-editor": path.append(SettingsRoute.exams)
                 default: break
                 }
             }
@@ -165,10 +184,27 @@ struct SettingsView: View {
             formatter.dateFormat = "yyyyMMdd-HHmm"
             backupDocument = BackupDocument(data: try archive.encoded(),
                                             filename: "课间册-\(formatter.string(from: Date())).json")
+            exportContentType = .json
             showingExporter = true
         } catch {
             store.errorMessage = "导出失败：\(error.localizedDescription)"
         }
+    }
+
+    private func exportOriginalData() {
+        do {
+            backupDocument = BackupDocument(data: try store.recoveryDataForExport(), filename: "课间册-原始数据.bin")
+            exportContentType = .data
+            showingExporter = true
+        } catch { store.errorMessage = "原始数据导出失败：\(error.localizedDescription)" }
+    }
+
+    private func exportPreviousBackup() {
+        do {
+            backupDocument = BackupDocument(data: try store.previousBackupForExport(), filename: "课间册-修改前备份.json")
+            exportContentType = .json
+            showingExporter = true
+        } catch { store.errorMessage = "还没有可导出的修改前副本。" }
     }
 
     private func handleImport(_ result: Result<URL, any Error>) {

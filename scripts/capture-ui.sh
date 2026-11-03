@@ -40,7 +40,7 @@ for appearance in light dark; do
     xcrun simctl io booted screenshot "screenshots/${screen}-${appearance}.png"
   done
   # 新增功能页面：学期列表、导入、考试安排。
-  for screen in terms import exams; do
+  for screen in terms import exams exam-editor; do
     SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=settings SIMCTL_CHILD_CAMPUS_PREVIEW_SHEET="$screen" xcrun simctl launch --terminate-running-process booted "$bundle_id"
     sleep 3
     xcrun simctl io booted screenshot "screenshots/${screen}-${appearance}.png"
@@ -104,6 +104,10 @@ xcrun simctl io booted screenshot screenshots/week-long-text.png
 data_path=$(xcrun simctl get_app_container booted "$bundle_id" data)
 cp "$data_path/Documents/campus-assets-smoke.txt" screenshots/campus-assets-test.txt
 grep -q '^PASS' screenshots/campus-assets-test.txt
+SIMCTL_CHILD_CAMPUS_SMOKE_TEST=data-reliability xcrun simctl launch --terminate-running-process booted "$bundle_id"
+sleep 3
+cp "$data_path/Documents/data-reliability-smoke.txt" screenshots/data-reliability-smoke.txt
+grep -q '^PASS' screenshots/data-reliability-smoke.txt
 # 课程卡片不再吸顶，改为验证长列表滚动到底部的排版。
 for appearance in light dark; do
   xcrun simctl ui booted appearance "$appearance"

@@ -19,7 +19,7 @@ struct AcademicImportRegressionTests {
         <tr><td>第1-2节</td><td><div>高等数学</div><div>陈老师</div><div>A302</div><div>1-16周</div></td><td></td><td></td></tr>
         </table></body></html>
         """
-        let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: 20)
+        let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: 20, numbering: .mondayOne)
         #expect(outcome.courses.count == 1)
         #expect(outcome.courses.first?.title == "高等数学")
         #expect(outcome.courses.first?.weekday == 0)
@@ -39,7 +39,7 @@ struct AcademicImportRegressionTests {
 
     @Test func embeddedCourseDataStillParsesBeforeTextFallback() {
         let html = #"<script>var kbList = [{"courseName":"线性代数","weekday":2,"startSection":3,"endSection":4}];</script>"#
-        let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: 20)
+        let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: 20, numbering: .mondayOne)
         #expect(outcome.courses.first?.title == "线性代数")
         #expect(outcome.courses.first?.weekday == 1)
     }

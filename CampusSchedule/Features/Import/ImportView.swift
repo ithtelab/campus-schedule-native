@@ -19,6 +19,7 @@ struct ImportView: View {
     @State private var plan: ImportPlanner.Plan?
     @State private var mode: Mode = .school
     @State private var selectedSchool: SchoolEntry?
+    @State private var numbering: AcademicSystemProfile.WeekdayNumbering = .automatic
 
     enum Mode: String, CaseIterable, Identifiable {
         case school = "学校"
@@ -138,6 +139,9 @@ struct ImportView: View {
                 }
                 Button("解析并预览", systemImage: "wand.and.stars") { parsePasted() }
                     .disabled(pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Picker("星期格式", selection: $numbering) {
+                    ForEach(AcademicSystemProfile.WeekdayNumbering.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
             }
         }
     }
@@ -152,6 +156,9 @@ struct ImportView: View {
             footer: { Text("支持从教务系统导出的 HTML、纯文本，或本 App 的备份 JSON。") }
             if !pastedText.isEmpty {
                 Section("已读取") {
+                    Picker("星期格式", selection: $numbering) {
+                        ForEach(AcademicSystemProfile.WeekdayNumbering.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
                     Text(pastedText.prefix(200)).font(.caption).foregroundStyle(.secondary)
                     Button("解析并预览", systemImage: "wand.and.stars") { parsePasted() }
                 }
@@ -208,7 +215,7 @@ struct ImportView: View {
             parsed = share
         } else if text.range(of: #"<(?:html|table|div|script|body)\b"#,
                              options: [.regularExpression, .caseInsensitive]) != nil {
-            parsed = AcademicSystemProfile.parsePage(text, totalWeeks: store.totalWeeks)
+            parsed = AcademicSystemProfile.parsePage(text, totalWeeks: store.totalWeeks, numbering: numbering)
         } else {
             // 再按自由文本尝试：教务系统整页复制通常是每行一节课。
             let lineOutcome = TimetableTextParser.parseLines(text, totalWeeks: store.totalWeeks)
@@ -235,10 +242,11 @@ struct ImportView: View {
         return TimetableGridBudget.parse(rows: rows, totalWeeks: store.totalWeeks)
     }
 
-    private func apply(_ plan: ImportPlanner.Plan) {
-        store.applyImport(plan.courses)
+    private func apply(_ plan: ImportPlanner.Plan) -> Bool {
+        guard store.applyImport(plan) > 0 else { return false }
         self.plan = nil
         dismiss()
+        return true
     }
 }
 
