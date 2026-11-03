@@ -21,8 +21,7 @@ struct CourseClassroomSketch: View {
             }
             // Slightly uneven chalkboard and its chalk ledge.
             var board = Path()
-            board.move(to: .init(x: 10, y: 16))
-            board.addLines([.init(x: 112, y: 13), .init(x: 114, y: 73), .init(x: 12, y: 76)])
+            board.addLines([.init(x: 10, y: 16), .init(x: 112, y: 13), .init(x: 114, y: 73), .init(x: 12, y: 76)])
             board.closeSubpath()
             ink.fill(board, with: .color(.primary))
             ink.stroke(board, with: .color(.primary), style: pen)
@@ -35,7 +34,7 @@ struct CourseClassroomSketch: View {
                 chalk.move(to: .init(x: 25, y: 60)); chalk.addLine(to: .init(x: 65, y: 58))
             } else if phase == .finished {
                 chalk.move(to: .init(x: 39, y: 52))
-                chalk.addLines([.init(x: 46, y: 59), .init(x: 60, y: 44)])
+                chalk.addLine(to: .init(x: 46, y: 59)); chalk.addLine(to: .init(x: 60, y: 44))
             } else {
                 chalk.move(to: .init(x: 25, y: 49)); chalk.addLine(to: .init(x: 59, y: 48))
             }
@@ -61,8 +60,7 @@ struct CourseClassroomSketch: View {
             ink.stroke(bag, with: .color(.primary), style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
             // A new little campus cat waits by the desk, naps during class, and perks up after class.
             var cat = Path()
-            cat.move(to: .init(x: 122, y: 116))
-            cat.addLines([.init(x: 120, y: 104), .init(x: 127, y: 108), .init(x: 137, y: 108), .init(x: 145, y: 103), .init(x: 144, y: 118)])
+            cat.addLines([.init(x: 122, y: 116), .init(x: 120, y: 104), .init(x: 127, y: 108), .init(x: 137, y: 108), .init(x: 145, y: 103), .init(x: 144, y: 118)])
             cat.addQuadCurve(to: .init(x: 144, y: 139), control: .init(x: 154, y: 130))
             cat.addQuadCurve(to: .init(x: 122, y: 139), control: .init(x: 135, y: 145))
             cat.addQuadCurve(to: .init(x: 122, y: 116), control: .init(x: 115, y: 130))
@@ -110,8 +108,7 @@ struct CourseTicketPaper: Shape {
 struct CoursePaperPlane: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: .init(x: rect.minX, y: rect.height * 0.42))
-        path.addLines([.init(x: rect.maxX, y: rect.minY), .init(x: rect.width * 0.69, y: rect.maxY),
+        path.addLines([.init(x: rect.minX, y: rect.height * 0.42), .init(x: rect.maxX, y: rect.minY), .init(x: rect.width * 0.69, y: rect.maxY),
                        .init(x: rect.width * 0.46, y: rect.height * 0.6), .init(x: rect.minX, y: rect.height * 0.42)])
         path.move(to: .init(x: rect.width * 0.46, y: rect.height * 0.6))
         path.addLine(to: .init(x: rect.maxX, y: rect.minY))
