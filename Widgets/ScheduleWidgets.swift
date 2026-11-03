@@ -28,7 +28,9 @@ struct ScheduleWidgetView: View {
     var body: some View {
         ScheduleWidgetContent(family: family, entry: entry)
             .containerBackground(Color(uiColor: .secondarySystemBackground), for: .widget)
-            .widgetURL(CourseDeepLink.url(courseID: ScheduleRules.next(in: entry.courses, now: entry.date)?.courseID, termID: entry.termID))
+            .widgetURL(CourseDeepLink.url(courseID: ScheduleRules.next(in: entry.courses, now: entry.date)?.courseID,
+                                         termID: entry.termID,
+                                         occurrenceID: ScheduleRules.next(in: entry.courses, now: entry.date)?.id))
     }
 }
 struct TimetableWidget: Widget {
@@ -48,6 +50,8 @@ struct CourseLiveWidget: Widget {
             .environment(\.colorScheme, .dark)
             .activityBackgroundTint(Color(white: 0.07))
             .activitySystemActionForegroundColor(.white)
+            .widgetURL(CourseDeepLink.activityURL(courseID: context.attributes.courseID, termID: context.attributes.termID,
+                                                  occurrenceID: context.attributes.occurrenceID))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -70,7 +74,8 @@ struct CourseLiveWidget: Widget {
             } minimal: {
                 CampusBookMark().stroke(.white, lineWidth: 1.4).frame(width: 13, height: 16)
             }
-            .widgetURL(URL(string: "campusschedule://today"))
+            .widgetURL(CourseDeepLink.activityURL(courseID: context.attributes.courseID, termID: context.attributes.termID,
+                                                  occurrenceID: context.attributes.occurrenceID))
             .keylineTint(.white)
         }
     }

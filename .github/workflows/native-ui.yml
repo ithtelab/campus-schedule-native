@@ -5,6 +5,12 @@ name: Native iOS UI validation
 # editing, which then blocked signing and upload. Start validation explicitly.
 on:
   workflow_dispatch:
+    inputs:
+      focus:
+        description: 'Capture all screens or validate system course links'
+        type: choice
+        options: [full, course-links]
+        default: full
 
 permissions:
   contents: read
@@ -12,7 +18,7 @@ permissions:
 jobs:
   native-ui:
     runs-on: xcode-27
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -27,6 +33,8 @@ jobs:
       - name: Test shared rules and compile app with widgets
         run: bash scripts/build-native-simulator.sh 2>&1 | tee native-build.log
       - name: Capture native UI and verify pinned course header
+        env:
+          CAMPUS_UI_FOCUS: ${{ inputs.focus }}
         run: bash scripts/github-screenshots.sh 2>&1 | tee native-ui.log
       - name: Save screenshots, proofs and simulator app
         if: always()

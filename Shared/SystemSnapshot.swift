@@ -50,4 +50,6 @@ struct CourseActivityAttributes: ActivityAttributes {
     var title: String
     var room: String
     var start: Date
+    var courseID: String? = nil
+    var termID: String? = nil
 }

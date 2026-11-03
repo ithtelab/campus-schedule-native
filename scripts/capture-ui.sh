@@ -16,6 +16,11 @@ fi
 xcrun simctl install booted "$app_path"
 xcrun simctl status_bar booted override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
 
+if [[ "${CAMPUS_UI_FOCUS:-full}" == course-links ]]; then
+  bash scripts/capture-course-links.sh "$bundle_id"
+  exit
+fi
+
 for appearance in light dark; do
   xcrun simctl ui booted appearance "$appearance"
   for gallery in desktop lock; do

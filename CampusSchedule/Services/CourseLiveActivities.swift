@@ -24,12 +24,13 @@ import Foundation
             }
         }
     }
-    func start(_ item: CourseOccurrence, scheduledAt: Date? = nil, lead: Int = 10) throws {
+    func start(_ item: CourseOccurrence, scheduledAt: Date? = nil, lead: Int = 10, termID: String? = nil) throws {
         guard item.end > Date() else { throw StartError.outsideWindow }
         if scheduledAt == nil && !CourseLivePlan.canStartManually(item, now: Date(), lead: lead) { throw StartError.outsideWindow }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { throw StartError.notAllowed }
         guard !suppressed.contains(item.id) else { throw StartError.dismissed }
-        let attributes = CourseActivityAttributes(occurrenceID: item.id, title: item.title, room: item.room, start: item.start)
+        let attributes = CourseActivityAttributes(occurrenceID: item.id, title: item.title, room: item.room, start: item.start,
+                                                  courseID: item.courseID, termID: termID)
         let content = ActivityContent(state: CourseActivityAttributes.ContentState(end: item.end, nextTitle: item.nextTitle, nextRoom: item.nextRoom, beforeClass: Date() < item.start), staleDate: item.end)
         let activity: Activity<CourseActivityAttributes>
         if let scheduledAt, scheduledAt > Date(), #available(iOS 26.0, *) {
@@ -52,7 +53,7 @@ import Foundation
             }
         }
     }
-    func reconcile(items: [CourseOccurrence], enabled: Bool, lead: Int) async {
+    func reconcile(items: [CourseOccurrence], enabled: Bool, lead: Int, termID: String? = nil) async {
         endTask?.cancel()
         for activity in Activity<CourseActivityAttributes>.activities {
             observe(activity)
@@ -69,7 +70,7 @@ import Foundation
         // 只计划最近一次。系统活动数量和后台执行均受限制。
         guard let next = ScheduleRules.next(in: items.filter { !suppressed.contains($0.id) }, now: Date()) else { return }
         if !Activity<CourseActivityAttributes>.activities.contains(where: { $0.attributes.occurrenceID == next.id }) {
-            do { try start(next, scheduledAt: CourseLivePlan.earliestStart(for: next, lead: lead), lead: lead) }
+            do { try start(next, scheduledAt: CourseLivePlan.earliestStart(for: next, lead: lead), lead: lead, termID: termID) }
             catch { return } // 主界面提供权限和手动启动提示；不影响本地通知。
         }
         endTask = Task { @MainActor in
@@ -79,7 +80,7 @@ import Foundation
                 for activity in Activity<CourseActivityAttributes>.activities where activity.attributes.occurrenceID == next.id {
                     await finish(activity, suppress: false)
                 }
-                await reconcile(items: items, enabled: enabled, lead: lead)
+                await reconcile(items: items, enabled: enabled, lead: lead, termID: termID)
             } catch {}
         }
         // 此计时任务仅在进程能执行时结束活动，不能保证锁屏/杀进程后准时运行。

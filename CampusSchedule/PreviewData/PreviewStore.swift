@@ -245,7 +245,7 @@ final class PreviewStore {
     init(testingInMemory: Bool = false, recoveryTestData: Data? = nil) {
         self.testingInMemory = testingInMemory
         // 先建立活动学期，之后的字段读写都落到这个容器里。
-        let initialID = "term-" + UUID().uuidString
+        let initialID = isDemoEdition ? "demo-term-v1" : "term-" + UUID().uuidString
         termContents[initialID] = TermContent(
             name: "2026 秋季学期",
             startDate: ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))!,
@@ -676,7 +676,7 @@ final class PreviewStore {
                 try SystemSnapshot.write(items, leadMinutes: snapshotLead, termID: snapshotTerm)
                 WidgetCenter.shared.reloadAllTimelines()
                 try await CourseNotifications.shared.replace(courses: items, enabled: reminderPreview, lead: reminderMinutes, endEnabled: endReminder, endLead: endLead)
-                await CourseLiveActivities.shared.reconcile(items: items, enabled: liveEnabled, lead: reminderMinutes)
+                await CourseLiveActivities.shared.reconcile(items: items, enabled: liveEnabled, lead: reminderMinutes, termID: snapshotTerm)
             } catch is CancellationError {} catch { errorMessage = error.localizedDescription }
         }
     }

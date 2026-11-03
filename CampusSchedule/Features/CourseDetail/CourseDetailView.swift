@@ -38,7 +38,7 @@ struct CourseDetailView: View {
                     Button("添加一次补课", systemImage: "calendar.badge.plus") { makeup = true }
                     Button("开始本次实时活动", systemImage: "waveform") {
                         guard let item = nextOccurrence else { return }
-                        do { try CourseLiveActivities.shared.start(item, lead: store.reminderMinutes); store.liveEnabled = true }
+                        do { try CourseLiveActivities.shared.start(item, lead: store.reminderMinutes, termID: store.activeTermID); store.liveEnabled = true }
                         catch { activityMessage = error.localizedDescription }
                     }
                     .disabled(store.isPreview || !canStartActivity)

@@ -32,6 +32,9 @@ struct RootView: View {
     @Environment(\.scenePhase) private var phase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var linkedCourse: DemoCourse?
+    @State private var linkedOccurrenceID: String?
+    @State private var pendingCourseLink: CourseDeepLink.Target?
+    @State private var courseNavigationRevision = 0
     @State private var linkUnavailable = false
     enum Screen: String, CaseIterable, Identifiable {
         case today, week, settings
@@ -67,14 +70,6 @@ struct RootView: View {
             }
         }
         .tint(DesignSystem.accent)
-        .onOpenURL { url in
-            guard url.scheme == "campusschedule" else { return }
-            if let target = CourseDeepLink.target(url) {
-                selectedScreen = .week
-                linkedCourse = store.resolveCourseLink(target)
-                linkUnavailable = linkedCourse == nil
-            } else { selectedScreen = .today }
-        }
         .alert("课程安排已更新", isPresented: $linkUnavailable) {
             Button("查看课表", role: .cancel) { selectedScreen = .week }
         } message: { Text("这条组件记录已不在当前课表中，请查看更新后的安排。") }
@@ -87,7 +82,29 @@ struct RootView: View {
                 .foregroundStyle(.primary).background(DesignSystem.surface)
             }
         }
-        .sheet(item: $linkedCourse) { CourseDetailView(course: $0).environment(store) }
+        .sheet(item: $linkedCourse) {
+            CourseNowView(course: $0, occurrenceID: linkedOccurrenceID).environment(store)
+        }
+        // Rebuild presentation hosts, while retaining this RootView's store, to discard a previously open editor.
+        .id(courseNavigationRevision)
+        .onOpenURL { url in
+            guard url.scheme == "campusschedule" else { return }
+            linkedCourse = nil; linkedOccurrenceID = nil; linkUnavailable = false
+            pendingCourseLink = CourseDeepLink.target(url)
+            selectedScreen = pendingCourseLink == nil ? .today : .week
+            courseNavigationRevision += 1
+        }
+        .task(id: courseNavigationRevision) {
+            guard let target = pendingCourseLink else { return }
+            pendingCourseLink = nil
+            linkedCourse = store.resolveCourseLink(target)
+            linkUnavailable = linkedCourse == nil
+            let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences, now: store.now)
+            linkedOccurrenceID = target.occurrenceID ?? occurrence?.id
+            if let occurrence {
+                store.selectedWeek = min(store.totalWeeks, max(1, ScheduleRules.week(on: occurrence.start, semesterStart: store.semesterStart)))
+            }
+        }
         .onChange(of: phase) { _, value in
             if value == .active && !(ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] ?? "").hasPrefix("live") {
                 store.clockDate = Date(); store.synchronize()
@@ -136,13 +153,24 @@ struct RootView: View {
     @ViewBuilder private func screenView(_ screen: Screen) -> some View {
         switch screen {
         case .week: WeekScheduleView()
-        case .today: TodayView()
+        case .today: TodayView(permitsPreviewSheets: courseNavigationRevision == 0)
         case .settings: SettingsView()
         }
     }
 
     /// 环境变量驱动的自动检查，仅在 CI 与截图流程中启用。
     private func runSmokeChecksIfRequested() async {
+            if ProcessInfo.processInfo.environment["CAMPUS_COURSE_LINK_SMOKE"] == "1",
+               let occurrence = store.occurrences.first(where: { $0.courseID == "math-mon" }) {
+                let fixture = [
+                    "course": CourseDeepLink.url(courseID: occurrence.courseID, termID: store.activeTermID, occurrenceID: occurrence.id)!.absoluteString,
+                    "secondCourse": CourseDeepLink.url(courseID: "english-mon", termID: store.activeTermID)!.absoluteString,
+                    "missing": CourseDeepLink.url(courseID: "removed-course", termID: store.activeTermID)!.absoluteString,
+                ]
+                if let data = try? JSONEncoder().encode(fixture) {
+                    try? data.write(to: URL.documentsDirectory.appendingPathComponent("course-link-fixture.json"), options: .atomic)
+                }
+            }
             if ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "data-reliability" {
                 try? DataReliabilitySmoke.run().write(to: URL.documentsDirectory.appendingPathComponent("data-reliability-smoke.txt"),
                                                      atomically: true, encoding: .utf8)
@@ -206,7 +234,7 @@ struct RootView: View {
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(30)); store.clockDate = Date()
-                    if !store.isPreview { await CourseLiveActivities.shared.reconcile(items: store.occurrences, enabled: store.liveEnabled, lead: store.reminderMinutes) }
+                    if !store.isPreview { await CourseLiveActivities.shared.reconcile(items: store.occurrences, enabled: store.liveEnabled, lead: store.reminderMinutes, termID: store.activeTermID) }
                 }
                 catch { break }
             }
