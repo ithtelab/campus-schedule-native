@@ -18,6 +18,8 @@ final class CourseLinkUITests: XCTestCase {
             let suffix = dark ? "dark" : "light"
             XCUIDevice.shared.appearance = dark ? .dark : .light
             app.terminate()
+            // Exercise the real AppStorage appearance preference; the simulator's device override may be ignored.
+            app.launchArguments = ["-appAppearance", dark ? "dark" : "light"]
             app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "today", "CAMPUS_PREVIEW_SHEET": "course"]
             app.launch()
             XCTAssertTrue(app.navigationBars["添加课程"].waitForExistence(timeout: 15))
