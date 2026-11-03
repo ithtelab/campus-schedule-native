@@ -15,8 +15,8 @@ struct AcademicImportRegressionTests {
 
     @Test func parsesHTMLTableInsteadOfTreatingMarkupAsPlainText() {
         let html = """
-        <html><body><table><tr><th>节次</th><th>周一</th><th>周二</th></tr>
-        <tr><td>第1-2节</td><td><div>高等数学</div><div>陈老师</div><div>A302</div><div>1-16周</div></td><td></td></tr>
+        <html><body><table><tr><th>节次</th><th>周一</th><th>周二</th><th>周三</th></tr>
+        <tr><td>第1-2节</td><td><div>高等数学</div><div>陈老师</div><div>A302</div><div>1-16周</div></td><td></td><td></td></tr>
         </table></body></html>
         """
         let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: 20)
