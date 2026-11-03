@@ -35,7 +35,7 @@ async function api(path, { method = 'GET', data, query } = {}) {
   if (result.status === 204) return { data: [] };
   const body = await result.json();
   if (!result.ok) {
-    const error = new Error(`Apple ${result.status}: ${(body.errors ?? []).map(item => `${item.code}: ${item.detail ?? item.title}`).join('; ')}`);
+    const error = new Error(`Apple ${result.status} ${method} ${path}: ${(body.errors ?? []).map(item => `${item.code}: ${item.detail ?? item.title}`).join('; ')}`);
     error.httpStatus = result.status;
     if (path === '/v1/betaAppReviewSubmissions' && method === 'POST') {
       const traceHeaders = Object.fromEntries(['x-apple-request-uuid', 'x-apple-request-id', 'x-request-id', 'x-correlation-id', 'x-daiquiri-uuid']
@@ -553,6 +553,7 @@ async function enableExternalLink(buildNumber) {
   const groups = (await api(`/v1/apps/${record.id}/betaGroups`, { query: { limit: '200' } })).data;
   const group = need(groups.find(item => item.attributes.name === '公开外部测试' && !item.attributes.isInternalGroup), 'prepared external group');
   const builds = (await api(`/v1/betaGroups/${group.id}/builds`)).data;
+  console.log(JSON.stringify({ groupID: group.id, associatedBuilds: builds.map(item => ({ id: item.id, build: item.attributes.version, processing: item.attributes.processingState, expired: item.attributes.expired })) }));
   if (!builds.some(item => item.attributes.version === need(buildNumber, 'build number') && item.attributes.processingState === 'VALID' && !item.attributes.expired)) throw new Error('Specific processed build must be associated before enabling link');
   const result = (await api(`/v1/betaGroups/${group.id}`, { method: 'PATCH', data: { type: 'betaGroups', id: group.id, attributes: { publicLinkEnabled: true, publicLinkLimitEnabled: true, publicLinkLimit: 100 } } })).data;
   console.log(JSON.stringify({ group: result.attributes.name, publicLinkEnabled: result.attributes.publicLinkEnabled, publicLink: result.attributes.publicLink, limit: result.attributes.publicLinkLimit }));
