@@ -467,7 +467,8 @@ final class PreviewStore {
                 var occurrence = CourseOccurrence(
                     id: course.id + ":" + String(Int(day.timeIntervalSince1970)),
                     courseID: course.id, title: course.title,
-                    room: change?.room ?? course.room, start: start, end: end)
+                    room: change?.room ?? course.room, teacher: course.teacher,
+                    start: start, end: end)
                 occurrence.remindersEnabled = course.remindersEnabled
                 occurrence.weekPattern = pattern
                 // 与原定时间或地点不同即为调课，界面据此提示。

@@ -62,14 +62,33 @@ struct CourseLiveWidget: Widget {
                         start: context.attributes.start, end: context.state.end, nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom)
                 }
             } compactLeading: {
-                CampusBookMark().stroke(.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)).frame(width: 14, height: 17)
+                // 课前左侧放课程名（截断显示），上课中回到书本图标。
+                // 收起态总共只有约 100 点宽，所以左名右时是最有效的分工。
+                if context.state.beforeClass && !context.isStale {
+                    Text(context.attributes.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: 56, alignment: .leading)
+                        .accessibilityHidden(true)
+                } else {
+                    CampusBookMark().stroke(.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)).frame(width: 14, height: 17)
+                }
             } compactTrailing: {
-                if context.isStale { Image(systemName: "checkmark").font(.caption) }
-                else {
-                    Text(CourseLivePlan.compactTime(end: context.state.end))
+                // 收起态只容得下一个短字符串，按阶段给最有用的那一项：
+                // 课前是「还有几分钟上课」，上课中是「还有几分钟下课」。
+                // 用系统计时器而不是反复刷新活动，既省电也不会滞后。
+                if context.isStale {
+                    Image(systemName: "checkmark").font(.caption)
+                } else if context.state.beforeClass {
+                    Text(timerInterval: Date()...max(Date(), context.attributes.start), countsDown: true)
                         .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                        .lineLimit(1).minimumScaleFactor(0.9).frame(width: 36)
-                        .accessibilityLabel("下课 \(ScheduleRules.time(context.state.end))")
+                        .lineLimit(1).minimumScaleFactor(0.85).frame(width: 40)
+                        .accessibilityLabel("\(context.attributes.title)，\(ScheduleRules.time(context.attributes.start)) 上课")
+                } else {
+                    Text(timerInterval: Date()...max(Date(), context.state.end), countsDown: true)
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .lineLimit(1).minimumScaleFactor(0.85).frame(width: 40)
+                        .accessibilityLabel("\(context.attributes.title)，\(ScheduleRules.time(context.state.end)) 下课")
                 }
             } minimal: {
                 CampusBookMark().stroke(.white, lineWidth: 1.4).frame(width: 13, height: 16)

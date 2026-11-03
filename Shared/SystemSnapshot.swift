@@ -50,6 +50,8 @@ struct CourseActivityAttributes: ActivityAttributes {
     var title: String
     var room: String
     var start: Date
+    /// 教师。收起态灵动岛在课前只放得下课程名，教师用于展开态与锁屏卡片。
+    var teacher: String = ""
     var courseID: String? = nil
     var termID: String? = nil
 }

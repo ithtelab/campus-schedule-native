@@ -5,6 +5,8 @@ struct CourseOccurrence: Codable, Identifiable, Equatable, Sendable {
     var courseID: String
     var title: String
     var room: String
+    /// 教师。实时活动与组件在课前需要显示，不然用户看不出是哪门课的老师。
+    var teacher: String = ""
     var start: Date
     var end: Date
     var nextTitle: String?

@@ -24,6 +24,65 @@ public struct ParsedCourse: Equatable, Hashable, Sendable {
     }
 }
 
+/// 教务系统在课程名与教室后面常附加标注符号，例如「高等数学 A-2★」里的星号、
+/// 「同和楼 409(多)」里的「(多)」。这些是教务页面的展示注记，不是课程信息本身，
+/// 导入时需要剥离，否则会一路带进课表、组件和实时活动。
+enum CellTextCleaner {
+    /// 尾部注记：括号内的「多 / 单 / 双 / 连 / 上 / 下」等单字，以及常见符号。
+    static func clean(_ text: String) -> String {
+        var result = text
+        // 反复剥离，因为可能叠加多层，如「课程(多)★」。
+        for _ in 0..<4 {
+            let before = result
+            result = stripTrailingMarks(result)
+            result = stripTrailingNotes(result)
+            if result == before { break }
+        }
+        return result.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// 去掉尾部的 ★ ☆ ● ○ ◆ ◇ ※ 与空格。
+    private static func stripTrailingMarks(_ text: String) -> String {
+        let marks: Set<Character> = ["★", "☆", "●", "○", "◆", "◇", "※", "·", "*"]
+        var result = text
+        while let last = result.last, marks.contains(last) {
+            result.removeLast()
+        }
+        return result
+    }
+
+    /// 去掉尾部的短括号注记，例如「(多)」「（单）」「[连]」。
+    ///
+    /// 只在括号内是一到两个字、且不含课程性词汇时剥离，避免误删
+    /// 「英语(二)」这类真实课程名后缀。
+    private static func stripTrailingNotes(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard let last = trimmed.last,
+              let open = matchingOpen(for: last) else { return text }
+        guard let openIndex = trimmed.lastIndex(of: open) else { return text }
+        let inner = trimmed[trimmed.index(after: openIndex)..<trimmed.index(before: trimmed.endIndex)]
+        let content = inner.trimmingCharacters(in: .whitespaces)
+        // 只识别明确的注记词。白名单而非黑名单，避免误伤「英语(二)」这类真实后缀。
+        let known: Set<String> = ["多", "单", "双", "连", "上", "下", "合", "选", "必", "实验", "理论"]
+        guard known.contains(content) else { return text }
+        return String(trimmed[..<openIndex])
+    }
+
+    private static func matchingOpen(for close: Character) -> Character? {
+        switch close {
+        case ")": "("
+        case "）": "（"
+        case "]": "["
+        case "】": "【"
+        default: nil
+        }
+    }
+
+    private static func isHan(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy { (0x4E00...0x9FFF).contains($0.value) }
+    }
+}
+
 /// 一次解析的结果，包含失败原因，便于告诉用户「哪里看不出来」而不是笼统失败。
 public struct ParseOutcome: Equatable, Sendable {
     public var courses: [ParsedCourse]
@@ -284,8 +343,9 @@ public enum TimetableTextParser {
         if teacher.isEmpty {
             teacher = titleParts.dropFirst().first(where: isTeacherName) ?? ""
         }
-        guard !title.isEmpty else { return nil }
-        return ParsedCourse(title: title, teacher: teacher, room: room,
+        let cleanTitle = CellTextCleaner.clean(title)
+        guard !cleanTitle.isEmpty else { return nil }
+        return ParsedCourse(title: cleanTitle, teacher: teacher, room: CellTextCleaner.clean(room),
                             weekday: 0, startPeriod: 1, endPeriod: 1,
                             weeks: hasWeeks ? weeks : [])
     }
