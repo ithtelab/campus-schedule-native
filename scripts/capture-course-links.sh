@@ -10,33 +10,15 @@ cp "$data_path/Documents/data-reliability-smoke.txt" screenshots/data-reliabilit
 grep -q '^PASS' screenshots/data-reliability-smoke.txt
 xcrun simctl terminate booted "$bundle_id"
 
-# Cold launch via the URL entry point, without preview routing or a preselected sheet.
-xcrun simctl ui booted appearance light
-xcrun simctl openurl booted 'campusschedule://course?id=math-mon&term=demo-term-v1'
-sleep 5
-xcrun simctl io booted screenshot screenshots/course-link-cold-light.png
-xcrun simctl openurl booted 'campusschedule://course?id=english-mon&term=demo-term-v1'
-sleep 4
-xcrun simctl io booted screenshot screenshots/course-link-second-light.png
-
-for appearance in light dark; do
-  xcrun simctl ui booted appearance "$appearance"
-  SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_SHEET=course SIMCTL_CHILD_CAMPUS_COURSE_LINK_SMOKE=1 \
-    xcrun simctl launch --terminate-running-process booted "$bundle_id"
-  sleep 4
-  xcrun simctl io booted screenshot "screenshots/course-link-editor-before-${appearance}.png"
-  data_path=$(xcrun simctl get_app_container booted "$bundle_id" data)
-  cp "$data_path/Documents/course-link-fixture.json" screenshots/course-link-fixture.json
-  course_url=$(node -p 'JSON.parse(require("fs").readFileSync("screenshots/course-link-fixture.json","utf8")).course')
-  second_url=$(node -p 'JSON.parse(require("fs").readFileSync("screenshots/course-link-fixture.json","utf8")).secondCourse')
-  missing_url=$(node -p 'JSON.parse(require("fs").readFileSync("screenshots/course-link-fixture.json","utf8")).missing')
-  xcrun simctl openurl booted "$course_url"
-  sleep 5
-  xcrun simctl io booted screenshot "screenshots/course-link-from-editor-${appearance}.png"
-  xcrun simctl openurl booted "$second_url"
-  sleep 4
-  xcrun simctl io booted screenshot "screenshots/course-link-repeated-${appearance}.png"
-  xcrun simctl openurl booted "$missing_url"
-  sleep 4
-  xcrun simctl io booted screenshot "screenshots/course-link-unavailable-${appearance}.png"
-done
+# XCTest opens the actual URL, accepts the system confirmation, and asserts the visible UI.
+simulator_id=$(node -p 'Object.values(JSON.parse(require("fs").readFileSync("screenshots/simulator.json","utf8")).devices).flat().find(d=>d.state==="Booted").udid')
+export_results() {
+  if [[ -d build/course-links.xcresult ]]; then
+    xcrun xcresulttool export attachments --path build/course-links.xcresult --output-path screenshots/course-link-attachments || true
+    xcrun xcresulttool get test-results summary --path build/course-links.xcresult > screenshots/course-links-test-summary.json || true
+  fi
+}
+trap export_results EXIT
+xcodebuild -project ios/CampusSchedule.xcodeproj -scheme CampusCourseLinks -configuration Release \
+  -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath ios/build \
+  -resultBundlePath build/course-links.xcresult -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test

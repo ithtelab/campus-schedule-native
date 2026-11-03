@@ -126,6 +126,35 @@ for (const object of objects) {
   if (object.text.startsWith(id('project') + ' ')) object.text = object.text.replace('targets = ' + list(['target']), 'targets = ' + list(['target', 'widgettarget']));
   if (object.text.startsWith(id('target') + ' ')) object.text = object.text.replace('dependencies = ();', 'dependencies = ' + list(['dependency']) + ';').replace('buildPhases = ' + list(['sources','frameworks','resources']), 'buildPhases = ' + list(['sources','frameworks','resources','embed']));
 }
+// A separate scheme runs UI automation without adding test code to the shipped app or archive.
+const uiTestFile = 'UITests/CourseLinkUITests.swift';
+readFileSync(resolve(root, uiTestFile));
+add('uitestref', `isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ${quote('../' + uiTestFile)}; sourceTree = SOURCE_ROOT;`);
+add('uitestbuild', `isa = PBXBuildFile; fileRef = ${id('uitestref')};`);
+add('uitestgroup', `isa = PBXGroup; children = ${list(['uitestref'])}; name = UITests; sourceTree = "<group>";`);
+add('uitestproduct', 'isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = CampusCourseLinkUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR;');
+add('uitestsources', `isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ${list(['uitestbuild'])}; runOnlyForDeploymentPostprocessing = 0;`);
+add('uitestframeworks', 'isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;');
+add('uitestresources', 'isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;');
+add('uitestproxy', `isa = PBXContainerItemProxy; containerPortal = ${id('project')}; proxyType = 1; remoteGlobalIDString = ${id('target')}; remoteInfo = CampusSchedule;`);
+add('uitestdependency', `isa = PBXTargetDependency; target = ${id('target')}; targetProxy = ${id('uitestproxy')};`);
+for (const mode of ['Debug', 'Release']) {
+  add('uitest:' + mode, `isa = XCBuildConfiguration; name = ${mode}; buildSettings = {
+    PRODUCT_NAME = CampusCourseLinkUITests; PRODUCT_BUNDLE_IDENTIFIER = ${quote(bundleID + '.uitests')};
+    GENERATE_INFOPLIST_FILE = YES; TEST_TARGET_NAME = CampusSchedule; SWIFT_VERSION = 6.0;
+    TARGETED_DEVICE_FAMILY = "1,2"; ENABLE_TESTING_SEARCH_PATHS = YES;
+    LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+  };`);
+}
+add('uitestconfigs', `isa = XCConfigurationList; buildConfigurations = ${list(['uitest:Debug', 'uitest:Release'])}; defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;`);
+add('uitesttarget', `isa = PBXNativeTarget; buildConfigurationList = ${id('uitestconfigs')}; buildPhases = ${list(['uitestsources', 'uitestframeworks', 'uitestresources'])}; buildRules = (); dependencies = ${list(['uitestdependency'])}; name = CampusCourseLinkUITests; productName = CampusCourseLinkUITests; productReference = ${id('uitestproduct')}; productType = "com.apple.product-type.bundle.ui-testing";`);
+for (const object of objects) {
+  if (object.text.startsWith(id('main') + ' ')) object.text = object.text.replace(id('products') + ' /* products */,', id('uitestgroup') + ' /* UITests */, ' + id('products') + ' /* products */,');
+  if (object.text.startsWith(id('products') + ' ')) object.text = object.text.replace(id('product') + ' /* product */,', id('product') + ' /* product */, ' + id('uitestproduct') + ' /* uitestproduct */,');
+  if (object.text.startsWith(id('project') + ' ')) object.text = object.text
+    .replace('targets = ' + list(['target', 'widgettarget']), 'targets = ' + list(['target', 'widgettarget', 'uitesttarget']))
+    .replace('LastUpgradeCheck = 2700;', `LastUpgradeCheck = 2700; TargetAttributes = { ${id('uitesttarget')} = { TestTargetID = ${id('target')}; }; };`);
+}
 const sections = [...new Set(objects.map(object => object.type))].map(type =>
   `/* Begin ${type} section */\n${objects.filter(object => object.type === type).map(object => object.text).join('\n').replace(/[ \t]+$/gm, '')}\n/* End ${type} section */`
 ).join('\n');
@@ -139,6 +168,18 @@ writeFileSync(resolve(schemeDir, `${target}.xcscheme`), `<?xml version="1.0" enc
   <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"><BuildableProductRunnable runnableDebuggingMode="0">${reference}</BuildableProductRunnable></ProfileAction>
   <AnalyzeAction buildConfiguration="Debug"/>
   <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
+</Scheme>
+`);
+const testReference = `<BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="${id('uitesttarget')}" BuildableName="CampusCourseLinkUITests.xctest" BlueprintName="CampusCourseLinkUITests" ReferencedContainer="container:${target}.xcodeproj"/>`;
+writeFileSync(resolve(schemeDir, 'CampusCourseLinks.xcscheme'), `<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2700" version="1.3">
+  <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries>
+    <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="NO">${reference}</BuildActionEntry>
+    <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="NO">${testReference}</BuildActionEntry>
+  </BuildActionEntries></BuildAction>
+  <TestAction buildConfiguration="Release" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="NO">
+    <Testables><TestableReference skipped="NO">${testReference}</TestableReference></Testables>
+  </TestAction>
 </Scheme>
 `);
 console.log(`Generated ios/${target}.xcodeproj with ${files.length} Swift files (not compiled).`);

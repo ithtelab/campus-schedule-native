@@ -46,5 +46,6 @@ jobs:
             native-build.log
             native-ui.log
             build/CampusSchedule.tar.gz
+            build/course-links.xcresult
           retention-days: 3
           if-no-files-found: warn

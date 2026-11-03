@@ -160,17 +160,6 @@ struct RootView: View {
 
     /// 环境变量驱动的自动检查，仅在 CI 与截图流程中启用。
     private func runSmokeChecksIfRequested() async {
-            if ProcessInfo.processInfo.environment["CAMPUS_COURSE_LINK_SMOKE"] == "1",
-               let occurrence = store.occurrences.first(where: { $0.courseID == "math-mon" }) {
-                let fixture = [
-                    "course": CourseDeepLink.url(courseID: occurrence.courseID, termID: store.activeTermID, occurrenceID: occurrence.id)!.absoluteString,
-                    "secondCourse": CourseDeepLink.url(courseID: "english-mon", termID: store.activeTermID)!.absoluteString,
-                    "missing": CourseDeepLink.url(courseID: "removed-course", termID: store.activeTermID)!.absoluteString,
-                ]
-                if let data = try? JSONEncoder().encode(fixture) {
-                    try? data.write(to: URL.documentsDirectory.appendingPathComponent("course-link-fixture.json"), options: .atomic)
-                }
-            }
             if ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "data-reliability" {
                 try? DataReliabilitySmoke.run().write(to: URL.documentsDirectory.appendingPathComponent("data-reliability-smoke.txt"),
                                                      atomically: true, encoding: .utf8)
