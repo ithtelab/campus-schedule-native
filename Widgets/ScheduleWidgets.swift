@@ -46,7 +46,9 @@ struct CourseLiveWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CourseActivityAttributes.self) { context in
             CourseLiveCard(title: context.attributes.title, room: context.attributes.room,
-                start: context.attributes.start, end: context.state.end, nextRoom: context.state.nextRoom, stale: context.isStale)
+                start: context.attributes.start, end: context.state.end,
+                teacher: context.attributes.teacher,
+                nextRoom: context.state.nextRoom, stale: context.isStale)
             .environment(\.colorScheme, .dark)
             .activityBackgroundTint(Color(white: 0.07))
             .activitySystemActionForegroundColor(.white)
@@ -59,7 +61,9 @@ struct CourseLiveWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     CourseIslandExpanded(title: context.attributes.title, room: context.attributes.room,
-                        start: context.attributes.start, end: context.state.end, nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom)
+                        start: context.attributes.start, end: context.state.end,
+                        teacher: context.attributes.teacher,
+                        nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom)
                 }
             } compactLeading: {
                 // 课前左侧放课程名（截断显示），上课中回到书本图标。

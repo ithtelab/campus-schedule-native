@@ -7,6 +7,7 @@ struct CourseLiveCard: View {
     let room: String
     let start: Date
     let end: Date
+    var teacher: String = ""
     var nextRoom: String?
     var stale = false
     var body: some View {
@@ -16,7 +17,8 @@ struct CourseLiveCard: View {
                     Text(stale ? "本次课程已结束" : "课程安排").font(.caption2).foregroundStyle(.secondary)
                 }
                 Text(title).font(.title3.weight(.bold)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(room.isEmpty ? "地点待确认" : room).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                // 锁屏卡片是用户最常看的一屏，教师与教室一起给出。
+                Text(teacherAndRoom).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
                 HStack(spacing: 8) {
                     Text("\(ScheduleRules.time(start))–\(ScheduleRules.time(end))").monospacedDigit()
                     if let nextRoom, ScheduleRules.needsMove(from: room, to: nextRoom) == true {
@@ -34,6 +36,13 @@ struct CourseLiveCard: View {
         .padding(.horizontal, 14).padding(.vertical, 12)
         .foregroundStyle(.primary)
     }
+
+    /// 教师与教室合并成一行，缺任一项时不留多余分隔符。
+    private var teacherAndRoom: String {
+        let place = room.isEmpty ? "地点待确认" : room
+        guard !teacher.isEmpty else { return place }
+        return "\(teacher) · \(place)"
+    }
 }
 
 struct CourseIslandExpanded: View {
@@ -41,19 +50,32 @@ struct CourseIslandExpanded: View {
     let room: String
     let start: Date
     let end: Date
+    var teacher: String = ""
     var nextTitle: String?
     var nextRoom: String?
     var body: some View {
-        HStack(spacing: 12) {
-            CampusWidgetFigure().frame(width: 44, height: 72)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title).font(.headline).lineLimit(1)
-                Text(room).font(.subheadline.weight(.semibold)).lineLimit(1)
-                Text("\(ScheduleRules.time(start))–\(ScheduleRules.time(end))").font(.caption.monospacedDigit())
-                if let nextTitle {
-                    Text("下节 \(nextTitle) · \(nextRoom ?? "地点待确认")").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline).lineLimit(1).minimumScaleFactor(0.85)
+                // 长按展开时空间充裕，把教师、地点、时间一次给全。
+                HStack(spacing: 6) {
+                    if !teacher.isEmpty {
+                        Text(teacher).lineLimit(1)
+                        Text("·").foregroundStyle(.tertiary)
+                    }
+                    Text(room.isEmpty ? "地点待确认" : room).lineLimit(1)
                 }
+                .font(.subheadline.weight(.semibold)).minimumScaleFactor(0.8)
+                HStack(spacing: 6) {
+                    Text("\(ScheduleRules.time(start))–\(ScheduleRules.time(end))").monospacedDigit()
+                    if let nextTitle {
+                        Text("·").foregroundStyle(.tertiary)
+                        Text("下节 \(nextTitle) \(nextRoom ?? "")").lineLimit(1)
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary).minimumScaleFactor(0.8)
             }.frame(maxWidth: .infinity, alignment: .leading)
+            CampusWidgetFigure().frame(width: 40, height: 66)
         }
     }
 }
