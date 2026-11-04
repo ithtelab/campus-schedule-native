@@ -15,13 +15,31 @@ public struct ScheduleArchive: Codable, Equatable {
     public var exportedAt: Date
     public var appVersion: String?
     public var semesters: [ArchivedSemester]
+    /// 纪念事件跨学期存在，因此挂在根上而不是某个学期里。
+    /// 旧备份没有这个键，缺省为空数组即可读回。
+    public var milestones: [Milestone]
 
     public init(schema: Int = ScheduleArchive.currentSchema, exportedAt: Date = Date(),
-                appVersion: String? = nil, semesters: [ArchivedSemester]) {
+                appVersion: String? = nil, semesters: [ArchivedSemester],
+                milestones: [Milestone] = []) {
         self.schema = schema
         self.exportedAt = exportedAt
         self.appVersion = appVersion
         self.semesters = semesters
+        self.milestones = milestones
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case schema, exportedAt, appVersion, semesters, milestones
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decode(Int.self, forKey: .schema)
+        exportedAt = try container.decode(Date.self, forKey: .exportedAt)
+        appVersion = try container.decodeIfPresent(String.self, forKey: .appVersion)
+        semesters = try container.decode([ArchivedSemester].self, forKey: .semesters)
+        milestones = try container.decodeIfPresent([Milestone].self, forKey: .milestones) ?? []
     }
 }
 
@@ -152,6 +170,8 @@ public enum ArchiveError: LocalizedError, Equatable {
     case exceptionWithoutCourse(String)
     case duplicateExamID(String)
     case invalidExam(String, String)
+    case duplicateMilestoneID(String)
+    case invalidMilestone(String, String)
 
     public var errorDescription: String? {
         switch self {
@@ -191,6 +211,10 @@ public enum ArchiveError: LocalizedError, Equatable {
             "考试标识 \(id) 重复出现。"
         case .invalidExam(let id, let reason):
             "考试 \(id) 数据无效：\(reason)。"
+        case .duplicateMilestoneID(let id):
+            "纪念事件标识 \(id) 重复出现。"
+        case .invalidMilestone(let id, let reason):
+            "纪念事件 \(id) 数据无效：\(reason)。"
         }
     }
 }
@@ -271,6 +295,20 @@ public extension ScheduleArchive {
                 }
             }
         }
+
+        // 纪念事件挂在根上，跨学期共用一个列表。
+        var milestoneIDs = Set<String>()
+        for milestone in milestones {
+            guard milestoneIDs.insert(milestone.id).inserted else {
+                throw ArchiveError.duplicateMilestoneID(milestone.id)
+            }
+            guard !milestone.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ArchiveError.invalidMilestone(milestone.id, "缺少名称")
+            }
+            guard (0...365).contains(milestone.reminderDaysBefore) else {
+                throw ArchiveError.invalidMilestone(milestone.id, "提前提醒天数超出范围")
+            }
+        }
         // 空课表和只有考试的学期也必须能备份、同步和恢复。
         return self
     }
@@ -288,7 +326,8 @@ public extension ScheduleArchive {
     /// 人类可读的摘要，用于导入前的确认提示。
     var summary: String {
         let names = semesters.map(\.name).joined(separator: "、")
-        return "\(names) · \(semesters.first?.totalWeeks ?? 0) 周 · \(courseCount) 门课程 · \(semesters.first?.exceptions.count ?? 0) 条调课"
+        let base = "\(names) · \(semesters.first?.totalWeeks ?? 0) 周 · \(courseCount) 门课程 · \(semesters.first?.exceptions.count ?? 0) 条调课"
+        return milestones.isEmpty ? base : base + " · \(milestones.count) 个纪念事件"
     }
 }
 

@@ -37,6 +37,7 @@ struct TodayView: View {
                                 .padding(.bottom, 4)
                                 .frame(maxWidth: .infinity)
                         }
+                        milestoneSummary.padding(.horizontal, 20).padding(.top, 4)
                         agenda.padding(.horizontal, 20).padding(.top, 18)
                         closingNote.padding(20)
                         Color.clear.frame(height: 20).id("agenda-end")
@@ -88,6 +89,47 @@ struct TodayView: View {
                     .foregroundStyle(DesignSystem.inverse)
                     .background(Color.primary, in: RoundedRectangle(cornerRadius: 5)).rotationEffect(.degrees(-2))
             }
+        }
+    }
+
+    /// 今日页的置顶纪念事件摘要。
+    ///
+    /// 只显示用户主动置顶的事件，最多三条，并且排在一节课卡之后、当天安排之前：
+    /// 课程与考试是「今天要做什么」，纪念事件是「离某个日子还有多久」，后者
+    /// 不该压过前者。没有置顶事件时整块不占位。
+    @ViewBuilder private var milestoneSummary: some View {
+        let items = store.pinnedMilestones
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(items) { item in
+                    let reading = MilestoneCounter.read(item, now: store.now)
+                    NavigationLink {
+                        MilestoneListView()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: item.category.symbol)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 16)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(item.title.isEmpty ? "未命名" : item.title)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                                Text(MilestoneFormat.dateText(reading.effectiveDate, relativeTo: store.now))
+                                    .font(.caption2).foregroundStyle(.tertiary)
+                            }
+                            Spacer(minLength: 0)
+                            Text(MilestoneFormat.primary(item, reading: reading))
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(MilestoneFormat.sentence(item, reading: reading))
+                }
+            }
+            .padding(.top, 12)
         }
     }
 

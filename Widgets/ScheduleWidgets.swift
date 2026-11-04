@@ -104,5 +104,5 @@ struct CourseLiveWidget: Widget {
     }
 }
 @main struct CampusWidgetBundle: WidgetBundle {
-    var body: some Widget { TimetableWidget(); CourseLiveWidget() }
+    var body: some Widget { TimetableWidget(); MilestoneWidget(); CourseLiveWidget() }
 }

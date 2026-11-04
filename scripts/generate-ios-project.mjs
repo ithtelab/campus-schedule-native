@@ -100,7 +100,8 @@ add('project', `isa = PBXProject; attributes = { BuildIndependentTargetsInParall
 const projectDir = resolve(root, 'ios', `${target}.xcodeproj`);
 const schemeDir = resolve(projectDir, 'xcshareddata', 'xcschemes');
 mkdirSync(schemeDir, { recursive: true });
-const widgetFiles = ['Widgets/ScheduleWidgets.swift', ...files.filter(file => file.startsWith('Shared/'))];
+const widgetFiles = ['Widgets/ScheduleWidgets.swift', 'Widgets/MilestoneWidgets.swift',
+                     ...files.filter(file => file.startsWith('Shared/'))];
 for (const file of widgetFiles) {
   add('widgetref:' + file, 'isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ' + quote('../' + file) + '; sourceTree = SOURCE_ROOT;');
   add('widgetbuild:' + file, 'isa = PBXBuildFile; fileRef = ' + id('widgetref:' + file) + ';');

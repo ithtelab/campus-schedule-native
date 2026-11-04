@@ -55,8 +55,13 @@ struct SettingsView: View {
                     Button("全部学期", systemImage: "list.bullet.rectangle") { showingTermList = true }
                     Button("导入课表", systemImage: "square.and.arrow.down.on.square") { showingImport = true }
                     NavigationLink("考试安排", value: SettingsRoute.exams)
+                    NavigationLink {
+                        MilestoneListView()
+                    } label: {
+                        Label("纪念事件", systemImage: "flag")
+                    }
                 }
-                Section {
+                Section("提醒") {
                     Toggle("上课提醒", isOn: $settings.reminderPreview).tint(DesignSystem.switchTint)
                     Picker("提前时间", selection: $settings.reminderMinutes) {
                         ForEach([5, 10, 15, 30], id: \.self) { Text("\($0) 分钟").tag($0) }

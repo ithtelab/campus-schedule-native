@@ -12,6 +12,31 @@ enum SystemSnapshot {
         var courses: [CourseOccurrence]
         var reminderLeadMinutes: Int? = nil
         var termID: String? = nil
+        /// 组件要独立展示纪念事件，因此一并写入快照。
+        /// 旧版本写出的快照没有这个键，解码时缺省为空数组。
+        var milestones: [Milestone] = []
+
+        enum CodingKeys: String, CodingKey {
+            case version, generatedAt, courses, reminderLeadMinutes, termID, milestones
+        }
+
+        init(courses: [CourseOccurrence], reminderLeadMinutes: Int? = nil,
+             termID: String? = nil, milestones: [Milestone] = []) {
+            self.courses = courses
+            self.reminderLeadMinutes = reminderLeadMinutes
+            self.termID = termID
+            self.milestones = milestones
+        }
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+            generatedAt = try container.decodeIfPresent(Date.self, forKey: .generatedAt) ?? Date()
+            courses = try container.decode([CourseOccurrence].self, forKey: .courses)
+            reminderLeadMinutes = try container.decodeIfPresent(Int.self, forKey: .reminderLeadMinutes)
+            termID = try container.decodeIfPresent(String.self, forKey: .termID)
+            milestones = try container.decodeIfPresent([Milestone].self, forKey: .milestones) ?? []
+        }
     }
     static func readPayload() -> Payload? {
         guard let url, let data = try? Data(contentsOf: url),
@@ -19,9 +44,13 @@ enum SystemSnapshot {
         return payload
     }
     static func read() -> [CourseOccurrence] { readPayload()?.courses ?? [] }
-    static func write(_ courses: [CourseOccurrence], leadMinutes: Int = 10, termID: String? = nil) throws {
+    static func readMilestones() -> [Milestone] { readPayload()?.milestones ?? [] }
+    static func write(_ courses: [CourseOccurrence], leadMinutes: Int = 10, termID: String? = nil,
+                      milestones: [Milestone] = []) throws {
         guard let url else { return }
-        try JSONEncoder().encode(Payload(courses: courses, reminderLeadMinutes: leadMinutes, termID: termID)).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try JSONEncoder().encode(Payload(courses: courses, reminderLeadMinutes: leadMinutes,
+                                        termID: termID, milestones: milestones))
+            .write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }
 

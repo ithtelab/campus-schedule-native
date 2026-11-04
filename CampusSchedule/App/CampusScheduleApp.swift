@@ -24,6 +24,12 @@ struct CampusScheduleApp: App {
     }
 }
 
+/// 组件深链的载荷。`sheet(item:)` 需要 Identifiable，而目标本身只有可选的 id。
+struct MilestoneLinkPayload: Identifiable {
+    var id: String { milestoneID ?? "all" }
+    var milestoneID: String?
+}
+
 /// 主界面。iPad 上用侧边栏承载三个分区，iPhone 保持标签栏。
 ///
 /// 两套布局共享同一份状态与子视图，因此切换设备不会改变行为。
@@ -35,6 +41,8 @@ struct RootView: View {
     @State private var linkedOccurrenceID: String?
     @State private var courseNavigationRevision = 0
     @State private var linkUnavailable = false
+    /// 从组件点进来时要打开的纪念事件。nil 表示没有待处理的目标。
+    @State private var milestoneLink: MilestoneLinkPayload?
     enum Screen: String, CaseIterable, Identifiable {
         case today, week, settings
         var id: String { rawValue }
@@ -96,6 +104,11 @@ struct RootView: View {
         .onOpenURL { url in
             guard url.scheme == "campusschedule" else { return }
             linkedCourse = nil; linkedOccurrenceID = nil; linkUnavailable = false
+            // 纪念事件走独立入口：它不属于任何学期，也不在课表页。
+            if let target = MilestoneDeepLink.target(url) {
+                milestoneLink = MilestoneLinkPayload(milestoneID: target.milestoneID)
+                return
+            }
             if let target = CourseDeepLink.target(url) {
                 selectedScreen = .week
                 linkedCourse = store.resolveCourseLink(target)
@@ -107,6 +120,17 @@ struct RootView: View {
                 }
             } else { selectedScreen = .today }
             courseNavigationRevision += 1
+        }
+        .sheet(item: $milestoneLink) { target in
+            NavigationStack {
+                MilestoneListView(focusID: target.milestoneID)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("完成") { milestoneLink = nil }
+                        }
+                    }
+            }
+            .environment(store)
         }
         .onChange(of: phase) { _, value in
             if value == .active && !(ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] ?? "").hasPrefix("live") {

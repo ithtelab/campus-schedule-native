@@ -203,6 +203,18 @@ final class PreviewStore {
     var endReminder = false { didSet { save() } }
     var endLead = 0 { didSet { save() } }
 
+    /// 纪念事件。跨学期保留，不随切换学期消失。
+    var milestones: [Milestone] = [] { didSet { save() } }
+
+    /// 按今日页的展示顺序排好的纪念事件，已归档的排在最后。
+    var sortedMilestones: [Milestone] { MilestoneCounter.sorted(milestones, now: now) }
+
+    /// 今日页只展示置顶且未归档的事件，最多三条，避免挤占课程信息。
+    var pinnedMilestones: [Milestone] {
+        sortedMilestones.filter { $0.pinned && !MilestoneCounter.read($0, now: now).isHidden(expiry: $0.expiry) }
+            .prefix(3).map { $0 }
+    }
+
     /// 用户是否开启了 iCloud 同步。默认关闭，与产品约定一致。
     var cloudSyncEnabled = false {
         didSet {
@@ -232,6 +244,41 @@ final class PreviewStore {
         var reminders: Bool; var lead: Int; var endReminder: Bool; var endLead: Int
         var liveEnabled: Bool
         var cloudSyncEnabled: Bool?
+        /// 纪念事件跨学期保留，因此存在顶层而不是学期容器里。
+        var milestones: [Milestone] = []
+
+        init(activeTermID: String, terms: [String: TermContent], reminders: Bool, lead: Int,
+             endReminder: Bool, endLead: Int, liveEnabled: Bool,
+             cloudSyncEnabled: Bool?, milestones: [Milestone] = []) {
+            self.activeTermID = activeTermID
+            self.terms = terms
+            self.reminders = reminders
+            self.lead = lead
+            self.endReminder = endReminder
+            self.endLead = endLead
+            self.liveEnabled = liveEnabled
+            self.cloudSyncEnabled = cloudSyncEnabled
+            self.milestones = milestones
+        }
+
+        // 纪念事件是后加的字段，旧文件没有它；缺省为空数组而不是整份数据解码失败。
+        enum CodingKeys: String, CodingKey {
+            case activeTermID, terms, reminders, lead, endReminder, endLead, liveEnabled,
+                 cloudSyncEnabled, milestones
+        }
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            activeTermID = try container.decode(String.self, forKey: .activeTermID)
+            terms = try container.decode([String: TermContent].self, forKey: .terms)
+            reminders = try container.decode(Bool.self, forKey: .reminders)
+            lead = try container.decode(Int.self, forKey: .lead)
+            endReminder = try container.decode(Bool.self, forKey: .endReminder)
+            endLead = try container.decode(Int.self, forKey: .endLead)
+            liveEnabled = try container.decode(Bool.self, forKey: .liveEnabled)
+            cloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .cloudSyncEnabled)
+            milestones = try container.decodeIfPresent([Milestone].self, forKey: .milestones) ?? []
+        }
     }
 
     /// 单学期时代的存储结构。仅用于把旧文件迁移到多学期容器，不参与新写入。
@@ -365,6 +412,7 @@ final class PreviewStore {
             activeTermID = saved.terms[saved.activeTermID] != nil ? saved.activeTermID : (saved.terms.keys.sorted().first ?? "")
             reminderPreview = saved.reminders; reminderMinutes = saved.lead
             endReminder = saved.endReminder; endLead = saved.endLead; liveEnabled = saved.liveEnabled
+            milestones = saved.milestones
             restoreCloudSync = saved.cloudSyncEnabled == true
             return true
         }
@@ -505,7 +553,8 @@ final class PreviewStore {
         do {
             let data = Saved(activeTermID: activeTermID, terms: termContents,
                 reminders: reminderPreview, lead: reminderMinutes, endReminder: endReminder,
-                endLead: endLead, liveEnabled: liveEnabled, cloudSyncEnabled: cloudSyncEnabled)
+                endLead: endLead, liveEnabled: liveEnabled, cloudSyncEnabled: cloudSyncEnabled,
+                milestones: milestones)
             let encoded = try JSONEncoder().encode(data)
             try persistence.save(encoded)
             synchronize()
@@ -521,12 +570,14 @@ final class PreviewStore {
     @discardableResult
     private func commitBatch(_ changes: () -> Void) -> Bool {
         let oldTerms = termContents, oldActive = activeTermID, oldWeek = selectedWeek
+        let oldMilestones = milestones
         batchDepth += 1
         changes()
         batchDepth -= 1
         if save() { return true }
         batchDepth += 1
         termContents = oldTerms; activeTermID = oldActive; selectedWeek = oldWeek
+        milestones = oldMilestones
         batchDepth -= 1
         return false
     }
@@ -670,13 +721,16 @@ final class PreviewStore {
         let items = occurrences
         let snapshotTerm = activeTermID
         let snapshotLead = reminderMinutes
+        let snapshotMilestones = milestones
         syncTask = Task { @MainActor in
             do {
                 try await Task.sleep(for: .milliseconds(250))
                 try Task.checkCancellation()
-                try SystemSnapshot.write(items, leadMinutes: snapshotLead, termID: snapshotTerm)
+                try SystemSnapshot.write(items, leadMinutes: snapshotLead, termID: snapshotTerm,
+                                         milestones: snapshotMilestones)
                 WidgetCenter.shared.reloadAllTimelines()
                 try await CourseNotifications.shared.replace(courses: items, enabled: reminderPreview, lead: reminderMinutes, endEnabled: endReminder, endLead: endLead)
+                try await CourseNotifications.shared.replaceMilestones(snapshotMilestones)
                 await CourseLiveActivities.shared.reconcile(items: items, enabled: liveEnabled, lead: reminderMinutes, termID: snapshotTerm)
             } catch is CancellationError {} catch { errorMessage = error.localizedDescription }
         }
@@ -779,7 +833,8 @@ final class PreviewStore {
                 exams: content.exams
             )
         }
-        return try ScheduleArchive(exportedAt: exportedAt, appVersion: Self.appVersion, semesters: semesters).validated()
+        return try ScheduleArchive(exportedAt: exportedAt, appVersion: Self.appVersion,
+                                   semesters: semesters, milestones: milestones).validated()
     }
 
     static var appVersion: String? {
@@ -847,6 +902,7 @@ final class PreviewStore {
         guard commitBatch({
             termContents = restored
             activeTermID = selected
+            milestones = validated.milestones
             selectedWeek = min(totalWeeks, max(1, ScheduleRules.week(on: now, semesterStart: semesterStart)))
         }) else {
             storageIssue = oldIssue
