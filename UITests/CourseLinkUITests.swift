@@ -7,13 +7,19 @@ final class CourseLinkUITests: XCTestCase {
         let app = XCUIApplication()
         XCUIDevice.shared.appearance = .light
         app.launch()
+        let importButton = app.buttons["schedule.empty.import"]
+        let manualButton = app.buttons["手动添加"]
+        XCTAssertTrue(importButton.waitForExistence(timeout: 8))
+        assertBackground(dark: false, in: app)
+        capture(app, name: "light-empty-import-button")
         app.tabBars.buttons["设置"].tap()
         selectAppearance("深色", in: app)
         assertBackground(dark: true, in: app)
 
         app.tabBars.buttons["课表"].tap()
-        let importButton = app.buttons["schedule.empty.import"]
         XCTAssertTrue(importButton.waitForExistence(timeout: 8))
+        XCTAssertEqual(importButton.frame.width, manualButton.frame.width, accuracy: 1)
+        XCTAssertEqual(importButton.frame.height, manualButton.frame.height, accuracy: 1)
         assertBackground(dark: true, in: app)
         capture(app, name: "dark-empty-import-button")
         importButton.tap()
@@ -35,6 +41,10 @@ final class CourseLinkUITests: XCTestCase {
         selectAppearance("跟随系统", in: app)
         assertBackground(dark: false, in: app)
         capture(app, name: "appearance-follows-light-system")
+        XCUIDevice.shared.appearance = .dark
+        assertBackground(dark: true, in: app)
+        XCUIDevice.shared.appearance = .light
+        assertBackground(dark: false, in: app)
         selectAppearance("深色", in: app)
         assertBackground(dark: true, in: app)
         selectAppearance("浅色", in: app)

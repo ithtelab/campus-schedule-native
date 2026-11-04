@@ -146,19 +146,11 @@ struct WeekScheduleView: View {
                         .multilineTextAlignment(.center)
                 }
                 HStack(spacing: 12) {
-                    Button { showingImport = true } label: {
-                        Text("导入课表")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(DesignSystem.inverse)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 44)
-                            .background(Color.primary, in: Capsule())
-                    }
-                    .buttonStyle(CampusPressStyle())
-                    .accessibilityIdentifier("schedule.empty.import")
+                    Button("导入课表") { showingImport = true }
+                        .accessibilityIdentifier("schedule.empty.import")
                     Button("手动添加") { showingEditor = true }
-                        .buttonStyle(.bordered)
                 }
+                .buttonStyle(.bordered)
             }
             .padding(28)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

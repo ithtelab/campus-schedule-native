@@ -54,7 +54,7 @@ enum EndReminderLead: Int, CaseIterable {
 
 struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
-    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @Binding var appearance: AppAppearance
     @State private var showingAcademicSettings = false
     @State private var showingTermList = false
     @State private var showingImport = false

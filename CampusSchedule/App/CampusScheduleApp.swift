@@ -3,32 +3,39 @@ import SwiftUI
 
 @main
 struct CampusScheduleApp: App {
-    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     var body: some Scene {
         WindowGroup {
-            Group {
-                #if targetEnvironment(simulator)
-                if ProcessInfo.processInfo.environment["CAMPUS_LIVE_PREVIEW"] != nil {
-                    CourseLiveGallery()
-                } else if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] != nil {
-                    CampusCharacterGallery()
-                } else if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
-                    WidgetGalleryView()
-                } else {
-                    RootView()
-                }
-                #else
-                RootView()
-                #endif
-            }
-            .background(alignment: .topLeading) {
-                AppAppearanceHost(appearance: appearance).frame(width: 0, height: 0)
-            }
+            CampusWindowContent()
         }
         // iPad 允许任意尺寸窗口，才能在分屏与台前调度里按需调整。
         .windowResizability(.contentMinSize)
         .backgroundTask(.appRefresh(AcademicRefreshService.taskID)) {
             await AcademicRefreshService.shared.check()
+        }
+    }
+}
+
+private struct CampusWindowContent: View {
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+
+    var body: some View {
+        Group {
+            #if targetEnvironment(simulator)
+            if ProcessInfo.processInfo.environment["CAMPUS_LIVE_PREVIEW"] != nil {
+                CourseLiveGallery()
+            } else if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] != nil {
+                CampusCharacterGallery()
+            } else if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
+                WidgetGalleryView()
+            } else {
+                RootView(appearance: $appearance)
+            }
+            #else
+            RootView(appearance: $appearance)
+            #endif
+        }
+        .background {
+            AppAppearanceHost(appearance: appearance).frame(width: 0, height: 0)
         }
     }
 }
@@ -43,6 +50,7 @@ struct MilestoneLinkPayload: Identifiable {
 ///
 /// 两套布局共享同一份状态与子视图，因此切换设备不会改变行为。
 struct RootView: View {
+    @Binding var appearance: AppAppearance
     @Environment(\.dynamicTypeSize) private var systemTypeSize
     @Environment(\.scenePhase) private var phase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -209,7 +217,7 @@ struct RootView: View {
         switch screen {
         case .week: WeekScheduleView()
         case .today: TodayView(permitsPreviewSheets: courseNavigationRevision == 0)
-        case .settings: SettingsView()
+        case .settings: SettingsView(appearance: $appearance)
         }
     }
 
@@ -291,9 +299,9 @@ struct RootView: View {
 }
 
 #Preview("浅色") {
-    RootView().preferredColorScheme(.light)
+    RootView(appearance: .constant(.light)).preferredColorScheme(.light)
 }
 
 #Preview("深色") {
-    RootView().preferredColorScheme(.dark)
+    RootView(appearance: .constant(.dark)).preferredColorScheme(.dark)
 }
