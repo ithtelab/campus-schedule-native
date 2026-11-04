@@ -11,6 +11,7 @@ struct CourseLiveCard: View {
     var nextRoom: String?
     var stale = false
     var blueStickers = false
+    var stickerPersona: CampusPersona = .girl
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
@@ -35,10 +36,8 @@ struct CourseLiveCard: View {
             if !typeSize.isAccessibilitySize {
                 Group {
                     if blueStickers {
-                        CampusStickerMark(size: 25)
-                            .frame(width: 43, height: 40)
-                            .background(CampusStickerMark.blue, in: .rect(cornerRadius: 11))
-                            .rotationEffect(.degrees(-6))
+                        CampusStickerStudent(frame: stale ? 3 : 0, wearsCap: stickerPersona != .boy)
+                            .frame(width: 49, height: 76)
                     } else {
                         CampusWidgetFigure()
                     }
@@ -67,6 +66,7 @@ struct CourseIslandExpanded: View {
     var nextTitle: String?
     var nextRoom: String?
     var blueStickers = false
+    var stickerPersona: CampusPersona = .girl
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
@@ -91,10 +91,7 @@ struct CourseIslandExpanded: View {
             }.frame(maxWidth: .infinity, alignment: .leading)
             Group {
                 if blueStickers {
-                    CampusStickerMark(size: 19)
-                        .frame(width: 34, height: 32)
-                        .background(CampusStickerMark.blue, in: .rect(cornerRadius: 9))
-                        .rotationEffect(.degrees(-6))
+                    CampusStickerStudent(frame: 0, wearsCap: stickerPersona != .boy)
                 } else {
                     CampusWidgetFigure()
                 }

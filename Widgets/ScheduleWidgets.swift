@@ -55,18 +55,22 @@ struct TimetableWidget: Widget {
 struct CourseLiveWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CourseActivityAttributes.self) { context in
+            let appearance = SystemSnapshot.readPayload()?.appearance
             CourseLiveCard(title: context.attributes.title, room: context.attributes.room,
                 start: context.attributes.start, end: context.state.end,
                 teacher: context.attributes.teacher,
                 nextRoom: context.state.nextRoom, stale: context.isStale,
-                blueStickers: usesBlueStickers(context.state))
+                blueStickers: appearance?.showsBlueStickers ?? context.state.blueStickers ?? false,
+                stickerPersona: appearance?.persona ?? .girl)
             // 不指定背景与配色：锁屏和灵动岛属于系统界面，由系统按壁纸明暗
             // 决定底色与前景色才能保证可读。此前强制深底白字，在浅色壁纸上
             // 会突兀成一块黑卡，也与 App 本身的纸色风格不连续。
             .widgetURL(CourseDeepLink.activityURL(courseID: context.attributes.courseID, termID: context.attributes.termID,
                                                   occurrenceID: context.attributes.occurrenceID))
         } dynamicIsland: { context in
-            let blueStickers = usesBlueStickers(context.state)
+            // A scheduled activity can start after the user changes themes.
+            let appearance = SystemSnapshot.readPayload()?.appearance
+            let blueStickers = appearance?.showsBlueStickers ?? context.state.blueStickers ?? false
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Text(context.isStale ? "已结束" : "课程安排").font(.caption).foregroundStyle(.secondary)
@@ -76,7 +80,7 @@ struct CourseLiveWidget: Widget {
                         start: context.attributes.start, end: context.state.end,
                         teacher: context.attributes.teacher,
                         nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom,
-                        blueStickers: blueStickers)
+                        blueStickers: blueStickers, stickerPersona: appearance?.persona ?? .girl)
                 }
             } compactLeading: {
                 // 课前左侧放课程名（截断显示），上课中回到书本图标。
@@ -125,10 +129,6 @@ struct CourseLiveWidget: Widget {
         }
     }
 
-    private func usesBlueStickers(_ state: CourseActivityAttributes.ContentState) -> Bool {
-        // A scheduled activity can start after the user changes themes.
-        SystemSnapshot.readPayload()?.appearance.showsBlueStickers ?? state.blueStickers ?? false
-    }
 }
 @main struct CampusWidgetBundle: WidgetBundle {
     var body: some Widget { TimetableWidget(); MilestoneWidget(); CourseLiveWidget() }

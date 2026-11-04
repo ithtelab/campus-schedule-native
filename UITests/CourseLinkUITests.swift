@@ -159,7 +159,7 @@ final class CourseLinkUITests: XCTestCase {
         reveal(app.buttons["appearance.theme.notebook"], in: app)
         app.buttons["appearance.theme.notebook"].tap()
         app.swipeDown()
-        XCTAssertEqual(theme.label, "校园手账")
+        XCTAssertEqual(theme.label, "黑白校园")
         capture(app, name: "appearance-notebook-light")
 
         let staticMode = app.buttons["静态"]

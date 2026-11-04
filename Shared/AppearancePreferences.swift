@@ -43,10 +43,11 @@ public enum CampusTheme: String, Codable, Sendable, CaseIterable, Identifiable {
     case blueStickers
 
     public var id: String { rawValue }
+    public var family: Self { self == .blueStickers ? .blueStickers : .paper }
 
     public var title: String {
         switch self {
-        case .paper: "简洁纸面"
+        case .paper: "黑白校园"
         case .notebook: "校园手账"
         case .chalkboard: "黑板笔记"
         case .blueStickers: "蓝色贴贴"

@@ -7,6 +7,8 @@ struct CourseNowView: View {
     var onClose: () -> Void
     @Environment(PreviewStore.self) private var store
     @Environment(\.dynamicTypeSize) private var typeSize
+    private var blueTheme: Bool { store.appearance.theme == .blueStickers }
+    private var themeAccent: Color { blueTheme ? CampusStickerMark.accent : .primary }
     private var occurrence: CourseOccurrence? {
         CourseDeepLink.occurrence(for: .init(courseID: course.id, termID: store.activeTermID, occurrenceID: occurrenceID),
                                   in: store.occurrences, now: store.now)
@@ -57,14 +59,24 @@ struct CourseNowView: View {
                         Text(status(item, now: now))
                             .font(.caption.weight(.semibold))
                             .padding(.horizontal, 10).padding(.vertical, 6)
-                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(.primary, lineWidth: 1.3))
+                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(themeAccent, lineWidth: 1.3))
+                            .foregroundStyle(themeAccent)
                             .rotationEffect(.degrees(-2))
                         Text(item.title).font(.largeTitle.weight(.bold))
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("course.now.title")
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if !typeSize.isAccessibilitySize {
-                        CourseClassroomSketch(phase: sketchPhase(item, now: now))
+                        Group {
+                            if store.appearance.showsBlueStickers {
+                                let phase = sketchPhase(item, now: now)
+                                CampusStickerStudent(frame: phase == .finished ? 3 : phase == .inClass ? 0 : 9,
+                                                     wearsCap: store.appearance.persona != .boy)
+                                    .padding(.horizontal, 20)
+                            } else {
+                                CourseClassroomSketch(phase: sketchPhase(item, now: now))
+                            }
+                        }
                             .frame(width: 132, height: 138)
                     }
                 }
@@ -81,8 +93,8 @@ struct CourseNowView: View {
                     }
                 }
                 .padding(16)
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .background(Color.primary, in: RoundedRectangle(cornerRadius: 8))
+                .foregroundStyle(blueTheme ? Color.white : Color(uiColor: .systemBackground))
+                .background(blueTheme ? CampusStickerMark.blue : .primary, in: RoundedRectangle(cornerRadius: 8))
                 Text(item.start, format: .dateTime.year().month().day().weekday(.wide))
                     .font(.subheadline).foregroundStyle(.secondary)
                 Path { path in
@@ -108,7 +120,7 @@ struct CourseNowView: View {
             }
             .padding(20).padding(.bottom, 10)
             .background(DesignSystem.surface.opacity(0.45), in: CourseTicketPaper())
-            .overlay(CourseTicketPaper().stroke(.primary.opacity(0.8), style: StrokeStyle(lineWidth: 1.3, lineJoin: .round)))
+            .overlay(CourseTicketPaper().stroke(themeAccent.opacity(0.8), style: StrokeStyle(lineWidth: 1.3, lineJoin: .round)))
         }
     }
 
@@ -133,9 +145,9 @@ struct CourseNowView: View {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(.primary.opacity(0.13)).frame(height: 2)
-                    Capsule().fill(.primary).frame(width: proxy.size.width * progress, height: 2)
+                    Capsule().fill(themeAccent).frame(width: proxy.size.width * progress, height: 2)
                     CoursePaperPlane().fill(DesignSystem.background)
-                        .overlay(CoursePaperPlane().stroke(.primary, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)))
+                        .overlay(CoursePaperPlane().stroke(themeAccent, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)))
                         .frame(width: 25, height: 20)
                         .offset(x: max(0, proxy.size.width - 25) * progress, y: -3)
                 }.frame(maxHeight: .infinity)

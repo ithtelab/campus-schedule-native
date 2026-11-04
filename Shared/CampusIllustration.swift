@@ -65,10 +65,150 @@ import UIKit
 
 struct CampusWidgetFigure: View {
     var frame: Int = 0
+    var stickerPersona: CampusPersona? = nil
+
     var body: some View {
-        if let image = CampusSpriteImage.widgetFrame(frame) {
+        if let stickerPersona {
+            CampusStickerStudent(frame: frame, wearsCap: stickerPersona != .boy)
+        } else if let image = CampusSpriteImage.widgetFrame(frame) {
             Image(uiImage: image).renderingMode(.original).resizable().scaledToFit().accessibilityHidden(true)
         }
+    }
+}
+
+/// The existing animation frames drive a different, die-cut illustration for the blue theme.
+struct CampusStickerStudent: View {
+    let frame: Int
+    var wearsCap = true
+
+    private let ink = CampusStickerMark.ink
+    private let cream = CampusStickerMark.cream
+    private let blue = CampusStickerMark.blue
+    private let skin = Color(red: 1, green: 0.78, blue: 0.65)
+    private let pink = Color(red: 0.97, green: 0.49, blue: 0.60)
+    private let yellow = Color(red: 1, green: 0.81, blue: 0.35)
+
+    var body: some View {
+        Canvas { context, size in
+            var context = context
+            context.scaleBy(x: size.width / 112, y: size.height / 150)
+            draw(in: context)
+        }
+        .aspectRatio(112.0 / 150, contentMode: .fit)
+        .accessibilityHidden(true)
+    }
+
+    private func draw(in context: GraphicsContext) {
+        let seated = frame < 4 || frame == 14
+        let reading = [0, 1, 2, 7, 8, 9].contains(frame)
+        let stretching = frame == 15
+        let stride: CGFloat = switch frame {
+        case 10: 10
+        case 11: 4
+        case 12: -9
+        case 13: -4
+        default: 0
+        }
+        let drop: CGFloat = switch frame {
+        case 0...3, 14: 18
+        case 4: 12
+        case 5: 6
+        case 11, 13: -2
+        default: 0
+        }
+
+        if seated || frame == 4 || frame == 5 {
+            limb(context, [.init(x: 37, y: 114), .init(x: 33, y: 141)], fill: yellow, width: 4)
+            limb(context, [.init(x: 64, y: 114), .init(x: 66, y: 141)], fill: yellow, width: 4)
+            sticker(context, rounded(27, 110, 44, 8, radius: 4), fill: yellow)
+        }
+
+        let leftFoot = CGPoint(x: (seated ? 57 : 40) + stride, y: stride < 0 ? 139 : 142)
+        let rightFoot = CGPoint(x: (seated ? 81 : 65) - stride, y: stride > 0 ? 138 : 142)
+        for (hip, knee, foot) in [(49.0, seated ? 65.0 : 47.0, leftFoot), (65.0, seated ? 82.0 : 64.0, rightFoot)] {
+            limb(context, [.init(x: hip, y: 91 + drop), .init(x: knee, y: seated ? 118 : 117), foot],
+                 fill: cream, width: 13)
+            sticker(context, rounded(foot.x - 7, foot.y - 7, 20, 9, radius: 4), fill: pink)
+        }
+
+        sticker(context, rounded(24, 64 + drop, 24, 37, radius: 9), fill: yellow)
+        sticker(context, rounded(36, 59 + drop, 40, 39, radius: 12), fill: blue)
+        line(context, [.init(x: 56, y: 69 + drop), .init(x: 56, y: 94 + drop)], color: cream.opacity(0.8), width: 1.5)
+        sticker(context, rounded(59, 74 + drop, 10, 6, radius: 2), fill: cream, edge: 0)
+
+        let hands: (CGPoint, CGPoint)
+        if stretching {
+            hands = (.init(x: 76, y: 34), .init(x: 73, y: 12))
+            limb(context, [.init(x: 41, y: 68), .init(x: 48, y: 79), .init(x: 76, y: 34)], fill: blue, width: 9)
+            limb(context, [.init(x: 72, y: 67), .init(x: 80, y: 36), hands.1], fill: blue, width: 9)
+        } else {
+            let handHeight = reading ? (seated ? 85 : 81) : 93
+            hands = (.init(x: (reading ? 48 : 38) + stride / 2, y: CGFloat(handHeight) + drop),
+                     .init(x: (reading ? 78 : 77) - stride / 2, y: CGFloat(handHeight) + drop - 1))
+            limb(context, [.init(x: 41, y: 68 + drop), .init(x: 32, y: 81 + drop), hands.0], fill: blue, width: 9)
+            limb(context, [.init(x: 71, y: 68 + drop), .init(x: 81, y: 80 + drop), hands.1], fill: blue, width: 9)
+        }
+        if reading {
+            let y = hands.0.y - (frame == 1 || frame == 8 ? 5 : 8)
+            let book = polygon([.init(x: 45, y: y), .init(x: 62, y: y + 6), .init(x: 79, y: y - 2),
+                                .init(x: 76, y: y + 12), .init(x: 62, y: y + 18), .init(x: 47, y: y + 12)])
+            sticker(context, book, fill: yellow)
+            line(context, [.init(x: 62, y: y + 7), .init(x: 62, y: y + 17)], color: ink, width: 1.2)
+        }
+        for hand in [hands.0, hands.1] {
+            sticker(context, ellipse(hand.x - 4, hand.y - 4, 8, 8), fill: skin, edge: 0)
+        }
+
+        sticker(context, rounded(37, 20 + drop, 42, wearsCap ? 43 : 34, radius: 17), fill: ink)
+        sticker(context, rounded(46, 30 + drop, 32, 31, radius: 13), fill: skin, edge: 0)
+        context.fill(ellipse(56, 42 + drop, 3.2, 4), with: .color(ink))
+        context.fill(ellipse(69, 41 + drop, 3.2, 4), with: .color(ink))
+        context.fill(ellipse(51, 48 + drop, 7, 3), with: .color(pink.opacity(0.75)))
+        line(context, [.init(x: 61, y: 50 + drop), .init(x: 65, y: 52 + drop), .init(x: 69, y: 49 + drop)],
+             color: ink, width: 1.4)
+        if wearsCap {
+            sticker(context, rounded(33, 16 + drop, 48, 20, radius: 10), fill: blue)
+            sticker(context, rounded(59, 29 + drop, 29, 6, radius: 3), fill: cream, edge: 0)
+            context.fill(ellipse(53, 21 + drop, 6, 6), with: .color(yellow))
+        } else {
+            let band = Path { path in
+                path.move(to: .init(x: 37, y: 39 + drop))
+                path.addQuadCurve(to: .init(x: 79, y: 38 + drop), control: .init(x: 57, y: 7 + drop))
+            }
+            context.stroke(band, with: .color(yellow), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+            sticker(context, rounded(34, 35 + drop, 10, 17, radius: 5), fill: yellow)
+            sticker(context, rounded(75, 33 + drop, 8, 15, radius: 4), fill: yellow)
+        }
+    }
+
+    private func sticker(_ context: GraphicsContext, _ path: Path, fill: Color, edge: CGFloat = 5) {
+        let round = StrokeStyle(lineWidth: edge, lineCap: .round, lineJoin: .round)
+        if edge > 0 { context.stroke(path, with: .color(cream), style: round) }
+        context.fill(path, with: .color(fill))
+        context.stroke(path, with: .color(ink), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+    }
+
+    private func limb(_ context: GraphicsContext, _ points: [CGPoint], fill: Color, width: CGFloat) {
+        line(context, points, color: cream, width: width + 6)
+        line(context, points, color: ink, width: width + 2)
+        line(context, points, color: fill, width: width)
+    }
+
+    private func line(_ context: GraphicsContext, _ points: [CGPoint], color: Color, width: CGFloat) {
+        context.stroke(Path { $0.addLines(points) }, with: .color(color),
+                       style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+    }
+
+    private func polygon(_ points: [CGPoint]) -> Path {
+        Path { path in path.addLines(points); path.closeSubpath() }
+    }
+
+    private func rounded(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, radius: CGFloat) -> Path {
+        Path(roundedRect: CGRect(x: x, y: y, width: w, height: h), cornerRadius: radius)
+    }
+
+    private func ellipse(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> Path {
+        Path(ellipseIn: CGRect(x: x, y: y, width: w, height: h))
     }
 }
 

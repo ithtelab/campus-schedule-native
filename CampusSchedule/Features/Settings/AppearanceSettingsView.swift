@@ -50,13 +50,17 @@ struct AppearanceSettingsView: View {
                     } label: {
                         HStack(spacing: 12) {
                             let style: CampusCharacterStyle = persona == .boy ? .boy : .girl
-                            if let portrait = CampusCharacterAssets.image(style: style, frame: 0) {
-                                Image(uiImage: portrait).resizable().scaledToFit()
-                                    .frame(width: 32, height: 43)
-                                    .frame(width: 48, height: 52)
-                                    .background(portraitPaper, in: .rect(cornerRadius: 9))
-                                    .accessibilityHidden(true)
+                            Group {
+                                if store.appearance.theme == .blueStickers {
+                                    CampusStickerStudent(frame: 0, wearsCap: persona == .girl)
+                                } else if let portrait = CampusCharacterAssets.image(style: style, frame: 0) {
+                                    Image(uiImage: portrait).resizable().scaledToFit()
+                                }
                             }
+                            .frame(width: 32, height: 43)
+                            .frame(width: 48, height: 52)
+                            .background(portraitPaper, in: .rect(cornerRadius: 9))
+                            .accessibilityHidden(true)
                             Text(persona.title)
                             Spacer()
                             selectionMark(store.appearance.persona == persona)
@@ -70,24 +74,19 @@ struct AppearanceSettingsView: View {
             }
 
             Section("主题") {
-                ForEach(CampusTheme.allCases) { theme in
-                    Button {
-                        store.appearance.theme = theme
-                    } label: {
-                        HStack(spacing: 12) {
-                            CampusThemeSurface(theme: theme, isSwatch: true)
-                                .frame(width: 48, height: 36)
-                                .clipShape(.rect(cornerRadius: 5))
-                                .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(DesignSystem.rule) }
-                            Text(theme.title)
-                            Spacer()
-                            selectionMark(store.appearance.theme == theme)
-                        }
-                        .contentShape(Rectangle())
+                ForEach([CampusTheme.paper, .blueStickers]) { theme in
+                    themeRow(theme, title: theme.title, selected: store.appearance.theme.family == theme,
+                             id: "appearance.theme.\(theme.rawValue)")
+                }
+            }
+
+            if store.appearance.theme.family == .paper {
+                Section("纸面纹理") {
+                    ForEach([CampusTheme.paper, .notebook, .chalkboard]) { texture in
+                        themeRow(texture, title: texture == .paper ? "简洁纸面" : texture.title,
+                                 selected: store.appearance.theme == texture,
+                                 id: texture == .paper ? "appearance.texture.paper" : "appearance.theme.\(texture.rawValue)")
                     }
-                    .buttonStyle(CampusPressStyle())
-                    .accessibilityAddTraits(store.appearance.theme == theme ? .isSelected : [])
-                    .accessibilityIdentifier("appearance.theme.\(theme.rawValue)")
                 }
             }
 
@@ -133,7 +132,7 @@ struct AppearanceSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("外观预览", systemImage: "viewfinder")
                     .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                Text(store.appearance.theme.title).font(.title2.weight(.semibold))
+                Text(store.appearance.theme.family.title).font(.title2.weight(.semibold))
                     .foregroundStyle(store.appearance.theme == .blueStickers ? CampusStickerMark.accent : .primary)
                     .accessibilityIdentifier("appearance.preview.theme")
                 Text(store.showsCharacter ? rehearsal.title : "人物已隐藏")
@@ -168,6 +167,26 @@ struct AppearanceSettingsView: View {
 
     private var portraitPaper: Color {
         Color(white: scheme == .dark ? 0.78 : 0.95)
+    }
+
+    private func themeRow(_ theme: CampusTheme, title: String, selected: Bool, id: String) -> some View {
+        Button {
+            if !selected { store.appearance.theme = theme }
+        } label: {
+            HStack(spacing: 12) {
+                CampusThemeSurface(theme: theme, isSwatch: true)
+                    .frame(width: 48, height: 36)
+                    .clipShape(.rect(cornerRadius: 5))
+                    .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(DesignSystem.rule) }
+                Text(title)
+                Spacer()
+                selectionMark(selected)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CampusPressStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier(id)
     }
 
     private func synchronize(animated: Bool) {

@@ -108,7 +108,7 @@ struct RootView: View {
                 tabLayout
             }
         }
-        .tint(DesignSystem.accent)
+        .tint(store.appearance.theme == .blueStickers ? CampusStickerMark.accent : DesignSystem.accent)
         .safeAreaInset(edge: .top) {
             if store.storageReadOnly {
                 Button { closeLinkedCourse(); selectedScreen = .settings } label: {
@@ -170,6 +170,7 @@ struct RootView: View {
             await AcademicRefreshService.shared.check()
         }
         .environment(store)
+        .environment(\.campusTheme, store.appearance.theme)
         .environment(\.timeZone, ScheduleRules.calendar.timeZone)
         .environment(\.dynamicTypeSize,
             ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_ACCESSIBILITY"] == "1" ? .accessibility3 : systemTypeSize)
@@ -208,7 +209,7 @@ struct RootView: View {
         TabView(selection: $selectedScreen) {
             ForEach(Screen.allCases) { screen in
                 Tab(screen.title, systemImage: screen.symbol, value: screen) {
-                    screenView(screen).tint(DesignSystem.toolbarTint)
+                    screenView(screen)
                 }
             }
         }

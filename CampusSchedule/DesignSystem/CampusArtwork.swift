@@ -9,7 +9,16 @@ private struct CampusSuppressMotionKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct CampusThemeKey: EnvironmentKey {
+    static let defaultValue: CampusTheme = .paper
+}
+
 extension EnvironmentValues {
+    var campusTheme: CampusTheme {
+        get { self[CampusThemeKey.self] }
+        set { self[CampusThemeKey.self] = newValue }
+    }
+
     var campusSuppressMotion: Bool {
         get { self[CampusSuppressMotionKey.self] }
         set { self[CampusSuppressMotionKey.self] = newValue }

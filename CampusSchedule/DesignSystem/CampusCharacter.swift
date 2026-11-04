@@ -165,6 +165,7 @@ struct CampusCharacter: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.campusSuppressMotion) private var suppressMotion
     @Environment(\.scenePhase) private var phase
+    @Environment(\.campusTheme) private var theme
     @State private var feedback = 0
 
     var body: some View {
@@ -205,7 +206,9 @@ struct CampusCharacter: View {
 
     private var artwork: some View {
         VStack(spacing: 3) {
-            if let image = CampusCharacterAssets.image(style: player.style, frame: player.frame) {
+            if theme == .blueStickers {
+                CampusStickerStudent(frame: player.frame, wearsCap: player.style == .girl)
+            } else if let image = CampusCharacterAssets.image(style: player.style, frame: player.frame) {
                 Image(uiImage: image).resizable().scaledToFit().accessibilityHidden(true)
             }
             if showsCaption {

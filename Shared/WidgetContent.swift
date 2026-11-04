@@ -118,7 +118,8 @@ struct ScheduleWidgetContent: View {
 
     private func interactiveFigure(width: CGFloat, height: CGFloat) -> some View {
         Button(intent: RespondToCampusCharacterIntent()) {
-            CampusWidgetFigure(frame: characterFrame)
+            CampusWidgetFigure(frame: characterFrame,
+                               stickerPersona: entry.appearance.showsBlueStickers ? entry.appearance.persona : nil)
                 .id(characterFrame)
                 .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
                 .frame(width: width, height: height, alignment: .bottom)
