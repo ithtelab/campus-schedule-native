@@ -132,7 +132,6 @@ struct CampusPortraitDecor: View {
     }
 
     private var bluePaper: some View {
-    var body: some View {
         RoundedRectangle(cornerRadius: 14)
             .fill(CampusStickerMark.accent.opacity(0.12))
             .overlay {
@@ -172,7 +171,5 @@ struct CampusPortraitDecor: View {
             .padding(.horizontal, 3)
             .padding(.top, 6)
             .padding(.bottom, 25)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 }
