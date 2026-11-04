@@ -102,4 +102,20 @@ struct MilestoneFormatTests {
         let reading = MilestoneCounter.read(item, now: day(2027, 6, 19))
         #expect(MilestoneFormat.sentence(item, reading: reading) == "距这件事还有 1 天")
     }
+
+    @Test func relationshipHighlightUsesElapsedDaysAndHonorsEventMode() {
+        let start = day(2025, 1, 1)
+        var item = Milestone(title: "我们的恋爱日", date: start, direction: .countUp, category: .relationship)
+        let calendar = MilestoneCounter.calendar
+        func reading(after days: Int) -> MilestoneReading {
+            MilestoneCounter.read(item, now: calendar.date(byAdding: .day, value: days, to: start)!)
+        }
+        #expect(MilestoneFormat.relationshipHighlight(item, reading: reading(after: -1)) == nil)
+        #expect(MilestoneFormat.relationshipHighlight(item, reading: reading(after: 99)) == "距离百日纪念还有 1 天")
+        #expect(MilestoneFormat.relationshipHighlight(item, reading: reading(after: 100)) == "今天是百日纪念")
+        #expect(MilestoneFormat.relationshipHighlight(item, reading: reading(after: 520)) == "今天是520 天纪念")
+        #expect(MilestoneFormat.relationshipHighlight(item, reading: reading(after: 1315)) == nil)
+        item.repeatsAnnually = true
+        #expect(MilestoneFormat.relationshipHighlight(item, reading: reading(after: 100)) == nil)
+    }
 }

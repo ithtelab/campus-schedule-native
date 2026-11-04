@@ -14,7 +14,7 @@ struct MilestoneListView: View {
         List {
             if ordered.isEmpty {
                 ContentUnavailableView("还没有纪念事件", systemImage: "flag",
-                                       description: Text("添加毕业、生日或考试日期，今日页会按需显示倒数。"))
+                                       description: Text("记下恋爱、生日或毕业的日期，把想常看的日子置顶。"))
             } else {
                 ForEach(ordered) { item in
                     NavigationLink {
@@ -30,12 +30,23 @@ struct MilestoneListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("添加", systemImage: "plus") { editing = Milestone(title: "", date: store.now) }
-                    .accessibilityIdentifier("milestone.add")
+                Menu {
+                    Button("自定义事件", systemImage: "calendar.badge.plus") {
+                        editing = Milestone(title: "", date: store.now)
+                    }
+                    Button("恋爱日", systemImage: "heart.circle") {
+                        editing = Milestone(title: "我们的恋爱日", date: store.now,
+                                            direction: .countUp, category: .relationship)
+                    }
+                    .accessibilityIdentifier("milestone.template.relationship")
+                } label: {
+                    Label("添加", systemImage: "plus")
+                }
+                .accessibilityIdentifier("milestone.add")
             }
         }
         .sheet(item: $editing) { item in
-            MilestoneEditorView(milestone: item) { updated in
+            MilestoneEditorView(milestone: item, isNew: true) { updated in
                 save(updated)
                 editing = nil
             } onCancel: { editing = nil }
@@ -121,7 +132,7 @@ struct MilestoneDetailView: View {
             if let item = store.milestones.first(where: { $0.id == id }) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        MilestoneDateCard(item: item, now: store.now)
+                        MilestoneDateCard(item: item, now: store.now, interactive: true)
                         VStack(alignment: .leading, spacing: 12) {
                             Label(item.repeatsAnnually ? "每年重复" : "单次事件", systemImage: "repeat")
                             Label(item.reminderDaysBefore > 0 ? "提前 \(item.reminderDaysBefore) 天提醒" : "未设置提醒",
@@ -170,9 +181,11 @@ struct MilestoneDetailView: View {
 private struct MilestoneDateCard: View {
     let item: Milestone
     let now: Date
+    var interactive = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .largeTitle) private var numberSize = 56.0
+    @State private var heartTaps = 0
 
     var body: some View {
         let reading = MilestoneCounter.read(item, now: now)
@@ -188,7 +201,11 @@ private struct MilestoneDateCard: View {
                     .contentTransition(.numericText())
                     .accessibilityIdentifier("milestone.counter")
                 Spacer(minLength: 0)
-                if !typeSize.isAccessibilitySize {
+                if item.category == .relationship && interactive {
+                    heartButton
+                } else if item.category == .relationship && !typeSize.isAccessibilitySize {
+                    heartStamp.accessibilityHidden(true)
+                } else if !typeSize.isAccessibilitySize {
                     Image(systemName: item.category.symbol)
                         .font(.system(size: 30, weight: .light))
                         .frame(width: 64, height: 64)
@@ -202,12 +219,50 @@ private struct MilestoneDateCard: View {
             Text(MilestoneFormat.counterCaption(item, reading: reading)).font(.subheadline.weight(.medium))
             Text(MilestoneFormat.dateText(reading.effectiveDate, relativeTo: now))
                 .font(.footnote).foregroundStyle(.secondary)
+            if let highlight = MilestoneFormat.relationshipHighlight(item, reading: reading) {
+                Label(highlight, systemImage: "sparkle")
+                    .font(.footnote.weight(.medium))
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(DesignSystem.surface, in: .rect(cornerRadius: 8))
+            }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DesignSystem.paper, in: .rect(cornerRadius: 18))
         .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(DesignSystem.rule) }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: reading.state)
+    }
+
+    private var heartButton: some View {
+        Button { heartTaps += 1 } label: {
+            VStack(spacing: 4) {
+                heartStamp
+                Text(heartTaps == 0 ? "比个心" : "收到啦")
+                    .font(.caption2.weight(.medium))
+            }
+        }
+        .buttonStyle(CampusPressStyle())
+        .sensoryFeedback(.selection, trigger: heartTaps)
+        .accessibilityLabel("比个心")
+        .accessibilityValue(heartTaps == 0 ? "" : "收到啦")
+        .accessibilityIdentifier("milestone.heart")
+    }
+
+    private var heartStamp: some View {
+        ZStack {
+            Circle().strokeBorder(DesignSystem.rule, style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
+            Image(systemName: "heart")
+                .font(.system(size: 23, weight: .medium))
+                .rotationEffect(.degrees(-16))
+                .offset(x: -9, y: 5)
+            Image(systemName: heartTaps == 0 ? "heart" : "heart.fill")
+                .font(.system(size: 17, weight: .medium))
+                .rotationEffect(.degrees(16))
+                .offset(x: 11, y: -9)
+                .symbolEffect(.bounce, value: reduceMotion ? 0 : heartTaps)
+        }
+        .frame(width: 58, height: 58)
+        .accessibilityHidden(true)
     }
 }
 
@@ -224,9 +279,9 @@ struct MilestoneEditorView: View {
     let onSave: (Milestone) -> Void
     let onCancel: () -> Void
 
-    init(milestone: Milestone, onSave: @escaping (Milestone) -> Void, onCancel: @escaping () -> Void) {
+    init(milestone: Milestone, isNew: Bool = false, onSave: @escaping (Milestone) -> Void, onCancel: @escaping () -> Void) {
         _draft = State(initialValue: milestone)
-        isNew = milestone.title.isEmpty
+        self.isNew = isNew
         self.onSave = onSave
         self.onCancel = onCancel
     }
@@ -244,7 +299,7 @@ struct MilestoneEditorView: View {
                 Section {
                     TextField("名称", text: $draft.title)
                         .accessibilityIdentifier("milestone.title")
-                    DatePicker("日期", selection: $draft.date, displayedComponents: .date)
+                    DatePicker(draft.countsRelationshipDays ? "在一起的日期" : "日期", selection: $draft.date, displayedComponents: .date)
                     Picker("方向", selection: $draft.direction) {
                         ForEach(Milestone.Direction.allCases, id: \.self) { Text($0.title).tag($0) }
                     }

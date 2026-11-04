@@ -43,26 +43,31 @@ final class CourseLinkUITests: XCTestCase {
         let add = app.buttons["milestone.add"]
         XCTAssertTrue(add.waitForExistence(timeout: 15))
         add.tap()
+        app.buttons["milestone.template.relationship"].tap()
         let title = app.textFields["milestone.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 8))
+        XCTAssertEqual(title.value as? String, "我们的恋爱日")
         XCTAssertEqual(app.staticTexts["milestone.counter"].label, "今天")
-        capture(app, name: "milestone-editor-dark")
-        title.tap()
-        title.typeText("Campus Day")
+        XCTAssertTrue(app.staticTexts["距离百日纪念还有 100 天"].exists)
+        capture(app, name: "relationship-editor-dark")
         app.buttons["保存"].tap()
 
-        let item = app.staticTexts["Campus Day"].firstMatch
+        let item = app.staticTexts["我们的恋爱日"].firstMatch
         XCTAssertTrue(item.waitForExistence(timeout: 8))
         item.tap()
         let pin = app.buttons["milestone.pin"]
         XCTAssertTrue(pin.waitForExistence(timeout: 8))
+        let heart = app.buttons["milestone.heart"]
+        XCTAssertTrue(heart.isHittable)
+        heart.tap()
+        XCTAssertEqual(heart.value as? String, "收到啦")
         pin.tap()
         XCTAssertEqual(pin.label, "取消置顶")
-        capture(app, name: "milestone-detail-dark")
+        capture(app, name: "relationship-detail-dark")
         app.tabBars.buttons["今日"].tap()
-        let pinned = app.buttons["Campus Day就是今天"]
+        let pinned = app.buttons["我们的恋爱日就是今天"]
         reveal(pinned, in: app)
-        capture(app, name: "milestone-today-dark")
+        capture(app, name: "relationship-today-dark")
         pinned.tap()
         XCTAssertTrue(pin.waitForExistence(timeout: 8))
         pin.tap()

@@ -20,6 +20,10 @@ public struct Milestone: Codable, Equatable, Sendable, Identifiable {
     /// 过期后的处理方式。
     public var expiry: Expiry
 
+    public var countsRelationshipDays: Bool {
+        category == .relationship && direction == .countUp && !repeatsAnnually
+    }
+
     public init(id: String = UUID().uuidString, title: String, date: Date,
                 direction: Direction = .countdown, category: Category = .personal,
                 pinned: Bool = false, reminderDaysBefore: Int = 0,
@@ -70,6 +74,7 @@ public struct Milestone: Codable, Equatable, Sendable, Identifiable {
         case birthday
         case enrollment
         case graduation
+        case relationship
         case personal
         case custom
 
@@ -80,6 +85,7 @@ public struct Milestone: Codable, Equatable, Sendable, Identifiable {
             case .birthday: "birthday.cake"
             case .enrollment: "graduationcap"
             case .graduation: "scroll"
+            case .relationship: "heart.circle"
             case .personal: "heart"
             case .custom: "star"
             }
@@ -91,6 +97,7 @@ public struct Milestone: Codable, Equatable, Sendable, Identifiable {
             case .birthday: "生日"
             case .enrollment: "入学"
             case .graduation: "毕业"
+            case .relationship: "恋爱日"
             case .personal: "纪念日"
             case .custom: "其他"
             }

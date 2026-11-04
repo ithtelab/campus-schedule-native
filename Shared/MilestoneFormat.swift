@@ -46,11 +46,34 @@ public enum MilestoneFormat {
     }
 
     public static func counterCaption(_ item: Milestone, reading: MilestoneReading) -> String {
-        switch reading.state {
+        if item.countsRelationshipDays {
+            switch reading.state {
+            case .today: return "故事从今天开始"
+            case .past: return "一起走过 · 天"
+            case .upcoming: return "距离故事开始 · 天"
+            }
+        }
+        return switch reading.state {
         case .today: "就是这一天"
         case .upcoming: item.direction == .countUp ? "距离开始 · 天" : "还有 · 天"
         case .past: item.direction == .countUp ? "累计 · 天" : "已过 · 天"
         }
+    }
+
+    public static func relationshipHighlight(_ item: Milestone, reading: MilestoneReading) -> String? {
+        guard item.countsRelationshipDays else { return nil }
+        let elapsed: Int
+        switch reading.state {
+        case .upcoming: return nil
+        case .today: elapsed = 0
+        case .past(let days): elapsed = days
+        }
+
+        let markers = [(100, "百日纪念"), (365, "365 天纪念"), (520, "520 天纪念"),
+                       (1000, "千日纪念"), (1314, "1314 天纪念")]
+        guard let (day, title) = markers.first(where: { $0.0 >= elapsed }) else { return nil }
+        if day == elapsed { return "今天是\(title)" }
+        return "距离\(title)还有 \(day - elapsed) 天"
     }
 
     /// 日期文案。非今年的日期带上年份，否则「3 月 15 日」看不出是哪一年。
