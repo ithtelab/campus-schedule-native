@@ -22,8 +22,16 @@ struct DemoCourse: Identifiable, Codable {
     var originalRoom: String?
     /// 周次规律，用于课表角标。
     var weekPattern: WeekPattern = .everyWeek
+    /// 教学班名称，教师端课表才有。
+    ///
+    /// 存成可选而不是带默认值的字符串：Swift 合成的 `init(from:)` **不会**使用
+    /// 属性默认值，缺失的键会直接解码失败。可选属性才会按 `decodeIfPresent`
+    /// 处理，因此老课表仍能读回。
+    var teachingClass: String?
 
     var shortRoom: String { Self.shorten(room) }
+    /// 便于界面的非可选读写。
+    var teachingClassText: String { teachingClass ?? "" }
 
     /// 教室名的缩写规则。与状态条共用 `NowStatus.shorten`，只保留一个实现。
     static func shorten(_ room: String) -> String { NowStatus.shorten(room) }
@@ -34,6 +42,7 @@ struct DemoCourse: Identifiable, Codable {
             startTime: start, endTime: end, color: color, weeks: weeks)
         result.sourceID = sourceID; result.remindersEnabled = remindersEnabled
         result.wasRescheduled = wasRescheduled; result.originalRoom = originalRoom; result.weekPattern = weekPattern
+        result.teachingClass = teachingClass
         return result
     }
 }
@@ -870,7 +879,8 @@ final class PreviewStore {
                     ArchivedCourse(id: course.id, sourceID: course.sourceID, title: course.title, room: course.room,
                                    teacher: course.teacher, weekday: course.weekday, startPeriod: course.startPeriod,
                                    endPeriod: course.endPeriod, color: course.color.rawValue,
-                                   weeks: course.weeks.sorted(), remindersEnabled: course.remindersEnabled)
+                                   weeks: course.weeks.sorted(), remindersEnabled: course.remindersEnabled,
+                                   teachingClass: course.teachingClass)
                 },
                 exceptions: content.exceptions.map { change in
                     ArchivedException(id: change.id.uuidString, courseID: change.courseID, day: change.day,
@@ -914,6 +924,7 @@ final class PreviewStore {
                                         color: color, weeks: Set(archived.weeks))
                 course.sourceID = archived.sourceID
                 course.remindersEnabled = archived.remindersEnabled
+                course.teachingClass = archived.teachingClass
                 return course
             }
             guard restoredCourses.count == term.courses.count else {
@@ -1045,7 +1056,8 @@ final class PreviewStore {
         let existing = courses.map {
             ParsedCourse(title: $0.title, teacher: $0.teacher, room: $0.room,
                          weekday: $0.weekday, startPeriod: $0.startPeriod,
-                         endPeriod: $0.endPeriod, weeks: $0.weeks)
+                         endPeriod: $0.endPeriod, weeks: $0.weeks,
+                         teachingClass: $0.teachingClassText)
         }
         var plan = ImportPlanner.plan(outcome, existing: existing,
                                       totalWeeks: totalWeeks, periodCount: periods.count)
@@ -1082,9 +1094,10 @@ final class PreviewStore {
                 continue
             }
             let existing = result.map { ParsedCourse(title: $0.title, teacher: $0.teacher, room: $0.room,
-                weekday: $0.weekday, startPeriod: $0.startPeriod, endPeriod: $0.endPeriod, weeks: $0.weeks) }
+                weekday: $0.weekday, startPeriod: $0.startPeriod, endPeriod: $0.endPeriod, weeks: $0.weeks,
+                teachingClass: $0.teachingClassText) }
             let matchingIndex = ImportPlanner.replacementIndex(for: parsed, in: existing, totalWeeks: totalWeeks)
-            let course = DemoCourse(
+            var course = DemoCourse(
                 id: matchingIndex.map { result[$0].id } ?? "import-\(UUID().uuidString)",
                 title: parsed.title,
                 room: parsed.room,
@@ -1097,6 +1110,10 @@ final class PreviewStore {
                 color: matchingIndex.map { result[$0].color } ?? Self.color(for: parsed.title),
                 weeks: parsed.weeks.isEmpty ? Set(1...totalWeeks) : parsed.weeks
             )
+            // 本次解析没带教学班时沿用原条目的，避免重新导入把已有教学班抹掉。
+            course.teachingClass = parsed.teachingClass.isEmpty
+                ? matchingIndex.flatMap { result[$0].teachingClass }
+                : parsed.teachingClass
             // 同名同节次同天视为同一门课，替换以保留用户之后的手动修改位置。
             if let index = matchingIndex {
                 // 保留身份与用户设置，调停课记录继续引用同一门课程。

@@ -78,6 +78,10 @@ struct ImportPreviewView: View {
                 if !course.teacher.isEmpty { Text(course.teacher).lineLimit(1) }
             }
             .font(.caption).foregroundStyle(.secondary)
+            // 教学班是教师端课表的关键信息，导入前就要看见，否则确认时无法判断对不对。
+            if !course.teachingClass.isEmpty {
+                Text(course.teachingClass).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
             Text(weeksText(course.weeks)).font(.caption2).foregroundStyle(.tertiary)
         }
     }

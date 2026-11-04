@@ -399,6 +399,16 @@ struct WeekScheduleView: View {
         return totalHeight
     }
 
+    /// 课程卡的次要信息：学生看任课教师，教师看教学班。
+    ///
+    /// 教师端课表里没有「任课教师」这个概念（上课的就是本人），显示教学班才有信息量。
+    /// 教学班为空时退回任课教师，避免教师端手动录入的课程留下空白。
+    private func contact(_ course: DemoCourse) -> String {
+        let teachingClass = course.teachingClassText
+        if store.appearance.role == .teacher, !teachingClass.isEmpty { return teachingClass }
+        return course.teacher
+    }
+
     private func accessibleList(week: Int) -> some View {
         List {
             ForEach(0..<dayCount, id: \.self) { day in
@@ -412,7 +422,7 @@ struct WeekScheduleView: View {
                                 Text("\(course.startTime)–\(course.endTime)")
                                     .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                                 Text(course.room).font(.subheadline).foregroundStyle(.secondary)
-                                Text("第 \(course.startPeriod)–\(course.endPeriod) 节 · \(course.teacher)")
+                                Text("第 \(course.startPeriod)–\(course.endPeriod) 节 · \(contact(course))")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)

@@ -16,6 +16,14 @@ struct CourseDetailView: View {
     private var canStartActivity: Bool {
         nextOccurrence.map { CourseLivePlan.canStartManually($0, now: store.now, lead: store.reminderMinutes) } ?? false
     }
+
+    /// 详情页的联系信息：教师视角优先显示教学班，没有教学班时退回任课教师。
+    private var contact: String {
+        if store.appearance.role == .teacher, !original.teachingClassText.isEmpty {
+            return original.teachingClassText
+        }
+        return original.teacher
+    }
     var body: some View {
         NavigationStack {
             List {
@@ -27,7 +35,11 @@ struct CourseDetailView: View {
                         Text(original.title).font(.title.weight(.semibold))
                         if let character { CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176) }
                     }
-                    LabeledContent(store.appearance.role.courseContactLabel, value: original.teacher)
+                    LabeledContent(store.appearance.role.courseContactLabel, value: contact)
+                    if !original.teachingClassText.isEmpty && store.appearance.role == .student {
+                        // 学生视角很少关心教学班，但合班上课时会写在教务页上，有就显示。
+                        LabeledContent("教学班", value: original.teachingClassText)
+                    }
                     LabeledContent("地点", value: original.room)
                     LabeledContent("时间", value: "\(original.startTime)–\(original.endTime)")
                     LabeledContent("周次", value: original.weeks.sorted().map(String.init).joined(separator: "、"))

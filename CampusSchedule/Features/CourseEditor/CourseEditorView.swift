@@ -6,6 +6,7 @@ struct CourseEditorView: View {
     @State private var title = ""
     @State private var room = ""
     @State private var teacher = ""
+    @State private var teachingClass = ""
     @State private var weekday = 0
     @State private var startPeriod = 5
     @State private var endPeriod = 6
@@ -40,6 +41,8 @@ struct CourseEditorView: View {
                     TextField("课程名称", text: $title).font(.title3.weight(.semibold))
                     TextField("上课地点，例如 A 楼 302", text: $room)
                     TextField("任课教师（选填）", text: $teacher)
+                    // 教师端课表才有教学班；学生填了也无害，只是不展示。
+                    TextField("教学班（教师端选填）", text: $teachingClass)
                 } header: { Text("课程信息") }
 
                 Section("上课时间") {
@@ -131,6 +134,7 @@ struct CourseEditorView: View {
                 }
                 if let editing {
                     title = editing.title; room = editing.room; teacher = editing.teacher; weekday = editing.weekday
+                    teachingClass = editing.teachingClassText
                     startPeriod = editing.startPeriod; endPeriod = editing.endPeriod; color = editing.color
                     customWeeks = editing.weeks; frequency = "指定"
                 }
@@ -156,6 +160,8 @@ struct CourseEditorView: View {
             startPeriod: startPeriod, endPeriod: endPeriod,
             startTime: store.periods[startPeriod - 1].start, endTime: store.periods[endPeriod - 1].end,
             color: color, weeks: weeks)
+        let trimmedClass = teachingClass.trimmingCharacters(in: .whitespacesAndNewlines)
+        value.teachingClass = trimmedClass.isEmpty ? editing?.teachingClass : trimmedClass
         value.remindersEnabled = editing?.remindersEnabled ?? true
         if let editing { store.courses.removeAll { $0.id == editing.id } }
         store.courses.append(value)

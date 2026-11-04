@@ -97,8 +97,12 @@ public enum AcademicSystemProfile {
         let startKeys = ["startNode", "startSection", "jcs", "beginNumber", "start"]
         let endKeys = ["endNode", "endSection", "jce", "end"]
         let titleKeys = ["courseName", "kcmc", "name", "title"]
-        let roomKeys = ["room", "place", "cdmc", "location"]
-        let teacherKeys = ["teacher", "xm", "teacherName", "jsxm"]
+        let roomKeys = ["room", "place", "cdmc", "location", "jsmc"]
+        // 学生端返回任课教师；教师端返回授课班级与学生人数，两者语义不同，
+        // 因此分开取，不让学生端的「教师」被误当成教学班。
+        let teacherKeys = ["teacher", "xm", "teacherName", "jsxm", "teacher_names"]
+        let classKeys = ["teachingClass", "jxbmc", "jxbm", "class_name", "clazzname",
+                         "skbj", "skbjmc", "bjh", "bj"]
         let weekKeys = ["weeks", "week", "zcd", "weekRange"]
 
         func first(_ object: [String: Any], _ keys: [String]) -> Any? {
@@ -154,7 +158,8 @@ public enum AcademicSystemProfile {
                 weekday: weekday,
                 startPeriod: startValue,
                 endPeriod: endValue,
-                weeks: weeks
+                weeks: weeks,
+                teachingClass: (first(object, classKeys) as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
             ))
         }
         guard !courses.isEmpty else { return nil }
