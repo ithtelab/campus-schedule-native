@@ -17,7 +17,18 @@ struct CourseDetailView: View {
         nextOccurrence.map { CourseLivePlan.canStartManually($0, now: store.now, lead: store.reminderMinutes) } ?? false
     }
 
-    /// 详情页的联系信息：教师视角优先显示教学班，没有教学班时退回任课教师。
+    /// 详情页的联系信息。
+    ///
+    /// 标题必须跟着值一起变：教务导入拿不到教学班时（教师端没有可用的公开数据源），
+    /// 若标题写着「教学班」而值是教师姓名，比不显示还糟。因此只有确实有教学班时
+    /// 才把它当主字段。
+    private var contactLabel: String {
+        if store.appearance.role == .teacher, !original.teachingClassText.isEmpty {
+            return CampusRole.teacher.courseContactLabel
+        }
+        return CampusRole.student.courseContactLabel
+    }
+
     private var contact: String {
         if store.appearance.role == .teacher, !original.teachingClassText.isEmpty {
             return original.teachingClassText
@@ -35,7 +46,7 @@ struct CourseDetailView: View {
                         Text(original.title).font(.title.weight(.semibold))
                         if let character { CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176) }
                     }
-                    LabeledContent(store.appearance.role.courseContactLabel, value: contact)
+                    LabeledContent(contactLabel, value: contact)
                     if !original.teachingClassText.isEmpty && store.appearance.role == .student {
                         // 学生视角很少关心教学班，但合班上课时会写在教务页上，有就显示。
                         LabeledContent("教学班", value: original.teachingClassText)
