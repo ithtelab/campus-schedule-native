@@ -40,6 +40,7 @@ public enum CampusTheme: String, Codable, Sendable, CaseIterable, Identifiable {
     case paper
     case notebook
     case chalkboard
+    case blueStickers
 
     public var id: String { rawValue }
 
@@ -48,6 +49,7 @@ public enum CampusTheme: String, Codable, Sendable, CaseIterable, Identifiable {
         case .paper: "简洁纸面"
         case .notebook: "校园手账"
         case .chalkboard: "黑板笔记"
+        case .blueStickers: "蓝色贴贴"
         }
     }
 

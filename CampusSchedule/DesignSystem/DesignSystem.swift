@@ -29,6 +29,7 @@ struct CampusThemeSurface: View {
 
     private var base: Color {
         guard isSwatch else { return DesignSystem.paper }
+        if theme == .blueStickers { return CampusBlueStickers.blue }
         if theme == .chalkboard { return Color(white: scheme == .dark ? 0.13 : 0.28) }
         return Color(white: scheme == .dark ? 0.32 : 0.92)
     }
@@ -45,7 +46,7 @@ struct CampusThemeSurface: View {
             Canvas { context, size in
                 var lines = Path()
                 switch theme {
-                case .paper:
+                case .paper, .blueStickers:
                     break
                 case .notebook:
                     for y in stride(from: isSwatch ? 9.0 : 21.0, to: size.height, by: isSwatch ? 8 : 18) {
@@ -64,7 +65,11 @@ struct CampusThemeSurface: View {
             }
             .background(theme == .chalkboard && !isSwatch ? Color.primary.opacity(0.075) : .clear)
 
-            if density == .rich {
+            if isSwatch && theme == .blueStickers {
+                CampusBlueStickers(compact: true, interactive: false)
+                    .scaleEffect(0.65)
+                    .frame(width: 48, height: 36)
+            } else if density == .rich && theme != .blueStickers {
                 Image(systemName: theme == .chalkboard ? "sparkles" : "paperclip")
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(.tertiary)

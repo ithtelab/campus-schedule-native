@@ -101,6 +101,40 @@ final class CourseLinkUITests: XCTestCase {
         capture(app, name: "release-privacy")
     }
 
+    @MainActor func testBlueStickersPreserveTodayLayout() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-appAppearance", "light"]
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "today"]
+        app.launch()
+
+        let agenda = app.staticTexts["一天的安排"]
+        let nextCourse = app.staticTexts["下一节课"]
+        XCTAssertTrue(agenda.waitForExistence(timeout: 12))
+        XCTAssertTrue(nextCourse.exists)
+        let agendaTop = agenda.frame.minY
+        let cardTop = nextCourse.frame.minY
+        capture(app, name: "today-before-blue-stickers")
+
+        app.tabBars.buttons["设置"].tap()
+        let themes = app.buttons["人物与主题"]
+        reveal(themes, in: app)
+        themes.tap()
+        let theme = app.buttons["appearance.theme.blueStickers"]
+        reveal(theme, in: app)
+        theme.tap()
+        XCTAssertTrue(theme.isSelected)
+
+        app.tabBars.buttons["今日"].tap()
+        let plane = app.buttons["today.blue-sticker"]
+        XCTAssertTrue(plane.waitForExistence(timeout: 8))
+        XCTAssertEqual(agenda.frame.minY, agendaTop, accuracy: 1)
+        XCTAssertEqual(nextCourse.frame.minY, cardTop, accuracy: 1)
+        capture(app, name: "today-blue-stickers-light")
+        plane.tap()
+        XCTAssertTrue(agenda.isHittable)
+    }
+
     @MainActor func testAppearanceRehearsalAndStaticMode() {
         continueAfterFailure = false
         let app = XCUIApplication()

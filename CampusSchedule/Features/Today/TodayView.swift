@@ -14,6 +14,7 @@ struct TodayView: View {
     @State private var character = CampusCharacterPlayer(style: .girl)
     @State private var detailCharacter: CampusCharacterPlayer?
     @State private var courseFeedback = 0
+    @State private var headingWidth: CGFloat = 0
     private var time: String { store.timeText }
     private var daily: [DemoCourse] { store.todayCourses }
     private var next: DemoCourse? { daily.first { $0.endTime > time } }
@@ -88,6 +89,7 @@ struct TodayView: View {
         VStack(alignment: .leading, spacing: 15) {
             // 三种状态各说各话：没课还写「去上课」是自相矛盾。
             CampusHeading(title: daily.isEmpty ? "今天没有课。" : (next == nil ? "下课啦。" : "今天，去上课。"))
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { headingWidth = $0 }
             let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout())
             layout {
                 Text(store.now, format: .dateTime.month().day().weekday(.wide)).font(.caption)
@@ -96,6 +98,19 @@ struct TodayView: View {
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .foregroundStyle(DesignSystem.inverse)
                     .background(Color.primary, in: RoundedRectangle(cornerRadius: 5)).rotationEffect(.degrees(-2))
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if store.appearance.theme == .blueStickers && store.appearance.density != .off
+                && !typeSize.isAccessibilitySize {
+                GeometryReader { geometry in
+                    let available = geometry.size.width - headingWidth - 12
+                    if headingWidth > 0 && available >= CampusBlueStickers.compactWidth {
+                        CampusBlueStickers(compact: available < CampusBlueStickers.width,
+                                           showsSun: store.appearance.density == .rich)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
             }
         }
     }
