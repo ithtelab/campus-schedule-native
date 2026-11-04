@@ -21,7 +21,7 @@ struct TodayView: View {
     private var blueTheme: Bool { store.appearance.theme == .blueStickers }
     private var themeAccent: Color { blueTheme ? CampusStickerMark.accent : .primary }
     private var selectedFill: Color { blueTheme ? CampusStickerMark.blue : .primary }
-    private var selectedInk: Color { blueTheme ? .white : DesignSystem.inverse }
+    private var selectedInk: Color { blueTheme ? CampusStickerMark.ink : DesignSystem.inverse }
     private var characterContext: CampusScheduleContext {
         CampusScheduleContext.make(items: store.occurrences, now: store.now, leadMinutes: store.reminderMinutes)
     }
@@ -221,7 +221,10 @@ struct TodayView: View {
                 CampusThemeSurface(theme: store.appearance.theme, density: store.appearance.density)
                     .clipShape(.rect(cornerRadius: 16))
             }
-            .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(themeAccent, lineWidth: 1.2) }
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(blueTheme ? themeAccent.opacity(0.62) : themeAccent, lineWidth: 1.2)
+            }
         .foregroundStyle(.primary)
     }
 

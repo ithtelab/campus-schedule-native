@@ -93,7 +93,7 @@ struct CourseNowView: View {
                     }
                 }
                 .padding(16)
-                .foregroundStyle(blueTheme ? Color.white : Color(uiColor: .systemBackground))
+                .foregroundStyle(blueTheme ? CampusStickerMark.ink : Color(uiColor: .systemBackground))
                 .background(blueTheme ? CampusStickerMark.blue : .primary, in: RoundedRectangle(cornerRadius: 8))
                 Text(item.start, format: .dateTime.year().month().day().weekday(.wide))
                     .font(.subheadline).foregroundStyle(.secondary)

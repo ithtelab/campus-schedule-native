@@ -11,7 +11,6 @@ struct CampusBlueStickers: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.campusSuppressMotion) private var suppressMotion
-    @Environment(\.colorScheme) private var scheme
     @GestureState private var drag: CGSize = .zero
     @State private var restingOffset: CGSize = .zero
     @State private var taps = 0
@@ -22,7 +21,7 @@ struct CampusBlueStickers: View {
     var body: some View {
         ZStack(alignment: .trailing) {
             RoundedRectangle(cornerRadius: 10)
-                .fill(scheme == .dark ? Color(red: 0.18, green: 0.24, blue: 0.60) : CampusStickerMark.blue)
+                .fill(CampusStickerMark.blue)
                 .frame(height: 31)
                 .rotationEffect(.degrees(-4))
                 .padding(.horizontal, 4)
@@ -103,7 +102,7 @@ struct CampusBlueStickers: View {
         }
         .foregroundStyle(ink)
         .frame(width: 30, height: 21)
-        .background(Color(red: 0.72, green: 0.79, blue: 1), in: .rect(cornerRadius: 4))
+        .background(Color(red: 0.88, green: 0.94, blue: 1), in: .rect(cornerRadius: 4))
         .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(paper, lineWidth: 2) }
         .shadow(color: ink.opacity(0.25), radius: 1, y: 1)
     }

@@ -96,7 +96,7 @@ struct ScheduleWidgetContent: View {
             Text("\(ScheduleRules.time(course.start <= entry.date ? course.end : course.start)) \(course.start <= entry.date ? "下课" : "上课")")
                 .font(.subheadline.weight(.semibold).monospacedDigit()).lineLimit(1)
                 .padding(.horizontal, 8).padding(.vertical, 4)
-                .foregroundStyle(usesBlueInk ? .white : Color(uiColor: .systemBackground))
+                .foregroundStyle(usesBlueInk ? CampusStickerMark.ink : Color(uiColor: .systemBackground))
                 .background(usesBlueInk ? CampusStickerMark.blue : Color.primary, in: RoundedRectangle(cornerRadius: 6))
             if medium, let following = entry.courses.filter({ $0.start >= course.end && $0.id != course.id }).min(by: { $0.start < $1.start }) {
                 Text("接着 · \(dayLabel(following.start)) \(ScheduleRules.time(following.start)) \(following.title)")

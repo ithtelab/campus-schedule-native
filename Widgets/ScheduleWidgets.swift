@@ -90,7 +90,7 @@ struct CourseLiveWidget: Widget {
                 if context.state.beforeClass && !context.isStale {
                     Text(context.attributes.title)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(blueStickers ? Color(red: 0.72, green: 0.79, blue: 1) : .white)
+                        .foregroundStyle(blueStickers ? CampusStickerMark.blue : .white)
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(maxWidth: 56, alignment: .leading)
                         .accessibilityHidden(true)

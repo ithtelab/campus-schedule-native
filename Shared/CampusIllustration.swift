@@ -214,13 +214,13 @@ struct CampusStickerStudent: View {
 }
 
 struct CampusStickerMark: View {
-    static let blue = Color(red: 0.22, green: 0.34, blue: 0.84)
+    static let blue = Color(red: 0.76, green: 0.87, blue: 0.97)
     static let cream = Color(red: 1, green: 0.98, blue: 0.92)
-    static let ink = Color(red: 0.15, green: 0.21, blue: 0.53)
+    static let ink = Color(red: 0.12, green: 0.24, blue: 0.38)
     static let accent = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.65, green: 0.74, blue: 1, alpha: 1)
-            : UIColor(red: 0.22, green: 0.34, blue: 0.84, alpha: 1)
+            ? UIColor(red: 0.66, green: 0.80, blue: 0.95, alpha: 1)
+            : UIColor(red: 0.25, green: 0.40, blue: 0.56, alpha: 1)
     })
 
     var symbol = "paperplane.fill"

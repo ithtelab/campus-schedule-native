@@ -18,7 +18,7 @@ struct WeekScheduleView: View {
     private var blueTheme: Bool { store.appearance.theme == .blueStickers }
     private var selectionAccent: Color { blueTheme ? CampusStickerMark.accent : .primary }
     private var dateFill: Color { blueTheme ? CampusStickerMark.blue : DesignSystem.accent }
-    private var selectedInk: Color { blueTheme ? .white : DesignSystem.inverse }
+    private var selectedInk: Color { blueTheme ? CampusStickerMark.ink : DesignSystem.inverse }
     /// 网格总高度：按实际节次数计算，额外的高度来自上下午之间的分组间隔。
     private var totalHeight: CGFloat {
         CGFloat(max(1, store.periods.count)) * rowHeight + groupGap * CGFloat(periodGroupMarks.count)
