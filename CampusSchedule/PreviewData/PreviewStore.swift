@@ -365,6 +365,27 @@ final class PreviewStore {
             }
             exams = seeded
         }
+        // 纪念事件页同样需要示范数据：空状态适合首次使用，但不能作为商店截图。
+        if isPreview && ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "milestones" {
+            let calendar = ScheduleRules.calendar
+            let base = calendar.startOfDay(for: clockDate)
+            func offset(_ days: Int) -> Date {
+                calendar.date(byAdding: .day, value: days, to: base) ?? base
+            }
+            milestones = [
+                Milestone(id: "demo-graduation", title: "毕业", date: offset(126),
+                          direction: .countdown, category: .graduation,
+                          pinned: true, reminderDaysBefore: 7),
+                Milestone(id: "demo-exam", title: "期末考试", date: offset(52),
+                          direction: .countdown, category: .exam,
+                          pinned: true, reminderDaysBefore: 3),
+                Milestone(id: "demo-anniversary", title: "相识纪念日", date: offset(-365),
+                          direction: .countUp, category: .personal),
+                Milestone(id: "demo-birthday", title: "生日", date: offset(18),
+                          direction: .countdown, category: .birthday,
+                          reminderDaysBefore: 1, repeatsAnnually: true),
+            ]
+        }
         if isPreview {
             // 截图用：构造单双周课程与一次调课，验证角标与提示。
             if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] == "changes" {
