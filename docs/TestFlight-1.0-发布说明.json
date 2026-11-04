@@ -1,0 +1,14 @@
+{
+  "appID": "6829142615",
+  "reviewNotes": "Ke Jian Ce is a native timetable app. A fresh install opens an empty timetable. Use the add button or Settings > Import Timetable to add courses. The timetable, exams and milestone events can be used without an app account. Optional iCloud key-value sync requires the user's Apple Account and is enabled in Settings. The in-app privacy policy and support links are at the bottom of Settings under About. School sign-in is optional and is performed on the school's website. The app does not collect school passwords. With user opt-in, the app stores the session on this device in Keychain to compare timetable changes. The HTTP exception for jw.qit.edu.cn is required by the school's legacy endpoint and requires a separate on-device opt-in for automatic checking. Other background sources require HTTPS. The app checks a selected timetable page and presents differences for review.",
+  "localizations": {
+    "zh-Hans": {
+      "description": "课间册用于管理个人课表、考试和纪念事件。支持手动添加课程、学校课表导入、可选的 iCloud 同步、课程提醒、桌面与锁屏组件。首次打开可从空课表开始。",
+      "whatsNew": "首次启动从空课表开始。课程、考试与纪念事件使用本机保存，可按需开启 iCloud 同步。设置底部新增关于课间册、隐私政策和支持入口。支持在兼容的教务来源开启课表变更检查。"
+    },
+    "en-US": {
+      "description": "Ke Jian Ce is a native timetable for classes, exams and milestone events, with optional school timetable import, iCloud sync, reminders and widgets.",
+      "whatsNew": "Start with an empty personal timetable. Save classes, exams and milestone events on the device and optionally sync through iCloud. The About page includes the privacy policy and support links. Compatible school sources can opt in to timetable change checks."
+    }
+  }
+}

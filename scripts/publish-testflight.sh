@@ -97,6 +97,8 @@ for bundle, identifier in [(app, config['ios']['bundleIdentifier']), (app / 'Plu
     if bundle == app:
         assert entitlements.get('com.apple.developer.ubiquity-kvstore-identifier') == os.environ['APPLE_TEAM_ID'] + '.' + identifier, 'Signed iCloud key-value entitlement missing or unexpanded'
         print('PASS: personal data mode, offline privacy policy and signed iCloud key-value store')
+    else:
+        assert 'com.apple.developer.ubiquity-kvstore-identifier' not in entitlements, 'Widget must use its own App Group-only entitlement file'
     assert not entitlements.get('get-task-allow', False), 'Unexpected development signing'
     print('PASS: packaged metadata, version, privacy manifest and signed App Group for ' + bundle.name)
 PY
