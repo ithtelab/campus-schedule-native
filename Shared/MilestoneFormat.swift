@@ -45,6 +45,14 @@ public enum MilestoneFormat {
         reading.state == .today ? "今天" : String(reading.dayCount)
     }
 
+    public static func counterCaption(_ item: Milestone, reading: MilestoneReading) -> String {
+        switch reading.state {
+        case .today: "就是这一天"
+        case .upcoming: item.direction == .countUp ? "距离开始 · 天" : "还有 · 天"
+        case .past: item.direction == .countUp ? "累计 · 天" : "已过 · 天"
+        }
+    }
+
     /// 日期文案。非今年的日期带上年份，否则「3 月 15 日」看不出是哪一年。
     public static func dateText(_ date: Date, relativeTo now: Date = Date(),
                                 calendar: Calendar = MilestoneCounter.calendar) -> String {

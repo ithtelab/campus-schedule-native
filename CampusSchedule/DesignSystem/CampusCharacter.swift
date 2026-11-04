@@ -161,6 +161,7 @@ final class CampusCharacterPlayer {
 struct CampusCharacter: View {
     let player: CampusCharacterPlayer
     var contextDriven = false
+    var showsCaption = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.campusSuppressMotion) private var suppressMotion
     @Environment(\.scenePhase) private var phase
@@ -168,7 +169,9 @@ struct CampusCharacter: View {
 
     var body: some View {
         Group {
-        if contextDriven {
+        if contextDriven && suppressMotion {
+            artwork
+        } else if contextDriven {
             Button {
                 guard !player.isBusy else { return }
                 feedback += 1
@@ -191,6 +194,7 @@ struct CampusCharacter: View {
         .buttonStyle(CampusPressStyle())
         .sensoryFeedback(.selection, trigger: feedback)
         .accessibilityLabel("校园人物，\(caption)")
+        .onChange(of: suppressMotion) { _, value in if value { player.stop() } }
         .onChange(of: phase) { _, value in if value != .active { player.stop() } }
     }
 
@@ -204,7 +208,9 @@ struct CampusCharacter: View {
             if let image = CampusCharacterAssets.image(style: player.style, frame: player.frame) {
                 Image(uiImage: image).resizable().scaledToFit().accessibilityHidden(true)
             }
-            Text(caption).font(.system(size: 9)).lineLimit(2).multilineTextAlignment(.center)
+            if showsCaption {
+                Text(caption).font(.system(size: 9)).lineLimit(2).multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
     }

@@ -1,6 +1,79 @@
 import XCTest
 
 final class CourseLinkUITests: XCTestCase {
+    @MainActor func testAppearanceRehearsalAndStaticMode() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-appAppearance", "light"]
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "settings", "CAMPUS_PREVIEW_SHEET": "appearance"]
+        app.launch()
+
+        let theme = app.staticTexts["appearance.preview.theme"]
+        XCTAssertTrue(theme.waitForExistence(timeout: 15))
+        let character = app.buttons["appearance.preview.character"]
+        XCTAssertTrue(character.exists)
+        character.tap()
+        let response = app.staticTexts["appearance.preview.response"]
+        XCTAssertTrue(response.wait(for: \.label, toEqual: "已试演 · 翻一页", timeout: 6))
+        capture(app, name: "appearance-rehearsal-light")
+
+        app.buttons["appearance.persona.boy"].tap()
+        XCTAssertTrue(app.buttons["appearance.persona.boy"].isSelected)
+        reveal(app.buttons["appearance.theme.notebook"], in: app)
+        app.buttons["appearance.theme.notebook"].tap()
+        app.swipeDown()
+        XCTAssertEqual(theme.label, "校园手账")
+        capture(app, name: "appearance-notebook-light")
+
+        let staticMode = app.buttons["静态"]
+        reveal(staticMode, in: app)
+        staticMode.tap()
+        app.swipeDown()
+        app.swipeDown()
+        XCTAssertFalse(character.exists)
+        XCTAssertFalse(response.exists)
+    }
+
+    @MainActor func testMilestonePreviewAndPin() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-appAppearance", "dark"]
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "settings", "CAMPUS_PREVIEW_SHEET": "milestones"]
+        app.launch()
+        let add = app.buttons["milestone.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 15))
+        add.tap()
+        let title = app.textFields["milestone.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 8))
+        XCTAssertEqual(app.staticTexts["milestone.counter"].label, "今天")
+        capture(app, name: "milestone-editor-dark")
+        title.tap()
+        title.typeText("Campus Day")
+        app.buttons["保存"].tap()
+
+        let item = app.staticTexts["Campus Day"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 8))
+        item.tap()
+        let pin = app.buttons["milestone.pin"]
+        XCTAssertTrue(pin.waitForExistence(timeout: 8))
+        pin.tap()
+        XCTAssertEqual(pin.label, "取消置顶")
+        capture(app, name: "milestone-detail-dark")
+        app.tabBars.buttons["今日"].tap()
+        let pinned = app.buttons["Campus Day就是今天"]
+        reveal(pinned, in: app)
+        capture(app, name: "milestone-today-dark")
+        pinned.tap()
+        XCTAssertTrue(pin.waitForExistence(timeout: 8))
+        pin.tap()
+        XCTAssertEqual(pin.label, "置顶到今日页")
+    }
+
+    @MainActor private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<5 where !element.isHittable { app.swipeUp() }
+        XCTAssertTrue(element.isHittable)
+    }
+
     @MainActor func testSystemCourseLinksShowReadOnlySession() throws {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "com.ithtelab.campustimetable")

@@ -20,6 +20,49 @@ enum DesignSystem {
     }
 }
 
+/// The same surface is shown in the selector and on the two illustrated campus cards.
+struct CampusThemeSurface: View {
+    let theme: CampusTheme
+    var density: DecorationDensity = .light
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            DesignSystem.paper
+            Canvas { context, size in
+                var lines = Path()
+                switch theme {
+                case .paper:
+                    break
+                case .notebook:
+                    for y in stride(from: 21.0, to: size.height, by: 18) {
+                        lines.move(to: CGPoint(x: 0, y: y))
+                        lines.addLine(to: CGPoint(x: size.width, y: y))
+                    }
+                    lines.move(to: CGPoint(x: 10, y: 0))
+                    lines.addLine(to: CGPoint(x: 10, y: size.height))
+                case .chalkboard:
+                    lines.addRoundedRect(in: CGRect(origin: .zero, size: size).insetBy(dx: 5, dy: 5),
+                                         cornerSize: CGSize(width: 8, height: 8))
+                    lines.move(to: CGPoint(x: 12, y: size.height - 9))
+                    lines.addLine(to: CGPoint(x: size.width - 12, y: size.height - 9))
+                }
+                context.stroke(lines, with: .color(.primary.opacity(theme == .chalkboard ? 0.22 : 0.10)), lineWidth: 1)
+            }
+            .background(theme == .chalkboard ? Color.primary.opacity(0.075) : .clear)
+
+            if density == .rich {
+                Image(systemName: theme == .chalkboard ? "sparkles" : "paperclip")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.tertiary)
+                    .rotationEffect(.degrees(-12))
+                    .padding(10)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 /// 课程配色。
 ///
 /// 课表整体是黑白手绘风格，因此颜色只作为**识别辅助**而不是主色：

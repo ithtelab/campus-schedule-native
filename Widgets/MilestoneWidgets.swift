@@ -110,13 +110,14 @@ struct MilestoneWidgetView: View {
                             .font(.system(size: 15, weight: .semibold).monospacedDigit())
                             .lineLimit(1).minimumScaleFactor(0.6)
                     }
+                    .accessibilityLabel(MilestoneFormat.sentence(item, reading: reading))
                 case .accessoryRectangular:
                     VStack(alignment: .leading, spacing: 1) {
                         Text(item.title).font(.caption.weight(.semibold)).lineLimit(1)
                         Text(MilestoneFormat.number(reading))
                             .font(.system(size: 20, weight: .bold).monospacedDigit())
                             .lineLimit(1).minimumScaleFactor(0.7)
-                        Text(MilestoneFormat.dateText(reading.effectiveDate, relativeTo: entry.date))
+                        Text(MilestoneFormat.counterCaption(item, reading: reading))
                             .font(.caption2).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -130,7 +131,7 @@ struct MilestoneWidgetView: View {
         .widgetURL(MilestoneDeepLink.url(milestoneID: entry.milestone?.id))
     }
 
-    /// 桌面尺寸。小号只放一个事件，中号把人物放在右侧。
+    /// 中号以分类邮戳呼应 App 的日期卡，小号留给名称、数字和日期。
     private func desktop(_ item: Milestone, reading: MilestoneReading) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
@@ -141,21 +142,30 @@ struct MilestoneWidgetView: View {
                 Text(MilestoneFormat.number(reading))
                     .font(.system(size: family == .systemMedium ? 40 : 32, weight: .bold).monospacedDigit())
                     .lineLimit(1).minimumScaleFactor(0.5)
-                Text(MilestoneFormat.primary(item, reading: reading))
+                Text(MilestoneFormat.counterCaption(item, reading: reading))
+                    .font(.caption.weight(.medium)).lineLimit(1)
+                Text(MilestoneFormat.dateText(reading.effectiveDate, relativeTo: entry.date))
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if family == .systemMedium {
-                CampusWidgetFigure(frame: 0)
-                    .frame(width: 62, height: 108, alignment: .bottom)
+                Image(systemName: item.category.symbol)
+                    .font(.system(size: 32, weight: .light))
+                    .frame(width: 76, height: 76)
+                    .overlay { Circle().strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [2, 3])) }
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(-12))
+                    .accessibilityHidden(true)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(MilestoneFormat.sentence(item, reading: reading))
     }
 
     private var empty: some View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: "flag").font(.caption).foregroundStyle(.secondary)
-            Text(entry.configuredID == nil ? "添加纪念事件" : "事件已删除")
+            Text(entry.configuredID == nil ? "添加纪念事件" : "事件已归档或移除")
                 .font(.caption.weight(.medium)).lineLimit(2)
             Text(entry.configuredID == nil ? "在设置里记录毕业、生日这类日期。" : "长按组件重新选择事件。")
                 .font(.caption2).foregroundStyle(.secondary).lineLimit(2)

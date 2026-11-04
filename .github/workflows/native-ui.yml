@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       focus:
-        description: 'Capture all screens or validate system course links'
+        description: 'Capture all screens, validate course links, or test campus appearance and milestones'
         type: choice
-        options: [full, course-links]
+        options: [full, course-links, campus-style]
         default: full
 
 permissions:

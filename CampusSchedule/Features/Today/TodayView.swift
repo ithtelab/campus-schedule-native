@@ -67,18 +67,16 @@ struct TodayView: View {
                 if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "detail", let next { openCourse(next) }
             }
             .sensoryFeedback(.selection, trigger: courseFeedback)
-            .task {
-                // 人物形象来自外观偏好；切换后重新建立播放器，避免沿用旧图集。
-                if character.style != store.characterStyle {
-                    character = CampusCharacterPlayer(style: store.characterStyle)
+            .onChange(of: store.characterStyle, initial: true) { _, style in
+                if character.style != style {
+                    character.stop()
+                    character = CampusCharacterPlayer(style: style)
                 }
-            }
-            .onChange(of: store.characterStyle) { _, style in
-                character = CampusCharacterPlayer(style: style)
+                character.synchronize(characterContext, animated: false)
             }
             .onChange(of: characterContext, initial: true) { _, context in
                 let follows = store.appearance.effects == .followSchedule
-                character.synchronize(context, animated: follows && scenePhase == .active && !reduceMotion && !suppressMotion)
+                character.synchronize(context, animated: store.showsCharacter && follows && scenePhase == .active && !reduceMotion && !suppressMotion)
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active { character.stop() }
@@ -111,10 +109,13 @@ struct TodayView: View {
         let items = store.pinnedMilestones
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
+                Label("记住这一天", systemImage: "calendar.badge.clock")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    .accessibilityAddTraits(.isHeader)
                 ForEach(items) { item in
                     let reading = MilestoneCounter.read(item, now: store.now)
                     NavigationLink {
-                        MilestoneListView()
+                        MilestoneDetailView(id: item.id)
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: item.category.symbol)
@@ -126,12 +127,15 @@ struct TodayView: View {
                                     .font(.subheadline.weight(.medium))
                                     .lineLimit(1)
                                 Text(MilestoneFormat.dateText(reading.effectiveDate, relativeTo: store.now))
-                                    .font(.caption2).foregroundStyle(.tertiary)
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
                             Text(MilestoneFormat.primary(item, reading: reading))
                                 .font(.subheadline.weight(.semibold).monospacedDigit())
+                            Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
+                        .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -139,7 +143,9 @@ struct TodayView: View {
                     .accessibilityLabel(MilestoneFormat.sentence(item, reading: reading))
                 }
             }
-            .padding(.top, 12)
+            .padding(14)
+            .background(DesignSystem.surface, in: .rect(cornerRadius: 14))
+            .padding(.top, 8)
         }
     }
 
@@ -178,7 +184,10 @@ struct TodayView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(DesignSystem.paper, in: RoundedRectangle(cornerRadius: 16))
+            .background {
+                CampusThemeSurface(theme: store.appearance.theme, density: store.appearance.density)
+                    .clipShape(.rect(cornerRadius: 16))
+            }
             .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Color.primary, lineWidth: 1.2) }
         .foregroundStyle(.primary)
     }
@@ -343,9 +352,9 @@ struct TodayView: View {
     private func openCourse(_ course: DemoCourse) {
         courseFeedback += 1
         // Inspecting a past/future lesson never changes today's character context.
-        let relevant = characterContext.occurrenceID == course.id
+        let relevant = store.showsCharacter && characterContext.occurrenceID == course.id
         detailCharacter = relevant ? character : nil
-        if relevant { character.respondToContext(reducedMotion: reduceMotion || suppressMotion) }
+        if relevant && !suppressMotion { character.respondToContext(reducedMotion: reduceMotion) }
         selectedCourse = course
     }
 

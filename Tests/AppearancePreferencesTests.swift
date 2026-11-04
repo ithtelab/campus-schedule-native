@@ -11,7 +11,7 @@ struct AppearancePreferencesTests {
     }
 
     @Test func roundTripsThroughJSON() throws {
-        let preferences = AppearancePreferences(persona: .boy, theme: .paper,
+        let preferences = AppearancePreferences(persona: .boy, theme: .notebook,
                                                density: .off, effects: .staticOnly)
         let data = try JSONEncoder().encode(preferences)
         let decoded = try JSONDecoder().decode(AppearancePreferences.self, from: data)
@@ -49,12 +49,6 @@ struct AppearancePreferencesTests {
         #expect(CampusPersona.boy.isAvailable)
         #expect(!CampusPersona.teacher.isAvailable)
         #expect(!CampusPersona.cat.isAvailable)
-    }
-
-    @Test func onlyPaperThemeIsSelectable() {
-        #expect(CampusTheme.paper.isAvailable)
-        #expect(!CampusTheme.notebook.isAvailable)
-        #expect(!CampusTheme.chalkboard.isAvailable)
     }
 
     @Test func densityOffHidesCharacterButKeepsContent() {

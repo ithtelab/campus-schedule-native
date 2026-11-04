@@ -34,14 +34,22 @@ struct SettingsCampusHeader: View {
                         .frame(width: 82, height: 132)
                 }
             }
-            .padding(.vertical, 10)
+            .padding(12)
+            .background {
+                CampusThemeSurface(theme: store.appearance.theme, density: store.appearance.density)
+                    .clipShape(.rect(cornerRadius: 12))
+            }
+            .onChange(of: store.characterStyle, initial: true) { _, style in
+                if character.style != style {
+                    character.stop()
+                    character = CampusCharacterPlayer(style: style)
+                }
+                character.synchronize(context, animated: false)
+            }
             .onChange(of: context, initial: true) { _, value in
                 let follows = store.appearance.effects == .followSchedule
-                character.synchronize(value, animated: follows && !reduceMotion && !suppressMotion)
+                character.synchronize(value, animated: store.showsCharacter && follows && !reduceMotion && !suppressMotion)
             }
-        }
-        .onChange(of: store.characterStyle) { _, style in
-            character = CampusCharacterPlayer(style: style)
         }
         .onDisappear { character.stop() }
     }

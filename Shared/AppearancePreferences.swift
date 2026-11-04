@@ -2,7 +2,6 @@ import Foundation
 
 /// 人物形象。
 ///
-/// 身份（学生／教师）与形象不绑定：教师也能选学生形象，反之亦然。
 /// 只有已经绘制完整姿态的角色才可选用，其余标记为制作中，避免出现
 /// 「能选但画不出来」的空壳选项。
 public enum CampusPersona: String, Codable, Sendable, CaseIterable, Identifiable {
@@ -37,8 +36,6 @@ public enum CampusPersona: String, Codable, Sendable, CaseIterable, Identifiable
 /// 视觉主题。
 ///
 /// 主题与浅色／深色是两个独立选择：先选主题，再选跟随系统／浅色／深色。
-/// 首版只有「简洁纸面」具备完整令牌，其余两项先保留选择位，资源补齐后
-/// 只需在这里补上令牌映射，不必改业务页面。
 public enum CampusTheme: String, Codable, Sendable, CaseIterable, Identifiable {
     case paper
     case notebook
@@ -51,13 +48,6 @@ public enum CampusTheme: String, Codable, Sendable, CaseIterable, Identifiable {
         case .paper: "简洁纸面"
         case .notebook: "校园手账"
         case .chalkboard: "黑板笔记"
-        }
-    }
-
-    public var isAvailable: Bool {
-        switch self {
-        case .paper: true
-        case .notebook, .chalkboard: false
         }
     }
 
@@ -126,8 +116,7 @@ public struct AppearancePreferences: Codable, Equatable, Sendable {
         theme = (try? container.decode(CampusTheme.self, forKey: .theme)) ?? .fallback
         density = (try? container.decode(DecorationDensity.self, forKey: .density)) ?? .light
         effects = (try? container.decode(InteractionEffects.self, forKey: .effects)) ?? .followSchedule
-        // 制作中的形象与主题即使被写进文件也退回可用项，否则界面会去找不存在的图集。
+        // 制作中的形象即使被写进文件也退回可用项。
         if !persona.isAvailable { persona = .fallback }
-        if !theme.isAvailable { theme = .fallback }
     }
 }

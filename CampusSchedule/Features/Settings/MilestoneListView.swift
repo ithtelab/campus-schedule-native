@@ -7,13 +7,6 @@ struct MilestoneListView: View {
     @Environment(PreviewStore.self) private var store
     @State private var editing: Milestone?
     @State private var pendingDeletion: Milestone?
-    /// 从组件或今日页摘要进来时要直接打开的事件。事件已删除时保持列表，不留下死链。
-    var focusID: String? = nil
-    @State private var didFocus = false
-
-    init(focusID: String? = nil) {
-        self.focusID = focusID
-    }
 
     private var ordered: [Milestone] { store.sortedMilestones }
 
@@ -24,8 +17,9 @@ struct MilestoneListView: View {
                                        description: Text("添加毕业、生日或考试日期，今日页会按需显示倒数。"))
             } else {
                 ForEach(ordered) { item in
-                    Button { editing = item } label: { row(item) }
-                        .buttonStyle(.plain)
+                    NavigationLink {
+                        MilestoneDetailView(id: item.id)
+                    } label: { row(item) }
                         .swipeActions {
                             Button("删除", systemImage: "trash", role: .destructive) { pendingDeletion = item }
                         }
@@ -67,12 +61,6 @@ struct MilestoneListView: View {
                                     repeatsAnnually: false)
                 return
             }
-            // 只处理一次：关掉编辑页后不要又自动弹开。
-            guard !didFocus else { return }
-            didFocus = true
-            if let focusID, let item = store.milestones.first(where: { $0.id == focusID }) {
-                editing = item
-            }
         }
     }
 
@@ -81,8 +69,9 @@ struct MilestoneListView: View {
         let hidden = reading.isHidden(expiry: item.expiry)
         return HStack(spacing: 14) {
             Image(systemName: item.category.symbol)
-                .font(.title3)
-                .frame(width: 30)
+                .font(.body.weight(.medium))
+                .frame(width: 36, height: 36)
+                .background(DesignSystem.surface, in: .rect(cornerRadius: 9))
                 .foregroundStyle(hidden ? Color.secondary : Color.primary)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
@@ -122,6 +111,106 @@ struct MilestoneListView: View {
     }
 }
 
+struct MilestoneDetailView: View {
+    let id: String
+    @Environment(PreviewStore.self) private var store
+    @State private var editing: Milestone?
+
+    var body: some View {
+        Group {
+            if let item = store.milestones.first(where: { $0.id == id }) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        MilestoneDateCard(item: item, now: store.now)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label(item.repeatsAnnually ? "每年重复" : "单次事件", systemImage: "repeat")
+                            Label(item.reminderDaysBefore > 0 ? "提前 \(item.reminderDaysBefore) 天提醒" : "未设置提醒",
+                                  systemImage: "bell")
+                        }
+                        .font(.subheadline).foregroundStyle(.secondary)
+
+                        if !MilestoneCounter.read(item, now: store.now).isHidden(expiry: item.expiry) {
+                            Button {
+                                if let index = store.milestones.firstIndex(where: { $0.id == id }) {
+                                    store.milestones[index].pinned.toggle()
+                                }
+                            } label: {
+                                Label(item.pinned ? "取消置顶" : "置顶到今日页", systemImage: item.pinned ? "pin.slash" : "pin")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("milestone.pin")
+                            .sensoryFeedback(.selection, trigger: item.pinned)
+                        }
+                    }
+                    .padding(20)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("编辑") { editing = item }
+                    }
+                }
+            } else {
+                ContentUnavailableView("事件已移除", systemImage: "calendar.badge.exclamationmark")
+            }
+        }
+        .navigationTitle("纪念事件")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $editing) { item in
+            MilestoneEditorView(milestone: item) { updated in
+                if let index = store.milestones.firstIndex(where: { $0.id == id }) {
+                    store.milestones[index] = updated
+                }
+                editing = nil
+            } onCancel: { editing = nil }
+        }
+    }
+}
+
+private struct MilestoneDateCard: View {
+    let item: Milestone
+    let now: Date
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .largeTitle) private var numberSize = 56.0
+
+    var body: some View {
+        let reading = MilestoneCounter.read(item, now: now)
+        VStack(alignment: .leading, spacing: 10) {
+            Label(item.category.title, systemImage: item.category.symbol)
+                .font(.footnote.weight(.medium)).foregroundStyle(.secondary)
+            Text(item.title.isEmpty ? "未命名事件" : item.title)
+                .font(.title2.weight(.semibold))
+            HStack(spacing: 16) {
+                Text(MilestoneFormat.number(reading))
+                    .font(.system(size: min(numberSize, 92), weight: .bold, design: .monospaced))
+                    .lineLimit(1).minimumScaleFactor(0.45)
+                    .contentTransition(.numericText())
+                    .accessibilityIdentifier("milestone.counter")
+                Spacer(minLength: 0)
+                if !typeSize.isAccessibilitySize {
+                    Image(systemName: item.category.symbol)
+                        .font(.system(size: 30, weight: .light))
+                        .frame(width: 64, height: 64)
+                        .overlay { Circle().strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [2, 3])) }
+                        .rotationEffect(.degrees(-12))
+                        .foregroundStyle(Color.primary.opacity(0.42))
+                        .accessibilityHidden(true)
+                }
+            }
+            Divider()
+            Text(MilestoneFormat.counterCaption(item, reading: reading)).font(.subheadline.weight(.medium))
+            Text(MilestoneFormat.dateText(reading.effectiveDate, relativeTo: now))
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DesignSystem.paper, in: .rect(cornerRadius: 18))
+        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(DesignSystem.rule) }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: reading.state)
+    }
+}
+
 /// 纪念事件的展示文案统一放在 `Shared/MilestoneFormat.swift`：App 与组件共用同一套写法。
 
 /// 新增或编辑一个纪念事件。
@@ -129,11 +218,15 @@ struct MilestoneEditorView: View {
     @Environment(PreviewStore.self) private var store
     @State private var draft: Milestone
     @State private var errorText: String?
+    @State private var checkingPermission = false
+    @State private var notificationUnavailable = false
+    private let isNew: Bool
     let onSave: (Milestone) -> Void
     let onCancel: () -> Void
 
     init(milestone: Milestone, onSave: @escaping (Milestone) -> Void, onCancel: @escaping () -> Void) {
         _draft = State(initialValue: milestone)
+        isNew = milestone.title.isEmpty
         self.onSave = onSave
         self.onCancel = onCancel
     }
@@ -144,6 +237,10 @@ struct MilestoneEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    MilestoneDateCard(item: draft, now: store.now)
+                        .listRowInsets(EdgeInsets())
+                }
                 Section {
                     TextField("名称", text: $draft.title)
                         .accessibilityIdentifier("milestone.title")
@@ -178,28 +275,24 @@ struct MilestoneEditorView: View {
                 } header: { Text("过期处理") }
                 footer: { Text("归档只影响展示，事件仍保留在列表里可以编辑或删除。") }
 
-                if let preview {
-                    Section("今天看到的是") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(MilestoneFormat.primary(draft, reading: preview))
-                                .font(.title3.weight(.semibold)).monospacedDigit()
-                            Text(MilestoneFormat.sentence(draft, reading: preview))
-                                .font(.footnote).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
                 if let errorText {
                     Section { Label(errorText, systemImage: "exclamationmark.circle").foregroundStyle(.red) }
                 }
             }
-            .navigationTitle(draft.title.isEmpty ? "添加纪念事件" : "编辑纪念事件")
+            .navigationTitle(isNew ? "添加纪念事件" : "编辑纪念事件")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("取消") { onCancel() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { attemptSave() }.fontWeight(.semibold)
+                    Button("保存") { Task { await attemptSave() } }
+                        .fontWeight(.semibold).disabled(checkingPermission)
                 }
+            }
+            .alert("通知权限未开启", isPresented: $notificationUnavailable) {
+                Button("仍然保存") { onSave(draft) }
+                Button("返回修改", role: .cancel) {}
+            } message: {
+                Text("允许「课间册」发送通知后，纪念事件提醒才会生效。")
             }
         }
     }
@@ -214,16 +307,27 @@ struct MilestoneEditorView: View {
         }
     }
 
-    private var preview: MilestoneReading? {
-        MilestoneCounter.read(draft, now: store.now)
-    }
-
-    private func attemptSave() {
-        guard !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    private func attemptSave() async {
+        let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else {
             errorText = "请输入名称。"
             return
         }
         errorText = nil
+        draft.title = title
+        if draft.reminderDaysBefore > 0 && !store.isPreview {
+            checkingPermission = true
+            defer { checkingPermission = false }
+            do {
+                guard try await CourseNotifications.shared.authorize() else {
+                    notificationUnavailable = true
+                    return
+                }
+            } catch {
+                errorText = "无法检查通知权限：\(error.localizedDescription)"
+                return
+            }
+        }
         onSave(draft)
     }
 }

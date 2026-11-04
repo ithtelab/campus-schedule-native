@@ -1,145 +1,175 @@
 import SwiftUI
 
-/// 人物与主题。
-///
-/// 这一页只负责选择，不解释资源细节：未完成绘制的形象与主题会明确标注「制作中」并
-/// 禁止选择，避免出现「能选但画不出来」的空壳选项。身份（学生／教师）与形象解耦，
-/// 切换身份不影响已选形象。
 struct AppearanceSettingsView: View {
     @Environment(PreviewStore.self) private var store
-    @State private var player = CampusCharacterPlayer(style: .girl)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.campusSuppressMotion) private var suppressMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var player = CampusCharacterPlayer(style: .girl)
+    @State private var rehearsal: Rehearsal = .reading
+
+    private enum Rehearsal: String, CaseIterable, Identifiable {
+        case reading, moving, finished
+
+        var id: Self { self }
+        var title: String {
+            switch self {
+            case .reading: "自习"
+            case .moving: "换教室"
+            case .finished: "下课后"
+            }
+        }
+        var phase: CampusSchedulePhase {
+            switch self {
+            case .reading: .freeReading
+            case .moving: .moving
+            case .finished: .finished
+            }
+        }
+    }
 
     var body: some View {
         @Bindable var settings = store
         Form {
             Section {
-                HStack(alignment: .center, spacing: 16) {
-                    CampusCharacter(player: player, contextDriven: true)
-                        .frame(width: 74, height: 128)
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(settings.appearance.persona.title).font(.headline)
-                        Text(settings.appearance.theme.title)
-                            .font(.subheadline).foregroundStyle(.secondary)
-                        Text(densitySummary)
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                stage
+                    .listRowInsets(EdgeInsets())
+                if store.showsCharacter {
+                    Picker("试演场景", selection: $rehearsal) {
+                        ForEach(Rehearsal.allCases) { Text($0.title).tag($0) }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("appearance.rehearsal")
                 }
-                .padding(.vertical, 6)
-            } footer: {
-                Text("人物动作随课程状态变化：课前准备、换教室、上课、课间与当天结束。轻点人物会回应，不会修改课表。")
             }
 
-            Section {
-                ForEach(CampusPersona.allCases) { persona in
-                    Button { select(persona) } label: {
-                        row(title: persona.title,
-                            detail: persona.isAvailable ? nil : "制作中",
-                            selected: settings.appearance.persona == persona,
-                            enabled: persona.isAvailable)
+            Section("人物形象") {
+                ForEach(CampusPersona.allCases.filter(\.isAvailable)) { persona in
+                    Button {
+                        store.appearance.persona = persona
+                    } label: {
+                        HStack(spacing: 12) {
+                            let style: CampusCharacterStyle = persona == .boy ? .boy : .girl
+                            if let portrait = CampusCharacterAssets.image(style: style, frame: 0) {
+                                Image(uiImage: portrait).resizable().scaledToFit()
+                                    .frame(width: 28, height: 38).accessibilityHidden(true)
+                            }
+                            Text(persona.title)
+                            Spacer()
+                            selectionMark(store.appearance.persona == persona)
+                        }
+                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!persona.isAvailable)
+                    .buttonStyle(CampusPressStyle())
+                    .accessibilityAddTraits(store.appearance.persona == persona ? .isSelected : [])
+                    .accessibilityIdentifier("appearance.persona.\(persona.rawValue)")
                 }
-            } header: {
-                Text("人物形象")
+                Label("教师与小猫 · 制作中", systemImage: "pencil.and.outline")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
 
-            Section {
+            Section("主题") {
                 ForEach(CampusTheme.allCases) { theme in
-                    Button { settings.appearance.theme = theme } label: {
-                        row(title: theme.title,
-                            detail: theme.isAvailable ? nil : "制作中",
-                            selected: settings.appearance.theme == theme,
-                            enabled: theme.isAvailable)
+                    Button {
+                        store.appearance.theme = theme
+                    } label: {
+                        HStack(spacing: 12) {
+                            CampusThemeSurface(theme: theme)
+                                .frame(width: 40, height: 31)
+                                .clipShape(.rect(cornerRadius: 5))
+                                .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(DesignSystem.rule) }
+                            Text(theme.title)
+                            Spacer()
+                            selectionMark(store.appearance.theme == theme)
+                        }
+                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!theme.isAvailable)
+                    .buttonStyle(CampusPressStyle())
+                    .accessibilityAddTraits(store.appearance.theme == theme ? .isSelected : [])
+                    .accessibilityIdentifier("appearance.theme.\(theme.rawValue)")
                 }
-            } header: {
-                Text("主题")
-            } footer: {
-                Text("主题与浅色／深色是两个独立选择：在「外观」里选择跟随系统、浅色或深色。")
             }
 
-            Section {
-                Picker("密度", selection: $settings.appearance.density) {
-                    ForEach(DecorationDensity.allCases) { density in
-                        Text(density.title).tag(density)
-                    }
+            Section("装饰密度") {
+                Picker("装饰密度", selection: $settings.appearance.density) {
+                    ForEach(DecorationDensity.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
-            } header: {
-                Text("装饰密度")
-            } footer: {
-                Text("关闭后不显示人物，课表与今日页仍完整可用。任何密度都不会遮挡课程名称、教室和时间。")
+                .onChange(of: store.showsCharacter) { _, visible in
+                    if !visible { player.stop() }
+                }
             }
 
             Section {
-                Picker("效果", selection: $settings.appearance.effects) {
-                    ForEach(InteractionEffects.allCases) { effect in
-                        Text(effect.title).tag(effect)
-                    }
+                Picker("互动效果", selection: $settings.appearance.effects) {
+                    ForEach(InteractionEffects.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
             } header: {
                 Text("互动效果")
             } footer: {
-                Text("选择「静态」后人物只保留当前姿态，不播放过渡动作。系统开启「减弱动态效果」时同样只保留静态。")
+                Text("跟随课表时，人物会随课程变化。试演场景只改变这里的预览。")
             }
         }
+        .foregroundStyle(.primary)
         .navigationTitle("人物与主题")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { player = CampusCharacterPlayer(style: store.characterStyle) }
-        .onChange(of: store.characterStyle) { _, style in
+        .onChange(of: store.characterStyle, initial: true) { _, style in
+            player.stop()
             player = CampusCharacterPlayer(style: style)
+            synchronize(animated: false)
         }
-        .onChange(of: store.appearance.effects, initial: true) { _, _ in synchronize(animated: true) }
-        .task {
-            // 预览态下没有真实课表，给一个人为上下文让动作看得出来。
-            synchronize(animated: true)
-        }
+        .onChange(of: rehearsal) { _, _ in synchronize(animated: true) }
         .onDisappear { player.stop() }
+        .sensoryFeedback(.selection, trigger: store.appearance)
     }
 
-    private var densitySummary: String {
-        switch store.appearance.density {
-        case .off: "不显示人物"
-        case .light: "少量装饰"
-        case .rich: "丰富装饰"
+    private var stage: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("外观预览", systemImage: "viewfinder")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(store.appearance.theme.title).font(.title2.weight(.semibold))
+                    .accessibilityIdentifier("appearance.preview.theme")
+                Text(store.showsCharacter ? rehearsal.title : "人物已隐藏")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("appearance.preview.scene")
+                if store.showsCharacter && !suppressMotion && !reduceMotion {
+                    Text(responseTitle)
+                        .font(.caption)
+                        .accessibilityIdentifier("appearance.preview.response")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if store.showsCharacter {
+                CampusCharacter(player: player, contextDriven: true, showsCaption: false)
+                    .frame(width: 76, height: 108)
+                    .accessibilityIdentifier("appearance.preview.character")
+            }
         }
+        .padding(18)
+        .frame(minHeight: 136)
+        .background { CampusThemeSurface(theme: store.appearance.theme, density: store.appearance.density) }
     }
 
     private func synchronize(animated: Bool) {
-        let context = CampusScheduleContext.make(items: store.occurrences, now: store.now,
-                                                leadMinutes: store.reminderMinutes)
-        let motionAllowed = store.appearance.effects == .followSchedule && animated
-        player.synchronize(context, animated: motionAllowed && !reduceMotion && !suppressMotion)
+        player.synchronize(.init(phase: rehearsal.phase, occurrenceID: nil, room: nil),
+                           animated: animated && store.showsCharacter && !reduceMotion && !suppressMotion)
     }
 
-    private func select(_ persona: CampusPersona) {
-        guard persona.isAvailable else { return }
-        store.appearance.persona = persona
-        player = CampusCharacterPlayer(style: store.characterStyle)
-        synchronize(animated: false)
+    private var responseTitle: String {
+        if player.isBusy { return "正在\(player.lastAction?.title ?? "准备")" }
+        if let action = player.lastAction { return "已试演 · \(action.title)" }
+        return "点人物试试"
     }
 
-    private func row(title: String, detail: String?, selected: Bool, enabled: Bool) -> some View {
-        HStack {
-            Text(title).foregroundStyle(enabled ? .primary : .secondary)
-            if let detail {
-                Text(detail).font(.caption2).foregroundStyle(.tertiary)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(DesignSystem.surface, in: Capsule())
-            }
-            Spacer()
-            if selected {
-                Image(systemName: "checkmark").font(.footnote.weight(.semibold))
-            }
-        }
-        .contentShape(Rectangle())
+    private func selectionMark(_ selected: Bool) -> some View {
+        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+            .font(.body.weight(.medium))
+            .foregroundStyle(selected ? Color.primary : Color.secondary.opacity(0.55))
+            .accessibilityHidden(true)
     }
 }

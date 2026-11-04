@@ -107,8 +107,10 @@ struct RootView: View {
             // 纪念事件走独立入口：它不属于任何学期，也不在课表页。
             if let target = MilestoneDeepLink.target(url) {
                 milestoneLink = MilestoneLinkPayload(milestoneID: target.milestoneID)
+                courseNavigationRevision += 1
                 return
             }
+            milestoneLink = nil
             if let target = CourseDeepLink.target(url) {
                 selectedScreen = .week
                 linkedCourse = store.resolveCourseLink(target)
@@ -123,12 +125,18 @@ struct RootView: View {
         }
         .sheet(item: $milestoneLink) { target in
             NavigationStack {
-                MilestoneListView(focusID: target.milestoneID)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button("完成") { milestoneLink = nil }
-                        }
+                Group {
+                    if let id = target.milestoneID, store.milestones.contains(where: { $0.id == id }) {
+                        MilestoneDetailView(id: id)
+                    } else {
+                        MilestoneListView()
                     }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("完成") { milestoneLink = nil }
+                    }
+                }
             }
             .environment(store)
         }
@@ -143,7 +151,7 @@ struct RootView: View {
         .environment(\.dynamicTypeSize,
             ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_ACCESSIBILITY"] == "1" ? .accessibility3 : systemTypeSize)
         .environment(\.campusSuppressMotion,
-            ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1")
+            store.appearance.effects == .staticOnly || ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1")
     }
 
     private func closeLinkedCourse() {
