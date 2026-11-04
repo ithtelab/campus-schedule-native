@@ -2,7 +2,7 @@
   "expo": {
     "name": "课间册",
     "slug": "campus-schedule-native",
-    "version": "0.1.0",
+    "version": "1.0",
     "ios": {
       "bundleIdentifier": "com.ithtelab.campustimetable"
     },

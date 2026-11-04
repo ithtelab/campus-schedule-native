@@ -30,6 +30,7 @@ enum SettingsRoute: Hashable {
     case exams
     case milestones
     case appearance
+    case about
 }
 
 /// 上课提醒的提前量。用枚举而不是内联数组：`Picker` 里的 `ForEach([Int])`
@@ -64,6 +65,7 @@ struct SettingsView: View {
     @State private var exportContentType: UTType = .json
     @State private var pendingArchive: ScheduleArchive?
     @State private var showingRestorePrompt = false
+    @State private var confirmingCloudDeletion = false
     var body: some View {
         @Bindable var settings = store
         NavigationStack(path: $path) {
@@ -109,12 +111,19 @@ struct SettingsView: View {
                 }
                 Section {
                     Toggle("iCloud 同步", isOn: $settings.cloudSyncEnabled).tint(DesignSystem.switchTint)
-                        .disabled(store.storageReadOnly || store.isDemoEdition || store.isPreview)
+                        .disabled(store.storageReadOnly || store.isPreview)
+                        .accessibilityIdentifier("settings.icloud")
+                    if settings.cloudSyncEnabled {
+                        Button("立即同步", systemImage: "arrow.clockwise") { store.refreshCloudSync() }
+                        Button("删除 iCloud 副本", systemImage: "trash", role: .destructive) {
+                            confirmingCloudDeletion = true
+                        }
+                    }
                     if let status = store.cloudSyncStatus {
                         Text(status).font(.footnote).foregroundStyle(.secondary)
                     }
                 } header: { Text("多设备") }
-                footer: { Text("个人课表可通过同一 Apple 账户同步，其他设备更新可能稍有延迟。关闭后本机数据保留。演示课表不参与同步。") }
+                footer: { Text("在使用同一 Apple 账户的设备上开启同步，可共享课表、考试和纪念事件。更新可能需要一些时间。") }
                 Section("组件") {
                     Text("在桌面或锁屏编辑模式中搜索“课间册”，添加当前与下一节课组件。")
                 }
@@ -123,7 +132,7 @@ struct SettingsView: View {
                         .disabled(store.storageReadOnly)
                     Button("从备份恢复", systemImage: "square.and.arrow.down") { showingImporter = true }
                     Button("导出修改前的副本", systemImage: "clock.arrow.circlepath") { exportPreviousBackup() }
-                        .disabled(store.isDemoEdition || store.isPreview)
+                        .disabled(store.isPreview)
                 } header: { Text("备份") }
                 footer: { Text("备份包含全部学期、课程、考试和调停课记录。恢复会替换本机全部学期，覆盖前会保留原始副本。") }
                 if store.storageReadOnly {
@@ -143,6 +152,12 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Section {
+                    NavigationLink(value: SettingsRoute.about) {
+                        Label("关于课间册", systemImage: "info.circle")
+                    }
+                    .accessibilityIdentifier("settings.about")
+                }
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
@@ -151,11 +166,17 @@ struct SettingsView: View {
                 case .exams: ExamListView()
                 case .milestones: MilestoneListView()
                 case .appearance: AppearanceSettingsView()
+                case .about: AboutView()
                 }
             }
             .sheet(isPresented: $showingAcademicSettings) { AcademicSettingsView() }
             .sheet(isPresented: $showingTermList) { TermListView() }
             .sheet(isPresented: $showingImport) { ImportView() }
+            .confirmationDialog("删除 iCloud 课表副本？", isPresented: $confirmingCloudDeletion, titleVisibility: .visible) {
+                Button("删除 iCloud 副本", role: .destructive) { store.removeCloudCopy() }
+            } message: {
+                Text("本机课表会保留。请先在其他设备关闭课间册同步，避免这些设备再次上传副本。")
+            }
             .fileExporter(isPresented: $showingExporter, document: backupDocument,
                           contentType: exportContentType, defaultFilename: backupDocument?.filename ?? "课间册.json") { result in
                 if case .failure(let error) = result {
@@ -187,6 +208,7 @@ struct SettingsView: View {
                 Text("两台设备各自修改了课表，无法自动合并。选择要保留的那一份，另一份会被覆盖。")
             }
             .task {
+                guard store.isPreview else { return }
                 // 截图与云端验证通过环境变量直接打开某个二级页面。
                 switch ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] {
                 case "academic": showingAcademicSettings = true

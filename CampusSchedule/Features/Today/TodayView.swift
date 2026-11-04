@@ -62,7 +62,7 @@ struct TodayView: View {
             .sheet(item: $selectedCourse) { CourseDetailView(course: $0, character: detailCharacter) }
             .sheet(isPresented: $showingEditor) { CourseEditorView() }
             .task {
-                guard permitsPreviewSheets else { return }
+                guard permitsPreviewSheets, store.isPreview else { return }
                 showingEditor = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "course"
                 if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "detail", let next { openCourse(next) }
             }

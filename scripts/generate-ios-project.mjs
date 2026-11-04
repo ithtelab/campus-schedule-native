@@ -32,6 +32,7 @@ const resources = [
   ['CampusSchedule/Resources/Fonts/CampusHand.ttf', 'file'],
   ['CampusSchedule/Resources/Fonts/OFL.txt', 'text'],
   ['CampusSchedule/Resources/PrivacyInfo.xcprivacy', 'text.xml'],
+  ['PRIVACY.md', 'text'],
   // 学校目录与 SwiftPM target resource 共用同一份文件，避免两份数据不一致。
   ['Shared/schools.json', 'text.json'],
 ];

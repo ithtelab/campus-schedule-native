@@ -16,7 +16,7 @@ fi
 xcrun simctl install booted "$app_path"
 xcrun simctl status_bar booted override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
 
-if [[ "${CAMPUS_UI_FOCUS:-full}" == course-links || "${CAMPUS_UI_FOCUS:-full}" == campus-style ]]; then
+if [[ "${CAMPUS_UI_FOCUS:-full}" != full ]]; then
   bash scripts/capture-course-links.sh "$bundle_id"
   exit
 fi
@@ -157,6 +157,14 @@ xcrun simctl io booted screenshot screenshots/live-layout-preview.png
 cp "$data_path/Documents/live-layout-smoke.txt" screenshots/live-layout-test.txt
 if grep -q '^FAIL' screenshots/live-layout-test.txt; then exit 1; fi
 
+# Verify the empty personal store before seeding the simulator-only persistence fixture.
+SIMCTL_CHILD_CAMPUS_SMOKE_TEST=clean xcrun simctl launch --terminate-running-process booted "$bundle_id"
+sleep 3
+data_path=$(xcrun simctl get_app_container booted "$bundle_id" data)
+cp "$data_path/Documents/clean-launch-smoke.txt" screenshots/clean-launch-test.txt
+grep -q '^PASS' screenshots/clean-launch-test.txt
+xcrun simctl io booted screenshot screenshots/clean-launch-week.png
+
 # 使用独立的个人数据模式检查 SwiftData 写入及进程重启后读回。
 SIMCTL_CHILD_CAMPUS_SMOKE_TEST=seed xcrun simctl launch --terminate-running-process booted "$bundle_id"
 sleep 3
@@ -173,20 +181,6 @@ if grep -q '^FAIL' screenshots/shared-snapshot-test.txt; then
   echo 'Shared snapshot round trip failed.' >&2
   exit 1
 fi
-
-# Verify the normal demo launch independently of the fixed-time screenshot route.
-SIMCTL_CHILD_CAMPUS_DEMO_SMOKE=1 xcrun simctl launch --terminate-running-process booted "$bundle_id"
-sleep 3
-cp "$data_path/Documents/demo-edition-smoke.txt" screenshots/demo-edition-test.txt
-grep -q '^PASS' screenshots/demo-edition-test.txt
-xcrun simctl io booted screenshot screenshots/demo-edition-week.png
-SIMCTL_CHILD_CAMPUS_DEMO_SCREEN=today xcrun simctl launch --terminate-running-process booted "$bundle_id"
-sleep 3
-xcrun simctl io booted screenshot screenshots/demo-edition-today.png
-SIMCTL_CHILD_CAMPUS_SMOKE_TEST=reload xcrun simctl launch --terminate-running-process booted "$bundle_id"
-sleep 3
-grep -q '^PASS' "$data_path/Documents/persistence-smoke.txt"
-cp "$data_path/Documents/persistence-smoke.txt" screenshots/personal-data-after-demo-test.txt
 
 # 实际向模拟器系统请求 Live Activity，而不是把普通卡片当成灵动岛截图。
 SIMCTL_CHILD_CAMPUS_SMOKE_TEST=live xcrun simctl launch --terminate-running-process booted "$bundle_id"

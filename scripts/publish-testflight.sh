@@ -43,6 +43,10 @@ for profile in manifest['profiles']:
     assert ent['application-identifier'].endswith('.' + profile['identifier']), 'Wrong app identifier'
     assert manifest['appGroup'] in ent.get('com.apple.security.application-groups', []), 'Associate the App Group with BOTH App IDs on developer.apple.com before publishing'
     assert ent.get('get-task-allow', False) is False, 'Development profile is not valid for TestFlight'
+    if profile['target'] == 'app':
+        prefix = payload['ApplicationIdentifierPrefix'][0]
+        kvstore = ent.get('com.apple.developer.ubiquity-kvstore-identifier')
+        assert kvstore in {prefix + '.*', prefix + '.' + profile['identifier']}, 'Profile does not authorize the app iCloud key-value store'
     assert 'ProvisionedDevices' not in payload and not payload.get('ProvisionsAllDevices', False), 'Expected App Store profile'
     assert payload['UUID'] == profile['uuid'], 'Unexpected profile UUID'
     shutil.copyfile(folder / (profile['target'] + '.mobileprovision'), installed / (profile['uuid'] + '.mobileprovision'))
@@ -76,6 +80,10 @@ for bundle, identifier in [(app, config['ios']['bundleIdentifier']), (app / 'Plu
     assert info['CFBundleShortVersionString'] == config['version'], 'Wrong marketing version'
     assert info['CampusAppGroup'] == config['extra']['nativeAppGroup'], 'Unexpanded shared group build setting'
     if bundle == app:
+        assert 'CampusDemoEdition' not in info, 'Demo mode must be absent in distributed builds'
+        assert (bundle / 'PRIVACY.md').is_file(), 'Offline privacy policy missing'
+        binary = (bundle / info['CFBundleExecutable']).read_bytes()
+        assert not any(marker in binary for marker in (b'math-mon', b'preview-term', b'clean-launch-smoke.txt')), 'Simulator fixtures leaked into the device app'
         transport = info.get('NSAppTransportSecurity', {})
         assert transport.get('NSAllowsArbitraryLoadsInWebContent') is True, 'Packaged academic WebView HTTP compatibility is missing'
         assert transport.get('NSAllowsArbitraryLoads') is not True, 'General ATS must stay enabled'
@@ -86,6 +94,9 @@ for bundle, identifier in [(app, config['ios']['bundleIdentifier']), (app / 'Plu
     result = subprocess.run(['codesign', '-d', '--entitlements', ':-', str(bundle)], check=True, capture_output=True)
     entitlements = plistlib.loads(result.stdout)
     assert config['extra']['nativeAppGroup'] in entitlements.get('com.apple.security.application-groups', []), 'Signed App Group missing'
+    if bundle == app:
+        assert entitlements.get('com.apple.developer.ubiquity-kvstore-identifier') == os.environ['APPLE_TEAM_ID'] + '.' + identifier, 'Signed iCloud key-value entitlement missing or unexpanded'
+        print('PASS: personal data mode, offline privacy policy and signed iCloud key-value store')
     assert not entitlements.get('get-task-allow', False), 'Unexpected development signing'
     print('PASS: packaged metadata, version, privacy manifest and signed App Group for ' + bundle.name)
 PY

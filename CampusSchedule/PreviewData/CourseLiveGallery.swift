@@ -1,3 +1,4 @@
+#if targetEnvironment(simulator)
 import SwiftUI
 
 struct CourseLiveGallery: View {
@@ -43,3 +44,4 @@ struct CourseLiveGallery: View {
         try? results.joined(separator: "\n").write(to: URL.documentsDirectory.appendingPathComponent("live-layout-smoke.txt"), atomically: true, encoding: .utf8)
     }
 }
+#endif

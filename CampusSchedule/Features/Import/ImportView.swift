@@ -213,7 +213,7 @@ struct ImportView: View {
                         }
                     }
             } header: { Text("课表内容") }
-            footer: { Text("支持表格式课表与逐行文本。需要包含星期与节次，例如「周一 第1-2节 高等数学」。") }
+            footer: { Text("支持表格与逐行文本。每条课程需包含名称、星期和节次。") }
 
             Section {
                 Button("从剪贴板粘贴", systemImage: "doc.on.clipboard") {

@@ -7,6 +7,7 @@ struct CampusScheduleApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
+                #if targetEnvironment(simulator)
                 if ProcessInfo.processInfo.environment["CAMPUS_LIVE_PREVIEW"] != nil {
                     CourseLiveGallery()
                 } else if ProcessInfo.processInfo.environment["CAMPUS_CHARACTER_PREVIEW"] != nil {
@@ -16,6 +17,9 @@ struct CampusScheduleApp: App {
                 } else {
                     RootView()
                 }
+                #else
+                RootView()
+                #endif
             }
             .preferredColorScheme(appearance.colorScheme)
         }
@@ -65,11 +69,13 @@ struct RootView: View {
         }
     }
 
+    #if targetEnvironment(simulator)
     @State private var store = PreviewStore(testingInMemory: ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "data-reliability")
-    // 云端显式选择页面；本演示版正常启动突出课表，个人存储保持隔离。
-    @State private var selectedScreen = Screen(
-        rawValue: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] ?? ProcessInfo.processInfo.environment["CAMPUS_DEMO_SCREEN"] ?? "week"
-    ) ?? .week
+    @State private var selectedScreen = Screen(rawValue: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] ?? "week") ?? .week
+    #else
+    @State private var store = PreviewStore()
+    @State private var selectedScreen: Screen = .week
+    #endif
 
     var body: some View {
         Group {
@@ -207,15 +213,17 @@ struct RootView: View {
 
     /// 环境变量驱动的自动检查，仅在 CI 与截图流程中启用。
     private func runSmokeChecksIfRequested() async {
+            #if targetEnvironment(simulator)
             if ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "data-reliability" {
                 try? DataReliabilitySmoke.run().write(to: URL.documentsDirectory.appendingPathComponent("data-reliability-smoke.txt"),
                                                      atomically: true, encoding: .utf8)
                 return
             }
-            if ProcessInfo.processInfo.environment["CAMPUS_DEMO_SMOKE"] == "1" {
-                let passed = store.isDemoEdition && !store.isPreview && !store.courses.isEmpty && store.currentWeek == 8
-                try? (passed ? "PASS: normal demo edition opens populated current-term data separately from personal storage" : "FAIL: demo edition routing")
-                    .write(to: URL.documentsDirectory.appendingPathComponent("demo-edition-smoke.txt"), atomically: true, encoding: .utf8)
+            if ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "clean" {
+                let result = store.courses.isEmpty && store.exams.isEmpty && store.milestones.isEmpty
+                    && !store.storageReadOnly ? "PASS: fresh launch has no sample records" : "FAIL: expected an empty personal store"
+                try? result.write(to: URL.documentsDirectory.appendingPathComponent("clean-launch-smoke.txt"), atomically: true, encoding: .utf8)
+                return
             }
             if store.isPreview {
                 let result = CampusArtAssets.available && CampusCharacterAssets.available ? "PASS: light/dark figures, two 16-frame action atlases and bundled handwriting font loaded" : "FAIL: campus art, animation atlas or handwriting font missing"
@@ -259,7 +267,9 @@ struct RootView: View {
                 let result = store.errorMessage == nil && store.courses.contains(where: { $0.id == "persistence-test" && !$0.remindersEnabled }) ? "PASS" : "FAIL"
                 try? result.write(to: file, atomically: true, encoding: .utf8)
             }
+            #endif
             store.synchronize()
+            #if targetEnvironment(simulator)
             if ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] != nil {
                 try? await Task.sleep(for: .milliseconds(800))
                 let result: String
@@ -267,6 +277,7 @@ struct RootView: View {
                 else { result = SystemSnapshot.read().contains(where: { $0.courseID == "persistence-test" }) ? "PASS" : "FAIL" }
                 try? result.write(to: URL.documentsDirectory.appendingPathComponent("snapshot-smoke.txt"), atomically: true, encoding: .utf8)
             }
+            #endif
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(30)); store.clockDate = Date()

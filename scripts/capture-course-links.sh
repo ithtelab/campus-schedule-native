@@ -2,7 +2,9 @@
 set -euo pipefail
 bundle_id="${1:?Expected app bundle identifier}"
 
-if [[ "${CAMPUS_UI_FOCUS:-full}" == campus-style ]]; then
+if [[ "${CAMPUS_UI_FOCUS:-full}" == release-check ]]; then
+  tests=(-only-testing:CampusCourseLinkUITests/CourseLinkUITests/testReleaseStartsEmptyAndHasPrivacyPolicy)
+elif [[ "${CAMPUS_UI_FOCUS:-full}" == campus-style ]]; then
   tests=(
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testAppearanceRehearsalAndStaticMode
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testMilestonePreviewAndPin

@@ -37,13 +37,13 @@ struct DemoCourse: Identifiable, Codable {
     }
 }
 
-struct DemoPeriod: Identifiable, Codable {
+struct DemoPeriod: Identifiable, Codable, Equatable {
     let id: Int
     var start: String
     var end: String
 }
 
-/// 本版展示独立演示课表；个人 SwiftData 文件保持隔离。云端验证可显式选择个人路径。
+/// 本机课表及用户设置。模拟器的界面验收使用独立内存数据。
 @MainActor @Observable
 final class PreviewStore {
     var selectedWeek = 8
@@ -151,7 +151,8 @@ final class PreviewStore {
         .init(id: 9, start: "19:00", end: "19:45"), .init(id: 10, start: "19:50", end: "20:35")
     ]
 
-    static let sampleCourses: [DemoCourse] = [
+    #if targetEnvironment(simulator)
+    private static let sampleCourses: [DemoCourse] = [
         .init(id: "math-mon", title: "高等数学", room: "教学楼 A · 302", teacher: "陈老师", weekday: 0, startPeriod: 1, endPeriod: 2, startTime: "08:00", endTime: "09:35", color: .blue),
         .init(id: "english-mon", title: "大学英语", room: "教学楼 B · 205", teacher: "林老师", weekday: 0, startPeriod: 3, endPeriod: 4, startTime: "10:00", endTime: "11:35", color: .purple),
         .init(id: "design-mon", title: "设计基础", room: "艺术楼 · 401", teacher: "周老师", weekday: 0, startPeriod: 7, endPeriod: 8, startTime: "16:00", endTime: "17:35", color: .orange),
@@ -162,12 +163,15 @@ final class PreviewStore {
         .init(id: "design-fri", title: "设计基础", room: "艺术楼 · 401", teacher: "周老师", weekday: 4, startPeriod: 5, endPeriod: 6, startTime: "14:00", endTime: "15:35", color: .orange)
     ]
 
+    #endif
+
     private let testingInMemory: Bool
-    var isPreview: Bool { testingInMemory || ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] != nil }
-    var isDemoEdition: Bool {
-        !isPreview && ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == nil
-            && ProcessInfo.processInfo.environment["CAMPUS_PERSONAL_DATA"] != "1"
-            && Bundle.main.object(forInfoDictionaryKey: "CampusDemoEdition") as? Bool == true
+    var isPreview: Bool {
+        #if targetEnvironment(simulator)
+        testingInMemory || ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] != nil
+        #else
+        false
+        #endif
     }
     var clockDate = Date()
     var timeText: String { time(now) }
@@ -312,32 +316,30 @@ final class PreviewStore {
     init(testingInMemory: Bool = false, recoveryTestData: Data? = nil) {
         self.testingInMemory = testingInMemory
         // 先建立活动学期，之后的字段读写都落到这个容器里。
-        let initialID = isDemoEdition ? "demo-term-v1" : "term-" + UUID().uuidString
-        termContents[initialID] = TermContent(
-            name: "2026 秋季学期",
-            startDate: ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))!,
+        var initialID = "term-" + UUID().uuidString
+        let calendar = ScheduleRules.calendar
+        let today = calendar.startOfDay(for: clockDate)
+        let daysFromMonday = (calendar.component(.weekday, from: today) + 5) % 7
+        var initialTerm = TermContent(
+            name: "我的学期",
+            startDate: calendar.date(byAdding: .day, value: -daysFromMonday, to: today) ?? today,
             totalWeeks: 20,
             periods: Self.defaultPeriods,
-            courses: Self.sampleCourses,
+            courses: [],
             exceptions: []
         )
+        #if targetEnvironment(simulator)
+        if isPreview {
+            initialID = "preview-term"
+            initialTerm.name = "2026 秋季学期"
+            initialTerm.startDate = calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))!
+            initialTerm.courses = Self.sampleCourses
+        }
+        #endif
+        termContents[initialID] = initialTerm
         activeTermID = initialID
 
-        if isDemoEdition {
-            // Keep the sample term current without loading or replacing personal courses.
-            let calendar = ScheduleRules.calendar
-            let today = calendar.startOfDay(for: clockDate)
-            let weekday = (calendar.component(.weekday, from: today) + 5) % 7
-            semesterStart = calendar.date(byAdding: .day, value: -weekday - 49, to: today)!
-            reminderPreview = false
-            for day in [5, 6] {
-                for source in Array(courses.prefix(3)) {
-                    courses.append(.init(id: "sample-\(day)-\(source.id)", title: source.title, room: source.room,
-                        teacher: source.teacher, weekday: day, startPeriod: source.startPeriod, endPeriod: source.endPeriod,
-                        startTime: source.startTime, endTime: source.endTime, color: source.color))
-                }
-            }
-        }
+        #if targetEnvironment(simulator)
         if isPreview && ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] == "long" {
             courses[3] = .init(id: "layout-long", title: "大学英语视听说与学术交流", room: "第二教学楼北区 · 1205", teacher: "王老师", weekday: 1,
                 startPeriod: 3, endPeriod: 4, startTime: "10:00", endTime: "11:35", color: .green)
@@ -386,7 +388,8 @@ final class PreviewStore {
             default: break
             }
         }
-        if !isPreview && !isDemoEdition {
+        #endif
+        if !isPreview {
             do {
                 let storage = try LocalPersistence()
                 persistence = storage
@@ -563,7 +566,6 @@ final class PreviewStore {
     func save() -> Bool {
         guard batchDepth == 0 else { return true }
         guard !storageReadOnly else { errorMessage = storageIssue; return false }
-        if ready && isDemoEdition { synchronize(); return true }
         guard ready else { return true }
         if isPreview { return true }
         guard let persistence else { return false }
@@ -580,7 +582,7 @@ final class PreviewStore {
             try persistence.save(encoded)
             synchronize()
             // 云端统一使用归档格式：它有版本号与校验，恢复路径也复用它。
-            if cloudSyncEnabled, let archive = try? makeArchive().encoded() {
+            if cloudSyncEnabled, hasCloudContent, let archive = try? makeArchive().encoded() {
                 scheduleCloudPush(archive)
             }
             return true
@@ -611,7 +613,7 @@ final class PreviewStore {
     }
 
     private func backupBeforeReplacing() throws {
-        guard !isDemoEdition, !isPreview else { return }
+        guard !isPreview else { return }
         // 正常数据保留为可再次导入的标准备份；损坏数据保留原始载荷。
         let archive: Data? = storageReadOnly ? nil : (try? makeArchive().encoded())
         try persistence?.backupCurrent(archive: archive)
@@ -624,26 +626,45 @@ final class PreviewStore {
 
     // MARK: - iCloud 同步
 
+    func refreshCloudSync() {
+        guard cloudSyncEnabled else { return }
+        _ = beginCloudSync()
+    }
+
+    func removeCloudCopy() {
+        guard cloudSyncEnabled, !storageReadOnly else { return }
+        cloudPushTask?.cancel()
+        do {
+            try cloudSync.removeCloudCopy()
+            cloudSyncEnabled = false
+            cloudSyncStatus = "已向 iCloud 请求删除副本，本机课表已保留。"
+        } catch { cloudSyncStatus = error.localizedDescription }
+    }
+
+    /// 初次启用时，空的默认学期不应覆盖 iCloud 中的课表。
+    private var hasCloudContent: Bool {
+        cloudSync.lastSyncedPayloadForComparison != nil || !milestones.isEmpty || termContents.count > 1
+            || termContents.values.contains {
+                $0.name != "我的学期" || !$0.courses.isEmpty || !$0.exams.isEmpty || !$0.exceptions.isEmpty
+                    || $0.periods != Self.defaultPeriods || $0.totalWeeks != 20
+            }
+    }
+
     private func beginCloudSync() -> Bool {
         guard !storageReadOnly else { cloudSyncStatus = storageIssue; return false }
-        guard !isDemoEdition, !isPreview else {
-            cloudSyncStatus = "演示版不参与 iCloud 同步。"
-            return false
-        }
-        guard cloudSync.isAvailable else {
-            cloudSyncStatus = CloudSyncError.unavailable.errorDescription
-            return false
-        }
+        guard !isPreview else { return false }
+        cloudSync.startObserving { [weak self] payload in self?.handleRemoteChange(payload) }
         do {
+            try cloudSync.requestSync()
             guard !cloudSync.remoteIsCorrupt else { throw CloudSyncError.decodeFailed }
             // 云端只存归档格式：它有版本号与校验，恢复路径也复用它。
             // 比较必须用同一种格式，否则「本地未改动」永远判不出来。
-            let localData = try makeArchive().encoded()
+            let localData = hasCloudContent ? try makeArchive().encoded() : nil
             switch cloudSync.decision(local: localData) {
             case .idle:
-                cloudSyncStatus = "已是最新。"
+                cloudSyncStatus = localData == nil ? "正在检查 iCloud 中是否有课表。" : "已是最新。"
             case .pushLocal:
-                try cloudSync.push(localData)
+                if let localData { try cloudSync.push(localData) }
                 cloudSyncStatus = "已交给 iCloud 同步，其他设备更新可能稍有延迟。"
             case .applyRemote:
                 guard let remote = cloudSync.remote(), let term = try? ScheduleArchive.decoded(from: remote.payload) else {
@@ -657,11 +678,9 @@ final class PreviewStore {
                 cloudSyncStatus = "iCloud 与本机都有改动，需要你选择保留哪一份。"
             }
         } catch {
+            cloudSync.stopObserving()
             cloudSyncStatus = error.localizedDescription
             return false
-        }
-        cloudSync.startObserving { [weak self] payload in
-            self?.handleRemoteChange(payload)
         }
         return true
     }
@@ -682,7 +701,7 @@ final class PreviewStore {
             cloudSyncStatus = "本机课表尚未通过校验，未应用云端内容。"; return
         }
         switch CloudSyncPlan.decide(
-            local: StampedPayload(updatedAt: Date(), deviceID: cloudSync.deviceID, payload: localData),
+            local: hasCloudContent ? StampedPayload(updatedAt: Date(), deviceID: cloudSync.deviceID, payload: localData) : nil,
             remote: payload,
             lastSyncedPayload: cloudSync.lastSyncedPayloadForComparison
         ) {
@@ -831,9 +850,9 @@ final class PreviewStore {
 
     // MARK: - 导出与恢复
 
-    /// 把全部学期导出为可存档的格式。演示版与截图模式不产出真实数据。
+    /// 把全部学期导出为可存档的格式。
     func makeArchive(exportedAt: Date = Date()) throws -> ScheduleArchive {
-        guard !isDemoEdition, !isPreview else { throw ArchiveError.emptySemesterList }
+        guard !isPreview else { throw ArchiveError.emptySemesterList }
         let semesters = terms.compactMap { summary -> ArchivedSemester? in
             guard let content = termContents[summary.id] else { return nil }
             return ArchivedSemester(
@@ -912,7 +931,7 @@ final class PreviewStore {
         }
 
         guard restored.values.allSatisfy({ Self.isValid($0) }) else { throw CocoaError(.fileReadCorruptFile) }
-        if persistence == nil && !isPreview && !isDemoEdition { persistence = try LocalPersistence() }
+        if persistence == nil && !isPreview { persistence = try LocalPersistence() }
         // 包括读取失败的原始载荷；副本失败则整个恢复停止。
         try backupBeforeReplacing()
         let oldIssue = storageIssue

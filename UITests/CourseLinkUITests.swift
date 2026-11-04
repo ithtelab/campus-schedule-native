@@ -1,6 +1,28 @@
 import XCTest
 
 final class CourseLinkUITests: XCTestCase {
+    @MainActor func testReleaseStartsEmptyAndHasPrivacyPolicy() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = [:]
+        app.launchArguments = ["-appAppearance", "light"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["还没有课程"].waitForExistence(timeout: 15))
+        capture(app, name: "release-empty-timetable")
+        app.tabBars.buttons["设置"].tap()
+        let sync = app.switches["settings.icloud"]
+        reveal(sync, in: app)
+        XCTAssertTrue(sync.isEnabled)
+        let about = app.buttons["settings.about"]
+        reveal(about, in: app)
+        about.tap()
+        XCTAssertTrue(app.navigationBars["关于课间册"].waitForExistence(timeout: 8))
+        capture(app, name: "release-about")
+        app.buttons["about.privacy"].tap()
+        XCTAssertTrue(app.staticTexts["设备上的数据"].waitForExistence(timeout: 8))
+        capture(app, name: "release-privacy")
+    }
+
     @MainActor func testAppearanceRehearsalAndStaticMode() {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -14,7 +36,7 @@ final class CourseLinkUITests: XCTestCase {
         XCTAssertTrue(character.exists)
         character.tap()
         let response = app.staticTexts["appearance.preview.response"]
-        XCTAssertTrue(response.wait(for: \.label, toEqual: "已试演 · 翻一页", timeout: 6))
+        XCTAssertTrue(response.wait(for: \.label, toEqual: "刚刚 · 翻一页", timeout: 6))
         capture(app, name: "appearance-rehearsal-light")
 
         app.buttons["appearance.persona.boy"].tap()
@@ -85,10 +107,12 @@ final class CourseLinkUITests: XCTestCase {
         defer { app.terminate(); XCUIDevice.shared.appearance = .light }
         XCUIDevice.shared.appearance = .light
         app.terminate()
-        app.open(try XCTUnwrap(URL(string: "campusschedule://course?id=math-mon&term=demo-term-v1")))
+        app.open(try XCTUnwrap(URL(string: "campusschedule://course?id=removed-course")))
         confirmSystemOpenIfNeeded(app)
-        assertSession(app, title: "高等数学", screenshot: "course-now-cold-light")
-        app.open(try XCTUnwrap(URL(string: "campusschedule://course?id=english-mon&term=demo-term-v1")))
+        XCTAssertTrue(app.staticTexts["课程安排已更新"].waitForExistence(timeout: 15))
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "today"]
+        app.launch()
+        app.open(try XCTUnwrap(URL(string: "campusschedule://course?id=english-mon&term=preview-term")))
         confirmSystemOpenIfNeeded(app)
         assertSession(app, title: "大学英语", screenshot: "course-now-second-light")
 

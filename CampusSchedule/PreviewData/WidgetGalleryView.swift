@@ -1,3 +1,4 @@
+#if targetEnvironment(simulator)
 import SwiftUI
 import WidgetKit
 
@@ -63,3 +64,4 @@ struct WidgetGalleryView: View {
             .background(DesignSystem.surface, in: RoundedRectangle(cornerRadius: family == .systemSmall || family == .systemMedium ? 22 : 10))
     }
 }
+#endif

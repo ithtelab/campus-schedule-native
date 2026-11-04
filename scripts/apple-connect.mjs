@@ -62,6 +62,21 @@ async function findBundle(identifier) {
 async function findApp() {
   return (await api('/v1/apps', { query: { 'filter[bundleId]': bundle, limit: '1' } })).data[0];
 }
+async function storeStatus() {
+  const record = need(await findApp(), 'App Store Connect app');
+  const [infos, versions] = await Promise.all([
+    api(`/v1/apps/${record.id}/appInfos`),
+    api(`/v1/apps/${record.id}/appStoreVersions`, { query: { 'filter[platform]': 'IOS' } }),
+  ]);
+  console.log(JSON.stringify(versions.data.map(item => ({ version: item.attributes.versionString, state: item.attributes.appStoreState }))));
+  for (const info of infos.data) {
+    const state = info.attributes.appStoreState;
+    const path = `/v1/appInfos/${info.id}/appInfoLocalizations`;
+    const localizations = (await api(path)).data;
+    console.log(JSON.stringify({ state, privacy: localizations.map(item => ({ locale: item.attributes.locale,
+      privacyPolicyUrl: item.attributes.privacyPolicyUrl })) }));
+  }
+}
 async function setup() {
   for (const [identifier, name] of [[bundle, 'CampusSchedule'], [bundle + '.widgets', 'CampusSchedule Widgets']]) {
     let record = await findBundle(identifier);
@@ -577,6 +592,7 @@ try {
   switch (process.argv[2]) {
     case 'check-key': await api('/v1/bundleIds', { query: { limit: '1' } }); console.log('Apple team API key authenticated'); break;
     case 'setup': await setup(); break;
+    case 'store-status': await storeStatus(); break;
     case 'tidy-identifiers': await tidyIdentifiers(); break;
     case 'certificate': await certificate(); break;
     case 'secrets': secrets(); break;

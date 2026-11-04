@@ -1,3 +1,4 @@
+#if targetEnvironment(simulator)
 import SwiftUI
 
 /// Cloud-only QA screen. These are the same players and controls used in the app.
@@ -156,3 +157,4 @@ struct CampusCharacterGallery: View {
         throw ValidationError.scheduleMismatch
     }
 }
+#endif

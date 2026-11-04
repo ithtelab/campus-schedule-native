@@ -1,3 +1,4 @@
+#if targetEnvironment(simulator)
 import Foundation
 
 /// 只由 CI 环境变量触发；实例为纯内存，不加载或写入用户 SwiftData。
@@ -55,3 +56,4 @@ import Foundation
         return failures.isEmpty ? "PASS: in-memory store import identities, week sets, target checks, academic commit and read protection" : "FAIL: " + failures.joined(separator: ", ")
     }
 }
+#endif

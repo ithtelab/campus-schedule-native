@@ -35,7 +35,7 @@ struct AppearanceSettingsView: View {
                 stage
                     .listRowInsets(EdgeInsets())
                 if store.showsCharacter {
-                    Picker("试演场景", selection: $rehearsal) {
+                    Picker("动作场景", selection: $rehearsal) {
                         ForEach(Rehearsal.allCases) { Text($0.title).tag($0) }
                     }
                     .accessibilityIdentifier("appearance.rehearsal")
@@ -63,8 +63,6 @@ struct AppearanceSettingsView: View {
                     .accessibilityAddTraits(store.appearance.persona == persona ? .isSelected : [])
                     .accessibilityIdentifier("appearance.persona.\(persona.rawValue)")
                 }
-                Label("教师与小猫 · 制作中", systemImage: "pencil.and.outline")
-                    .font(.footnote).foregroundStyle(.secondary)
             }
 
             Section("主题") {
@@ -107,7 +105,7 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("互动效果")
             } footer: {
-                Text("跟随课表时，人物会随课程变化。试演场景只改变这里的预览。")
+                Text("跟随课表时，人物会随课程变化。可以在上方预览不同场景的动作。")
             }
         }
         .foregroundStyle(.primary)
@@ -162,7 +160,7 @@ struct AppearanceSettingsView: View {
 
     private var responseTitle: String {
         if player.isBusy { return "正在\(player.lastAction?.title ?? "准备")" }
-        if let action = player.lastAction { return "已试演 · \(action.title)" }
+        if let action = player.lastAction { return "刚刚 · \(action.title)" }
         return "点人物试试"
     }
 

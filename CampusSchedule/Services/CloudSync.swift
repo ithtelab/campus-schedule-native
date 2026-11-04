@@ -2,10 +2,6 @@ import Foundation
 
 /// 通过 iCloud 键值存储在多台设备之间同步课表。
 ///
-/// 使用 `NSUbiquitousKeyValueStore` 而不是 CloudKit：后者需要在开发者网站为
-/// App ID 勾选 CloudKit 服务，而这个账号目前只有 iCloud 文档存储能力；
-/// 键值存储已经可用，且课表体量远小于它的限制。
-///
 /// 同步策略是「明确选择才启用」，与产品约定一致：未开启时完全不碰 iCloud。
 @MainActor
 final class CloudSync {
@@ -22,9 +18,9 @@ final class CloudSync {
     private var observer: NSObjectProtocol?
     private var onRemoteChange: ((StampedPayload) -> Void)?
 
-    /// 系统是否提供了 iCloud 账户。未登录时为 false。
-    var isAvailable: Bool {
-        FileManager.default.ubiquityIdentityToken != nil
+    /// 检查这个 App 的键值存储可用性，不以 iCloud 云盘的文件身份判断。
+    func requestSync() throws {
+        guard store.synchronize() else { throw CloudSyncError.unavailable }
     }
 
     /// 本机标识，用来区分自己写入的回声和真实远端变更。
@@ -63,7 +59,7 @@ final class CloudSync {
 
     /// 把本地内容写入 iCloud。成功后才记录为「已同步」。
     func push(_ payload: Data, at date: Date = Date()) throws {
-        guard isAvailable else { throw CloudSyncError.unavailable }
+        try requestSync()
         guard !remoteIsCorrupt else { throw CloudSyncError.decodeFailed }
         let payload = CloudSyncPlan.canonicalPayload(payload)
         if let remote = remote(), CloudSyncPlan.canonicalPayload(remote.payload) == payload {
@@ -81,6 +77,12 @@ final class CloudSync {
     /// 采用远端内容后调用，把云端内容记为已同步，避免下次又判定成冲突。
     func markSynced(_ payload: Data) {
         lastSyncedPayload = CloudSyncPlan.canonicalPayload(payload)
+    }
+
+    func removeCloudCopy() throws {
+        try requestSync()
+        store.removeObject(forKey: Key.stamped)
+        guard store.synchronize() else { throw CloudSyncError.writeRejected }
     }
 
     // MARK: 变更监听
