@@ -176,7 +176,7 @@ struct MilestoneWidgetView: View {
                     .font(.system(size: 32, weight: .light))
                     .frame(width: 76, height: 76)
                     .overlay { Circle().strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [2, 3])) }
-                    .foregroundStyle(usesBlueInk ? CampusStickerMark.ink : .secondary)
+                    .foregroundStyle(usesBlueInk ? CampusStickerMark.accent : .secondary)
                     .rotationEffect(.degrees(-12))
                     .accessibilityHidden(true)
             }

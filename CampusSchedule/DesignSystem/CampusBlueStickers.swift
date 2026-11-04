@@ -107,3 +107,34 @@ struct CampusBlueStickers: View {
                height: min(4, max(-4, restingOffset.height + translation.height)))
     }
 }
+
+/// A blue notebook scrap behind the existing monochrome character, within its original slot.
+struct CampusBluePortraitPaper: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 14)
+            .fill(CampusStickerMark.accent.opacity(0.12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(CampusStickerMark.accent.opacity(0.54),
+                                  style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            }
+            .rotationEffect(.degrees(-7))
+            .overlay(alignment: .topLeading) {
+                Capsule()
+                    .fill(CampusStickerMark.blue.opacity(0.78))
+                    .frame(width: 28, height: 8)
+                    .rotationEffect(.degrees(-22))
+            }
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(CampusStickerMark.accent)
+                    .rotationEffect(.degrees(10))
+            }
+            .padding(.horizontal, 3)
+            .padding(.top, 6)
+            .padding(.bottom, 25)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}

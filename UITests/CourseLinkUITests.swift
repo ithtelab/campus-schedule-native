@@ -133,6 +133,9 @@ final class CourseLinkUITests: XCTestCase {
         capture(app, name: "today-blue-stickers-light")
         plane.tap()
         XCTAssertTrue(agenda.isHittable)
+        app.tabBars.buttons["课表"].tap()
+        XCTAssertTrue(app.buttons["下一周"].waitForExistence(timeout: 8))
+        capture(app, name: "week-blue-stickers-light")
     }
 
     @MainActor func testAppearanceRehearsalAndStaticMode() {

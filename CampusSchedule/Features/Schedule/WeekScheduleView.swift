@@ -15,6 +15,10 @@ struct WeekScheduleView: View {
     private let groupGap: CGFloat = 22
     private var dayCount: Int { store.showsWeekend ? 7 : 5 }
     private var courses: [DemoCourse] { store.courses(in: store.selectedWeek) }
+    private var blueTheme: Bool { store.appearance.theme == .blueStickers }
+    private var selectionAccent: Color { blueTheme ? CampusStickerMark.accent : .primary }
+    private var dateFill: Color { blueTheme ? CampusStickerMark.blue : DesignSystem.accent }
+    private var selectedInk: Color { blueTheme ? .white : DesignSystem.inverse }
     /// 网格总高度：按实际节次数计算，额外的高度来自上下午之间的分组间隔。
     private var totalHeight: CGFloat {
         CGFloat(max(1, store.periods.count)) * rowHeight + groupGap * CGFloat(periodGroupMarks.count)
@@ -165,6 +169,7 @@ struct WeekScheduleView: View {
                     HStack {
                         Button { showingWeeks = true } label: {
                             Text("第 \(store.selectedWeek) 周").font(.title3.weight(.bold))
+                                .foregroundStyle(selectionAccent)
                         }
                         Spacer()
                         Button("上一周", systemImage: "chevron.left") { changeWeek(-1) }
@@ -191,7 +196,7 @@ struct WeekScheduleView: View {
                             Text("第 \(store.selectedWeek) 周").font(.title3.weight(.bold))
                             Image(systemName: "chevron.down").font(.caption.weight(.bold))
                         }
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(selectionAccent)
                     }
                     let progress = NowStatus.weekProgress(for: store.occurrences, week: store.selectedWeek,
                                                           semesterStart: store.semesterStart, now: store.now)
@@ -232,8 +237,8 @@ struct WeekScheduleView: View {
                     Text("\(ScheduleRules.calendar.component(.day, from: store.date(week: week, day: day)))")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .frame(width: 28, height: 28)
-                        .foregroundStyle(isToday ? DesignSystem.inverse : Color.primary)
-                        .background(isToday ? DesignSystem.accent : Color.clear, in: Circle())
+                        .foregroundStyle(isToday ? selectedInk : Color.primary)
+                        .background(isToday ? dateFill : Color.clear, in: Circle())
                 }
                 .frame(width: width).accessibilityElement(children: .combine)
             }
@@ -301,16 +306,17 @@ struct WeekScheduleView: View {
                 let date = store.date(week: week, day: day)
                 let ended = (ScheduleRules.date(day: date, time: course.endTime) ?? .distantFuture) <= store.now
                 let ongoing = (ScheduleRules.date(day: date, time: course.startTime) ?? .distantFuture) <= store.now && !ended
-                let ink = ongoing ? DesignSystem.inverse : Color.primary
+                let ink = ongoing ? selectedInk : Color.primary
                 // 颜色只作识别辅助：进行中用色条实色，已结束压淡，其余用低饱和底色。
-                let cardFill = ongoing ? course.color.accentColor
+                let activeFill = blueTheme ? CampusStickerMark.blue : course.color.accentColor
+                let cardFill = ongoing ? activeFill
                     : ended ? course.color.endedFill(for: scheme) : course.color.fill(for: scheme)
-                let borderColor = ongoing ? course.color.accentColor : course.color.border(for: scheme)
+                let borderColor = ongoing ? activeFill : course.color.border(for: scheme)
                 Button { selectedCourse = course } label: {
                     HStack(spacing: 0) {
                         // 左侧窄色条：即使卡片很矮也能靠颜色分辨课程。
                         RoundedRectangle(cornerRadius: 1.5)
-                            .fill(ongoing ? DesignSystem.inverse.opacity(0.85) : course.color.accentColor)
+                            .fill(ongoing ? selectedInk.opacity(0.85) : course.color.accentColor)
                             .frame(width: 3)
                             .padding(.vertical, height < 65 ? 3 : 6)
                             .padding(.leading, store.showsWeekend ? 4 : 5)
@@ -322,18 +328,18 @@ struct WeekScheduleView: View {
                                     Text(badge)
                                         .font(.system(size: 8, weight: .heavy))
                                         .padding(.horizontal, 3).padding(.vertical, 1)
-                                        .background(ongoing ? DesignSystem.inverse.opacity(0.25) : course.color.accentColor.opacity(0.28),
+                                        .background(ongoing ? selectedInk.opacity(0.25) : course.color.accentColor.opacity(0.28),
                                                     in: RoundedRectangle(cornerRadius: 3))
                                         .lineLimit(1)
                                 }
                             }
                             Text(roomText(course)).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2)
-                                .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
+                                .foregroundStyle(ongoing ? selectedInk.opacity(0.8) : Color.secondary)
                             if course.wasRescheduled && height >= 80 {
                                 // 明确标出「调课」，否则学生按原教室跑一趟才发现换了地方。
                                 Text("调课")
                                     .font(.system(size: 8, weight: .semibold))
-                                    .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.85) : course.color.accentColor)
+                                    .foregroundStyle(ongoing ? selectedInk.opacity(0.85) : course.color.accentColor)
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 0)
@@ -345,12 +351,12 @@ struct WeekScheduleView: View {
                                     Text(course.endTime)
                                 }
                                 .font(.system(size: 8.5).monospacedDigit())
-                                .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.8) : Color.secondary)
+                                .foregroundStyle(ongoing ? selectedInk.opacity(0.8) : Color.secondary)
                                 .lineLimit(1)
                             } else if height >= 52 && store.showsWeekend {
                                 // 七天视图列窄，只补结束时间也要能挤下。
                                 Text(course.endTime).font(.system(size: 8.5).monospacedDigit())
-                                    .foregroundStyle(ongoing ? DesignSystem.inverse.opacity(0.75) : Color.secondary)
+                                    .foregroundStyle(ongoing ? selectedInk.opacity(0.75) : Color.secondary)
                                     .lineLimit(1)
                             }
                         }
@@ -437,7 +443,7 @@ struct WeekScheduleView: View {
                         Spacer()
                         if store.selectedWeek == week { Image(systemName: "checkmark") }
                     }
-                    .foregroundStyle(store.selectedWeek == week ? DesignSystem.accent : Color.primary)
+                    .foregroundStyle(store.selectedWeek == week ? selectionAccent : Color.primary)
                 }
             }
             .navigationTitle("选择教学周").navigationBarTitleDisplayMode(.inline)

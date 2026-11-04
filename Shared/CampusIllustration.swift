@@ -73,9 +73,14 @@ struct CampusWidgetFigure: View {
 }
 
 struct CampusStickerMark: View {
-    static let blue = Color(red: 0.24, green: 0.36, blue: 0.88)
+    static let blue = Color(red: 0.22, green: 0.34, blue: 0.84)
     static let cream = Color(red: 1, green: 0.98, blue: 0.92)
     static let ink = Color(red: 0.15, green: 0.21, blue: 0.53)
+    static let accent = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.65, green: 0.74, blue: 1, alpha: 1)
+            : UIColor(red: 0.22, green: 0.34, blue: 0.84, alpha: 1)
+    })
 
     var symbol = "paperplane.fill"
     var size: CGFloat = 22

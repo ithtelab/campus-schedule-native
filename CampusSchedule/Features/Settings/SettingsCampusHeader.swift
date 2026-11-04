@@ -17,7 +17,8 @@ struct SettingsCampusHeader: View {
             let remaining = items.filter { ScheduleRules.calendar.isDate($0.start, inSameDayAs: now) && $0.end > now }.count
             HStack(alignment: .center, spacing: 20) {
                 VStack(alignment: .leading, spacing: 12) {
-                    CampusHeading(title: "校园日常")
+                    CampusHeading(title: "校园日常",
+                                  underline: store.appearance.theme == .blueStickers ? CampusStickerMark.accent : .primary)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(store.semesterName).font(.subheadline.weight(.medium)).lineLimit(2)
                         if (1...max(1, store.totalWeeks)).contains(week) {
@@ -32,6 +33,9 @@ struct SettingsCampusHeader: View {
                 if !typeSize.isAccessibilitySize && store.showsCharacter {
                     CampusCharacter(player: character, contextDriven: true)
                         .frame(width: 82, height: 132)
+                        .background {
+                            if store.appearance.showsBlueStickers { CampusBluePortraitPaper() }
+                        }
                 }
             }
             .padding(12)

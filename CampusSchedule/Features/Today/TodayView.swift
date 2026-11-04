@@ -18,6 +18,10 @@ struct TodayView: View {
     private var time: String { store.timeText }
     private var daily: [DemoCourse] { store.todayCourses }
     private var next: DemoCourse? { daily.first { $0.endTime > time } }
+    private var blueTheme: Bool { store.appearance.theme == .blueStickers }
+    private var themeAccent: Color { blueTheme ? CampusStickerMark.accent : .primary }
+    private var selectedFill: Color { blueTheme ? CampusStickerMark.blue : .primary }
+    private var selectedInk: Color { blueTheme ? .white : DesignSystem.inverse }
     private var characterContext: CampusScheduleContext {
         CampusScheduleContext.make(items: store.occurrences, now: store.now, leadMinutes: store.reminderMinutes)
     }
@@ -88,7 +92,8 @@ struct TodayView: View {
     private var introduction: some View {
         VStack(alignment: .leading, spacing: 15) {
             // 三种状态各说各话：没课还写「去上课」是自相矛盾。
-            CampusHeading(title: daily.isEmpty ? "今天没有课。" : (next == nil ? "下课啦。" : "今天，去上课。"))
+            CampusHeading(title: daily.isEmpty ? "今天没有课。" : (next == nil ? "下课啦。" : "今天，去上课。"),
+                          underline: themeAccent)
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { headingWidth = $0 }
             let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout())
             layout {
@@ -96,8 +101,8 @@ struct TodayView: View {
                 if !typeSize.isAccessibilitySize { Spacer() }
                 Text("第 \(store.currentWeek) 周").font(.caption.weight(.medium))
                     .padding(.horizontal, 9).padding(.vertical, 4)
-                    .foregroundStyle(DesignSystem.inverse)
-                    .background(Color.primary, in: RoundedRectangle(cornerRadius: 5)).rotationEffect(.degrees(-2))
+                    .foregroundStyle(selectedInk)
+                    .background(selectedFill, in: RoundedRectangle(cornerRadius: 5)).rotationEffect(.degrees(-2))
             }
         }
         .overlay(alignment: .topTrailing) {
@@ -166,10 +171,12 @@ struct TodayView: View {
     private func focusCard(_ course: DemoCourse) -> some View {
         VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(course.startTime <= time ? "正在上课" : "下一节课").font(.caption.weight(.semibold))
+                    Text(course.startTime <= time ? "正在上课" : "下一节课")
+                        .font(.caption.weight(.semibold)).foregroundStyle(themeAccent)
                     Spacer(minLength: 8)
                     Button("课程详情", systemImage: "arrow.up.right") { openCourse(course) }
                         .labelStyle(.iconOnly).font(.caption).buttonStyle(.plain)
+                        .foregroundStyle(themeAccent)
                 }
                 HStack(alignment: .center, spacing: 12) {
                     Button { openCourse(course) } label: {
@@ -177,6 +184,7 @@ struct TodayView: View {
                         Text(course.title).font(.title2.weight(.bold)).fixedSize(horizontal: false, vertical: true)
                         Text(course.shortRoom.isEmpty ? "地点待确认" : course.shortRoom)
                             .font(.title2.weight(.semibold))
+                            .foregroundStyle(themeAccent)
                             .fixedSize(horizontal: false, vertical: true)
                         Text("\(course.startTime)–\(course.endTime)")
                             .font(.title3.weight(.medium).monospacedDigit())
@@ -187,10 +195,14 @@ struct TodayView: View {
                     .buttonStyle(CampusPressStyle()).accessibilityHint("查看课程详情")
                     if !typeSize.isAccessibilitySize && store.showsCharacter {
                         CampusCharacter(player: character, contextDriven: true).frame(width: 78, height: 150)
+                            .background {
+                                if store.appearance.showsBlueStickers { CampusBluePortraitPaper() }
+                            }
                     }
                 }
                 Text(course.startTime <= time ? "\(course.endTime) 下课" : "\(minutesUntil(course.startTime)) 分钟后上课")
                     .font(.caption.weight(.medium).monospacedDigit())
+                    .foregroundStyle(themeAccent)
                 if let movement = roomChangeMessage(after: course) {
                     Text(movement).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -202,7 +214,7 @@ struct TodayView: View {
                 CampusThemeSurface(theme: store.appearance.theme, density: store.appearance.density)
                     .clipShape(.rect(cornerRadius: 16))
             }
-            .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Color.primary, lineWidth: 1.2) }
+            .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(themeAccent, lineWidth: 1.2) }
         .foregroundStyle(.primary)
     }
 
@@ -226,13 +238,14 @@ struct TodayView: View {
     private func agendaRow(_ course: DemoCourse) -> some View {
         let ended = course.endTime <= time
         let focused = next?.id == course.id
-        let ink = focused ? DesignSystem.inverse : Color.primary
-        let secondaryInk = focused ? DesignSystem.inverse.opacity(0.8) : Color.secondary
+        let ink = focused ? selectedInk : Color.primary
+        let secondaryInk = focused ? selectedInk.opacity(blueTheme ? 0.87 : 0.8) : Color.secondary
         return Button { openCourse(course) } label: {
             let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(alignment: .center, spacing: 14))
             layout {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(course.startTime).font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(blueTheme && !ended && !focused ? themeAccent : ink)
                     Text(course.endTime).font(.caption.monospacedDigit()).foregroundStyle(secondaryInk)
                 }
                 .frame(width: typeSize.isAccessibilitySize ? nil : timeColumn, alignment: .leading)
@@ -249,10 +262,13 @@ struct TodayView: View {
             .foregroundStyle(ink).fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 15).padding(.vertical, 17)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(focused ? Color.primary : ended ? DesignSystem.paper : Color.primary.opacity(0.055),
+            .background(focused ? selectedFill : ended ? DesignSystem.paper : themeAccent.opacity(blueTheme ? 0.075 : 0.055),
                         in: RoundedRectangle(cornerRadius: 12))
             .overlay {
-                if ended { RoundedRectangle(cornerRadius: 12).strokeBorder(DesignSystem.rule, lineWidth: 0.75) }
+                if ended || (blueTheme && !focused) {
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(blueTheme ? themeAccent.opacity(0.24) : DesignSystem.rule, lineWidth: 0.75)
+                }
             }
         }
         .buttonStyle(CampusPressStyle())

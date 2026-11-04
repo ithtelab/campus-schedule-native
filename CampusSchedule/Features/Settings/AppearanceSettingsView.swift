@@ -134,6 +134,7 @@ struct AppearanceSettingsView: View {
                 Label("外观预览", systemImage: "viewfinder")
                     .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Text(store.appearance.theme.title).font(.title2.weight(.semibold))
+                    .foregroundStyle(store.appearance.theme == .blueStickers ? CampusStickerMark.accent : .primary)
                     .accessibilityIdentifier("appearance.preview.theme")
                 Text(store.showsCharacter ? rehearsal.title : "人物已隐藏")
                     .font(.subheadline).foregroundStyle(.secondary)
@@ -150,7 +151,13 @@ struct AppearanceSettingsView: View {
                 CampusCharacter(player: player, contextDriven: true, showsCaption: false)
                     .frame(width: 76, height: 108)
                     .padding(6)
-                    .background(portraitPaper, in: .rect(cornerRadius: 12))
+                    .background {
+                        if store.appearance.showsBlueStickers {
+                            CampusBluePortraitPaper()
+                        } else {
+                            RoundedRectangle(cornerRadius: 12).fill(portraitPaper)
+                        }
+                    }
                     .accessibilityIdentifier("appearance.preview.character")
             }
         }

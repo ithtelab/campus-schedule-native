@@ -26,10 +26,18 @@ struct ScheduleProvider: TimelineProvider {
 }
 struct ScheduleWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
     var entry: ScheduleEntry
     var body: some View {
         ScheduleWidgetContent(family: family, entry: entry)
-            .containerBackground(Color(uiColor: .secondarySystemBackground), for: .widget)
+            .containerBackground(for: .widget) {
+                ZStack {
+                    Color(uiColor: .secondarySystemBackground)
+                    if entry.appearance.theme == .blueStickers && renderingMode == .fullColor {
+                        CampusStickerMark.accent.opacity(0.07)
+                    }
+                }
+            }
             .widgetURL(CourseDeepLink.url(courseID: ScheduleRules.next(in: entry.courses, now: entry.date)?.courseID,
                                          termID: entry.termID,
                                          occurrenceID: ScheduleRules.next(in: entry.courses, now: entry.date)?.id))

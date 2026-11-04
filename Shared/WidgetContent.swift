@@ -16,7 +16,7 @@ struct ScheduleWidgetContent: View {
     var family: WidgetFamily
     var entry: ScheduleEntry
     private var next: CourseOccurrence? { ScheduleRules.next(in: entry.courses, now: entry.date) }
-    private var usesBlueInk: Bool { entry.appearance.showsBlueStickers && renderingMode == .fullColor }
+    private var usesBlueInk: Bool { entry.appearance.theme == .blueStickers && renderingMode == .fullColor }
     private var characterContext: CampusScheduleContext {
         CampusScheduleContext.make(items: entry.courses, now: entry.date, leadMinutes: entry.leadMinutes)
     }
@@ -122,6 +122,20 @@ struct ScheduleWidgetContent: View {
                 .id(characterFrame)
                 .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
                 .frame(width: width, height: height, alignment: .bottom)
+                .background {
+                    if entry.appearance.showsBlueStickers && usesBlueInk {
+                        RoundedRectangle(cornerRadius: 11)
+                            .fill(CampusStickerMark.accent.opacity(0.11))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 11).strokeBorder(
+                                    CampusStickerMark.accent.opacity(0.42),
+                                    style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                            }
+                            .rotationEffect(.degrees(-5))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 12)
+                    }
+                }
                 .overlay(alignment: .topTrailing) {
                     if entry.appearance.showsBlueStickers {
                         CampusStickerMark(size: 16, fullColor: usesBlueInk)

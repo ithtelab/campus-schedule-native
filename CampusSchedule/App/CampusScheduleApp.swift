@@ -184,7 +184,8 @@ struct RootView: View {
 
     /// iPad：侧边栏常驻，内容区随选择切换。
     private var splitLayout: some View {
-        NavigationSplitView {
+        let accent = store.appearance.theme == .blueStickers ? CampusStickerMark.accent : DesignSystem.accent
+        return NavigationSplitView {
             List(Screen.allCases) { screen in
                 Button {
                     selectedScreen = screen
@@ -192,7 +193,7 @@ struct RootView: View {
                     Label(screen.title, systemImage: screen.symbol)
                 }
                 .buttonStyle(.plain)
-                .listRowBackground(screen == selectedScreen ? DesignSystem.accent.opacity(0.12) : Color.clear)
+                .listRowBackground(screen == selectedScreen ? accent.opacity(0.12) : Color.clear)
             }
             .navigationTitle("课间册")
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
@@ -211,6 +212,7 @@ struct RootView: View {
                 }
             }
         }
+        .tint(store.appearance.theme == .blueStickers ? CampusStickerMark.accent : DesignSystem.accent)
     }
 
     @ViewBuilder private func screenView(_ screen: Screen) -> some View {

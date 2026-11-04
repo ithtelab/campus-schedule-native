@@ -81,10 +81,11 @@ struct CampusUnderline: Shape {
 
 struct CampusHeading: View {
     let title: String
+    var underline: Color = .primary
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(DesignSystem.hand(28)).foregroundStyle(.primary)
-            CampusUnderline().stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            CampusUnderline().stroke(underline, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .frame(width: 112, height: 5).accessibilityHidden(true)
         }
     }
