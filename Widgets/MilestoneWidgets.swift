@@ -63,6 +63,7 @@ struct MilestoneEntry: TimelineEntry {
     var milestone: Milestone?
     /// 用户配置过事件，但那条事件已被删除或归档。
     var configuredID: String?
+    var appearance = AppearancePreferences()
 }
 
 struct MilestoneProvider: AppIntentTimelineProvider {
@@ -85,16 +86,20 @@ struct MilestoneProvider: AppIntentTimelineProvider {
 
     private func entry(for configuration: MilestoneWidgetConfiguration) -> MilestoneEntry {
         let now = Date()
-        let all = SystemSnapshot.readMilestones()
+        let payload = SystemSnapshot.readPayload()
+        let all = payload?.milestones ?? []
         return MilestoneEntry(date: now,
                               milestone: MilestoneWidgetSelection.pick(from: all, id: configuration.milestone?.id, now: now),
-                              configuredID: configuration.milestone?.id)
+                              configuredID: configuration.milestone?.id,
+                              appearance: payload?.appearance ?? .init())
     }
 }
 
 struct MilestoneWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
     var entry: MilestoneEntry
+    private var usesBlueInk: Bool { entry.appearance.showsBlueStickers && renderingMode == .fullColor }
 
     var body: some View {
         Group {
@@ -102,10 +107,18 @@ struct MilestoneWidgetView: View {
                 let reading = MilestoneCounter.read(item, now: entry.date)
                 switch family {
                 case .accessoryInline:
-                    Text(MilestoneFormat.sentence(item, reading: reading))
+                    if entry.appearance.showsBlueStickers {
+                        Label(MilestoneFormat.sentence(item, reading: reading), systemImage: "paperplane.fill")
+                    } else {
+                        Text(MilestoneFormat.sentence(item, reading: reading))
+                    }
                 case .accessoryCircular:
                     VStack(spacing: 0) {
-                        Image(systemName: item.category.symbol).font(.caption2)
+                        if entry.appearance.showsBlueStickers {
+                            CampusStickerMark(symbol: item.category.symbol, size: 11, fullColor: false)
+                        } else {
+                            Image(systemName: item.category.symbol).font(.caption2)
+                        }
                         Text(MilestoneFormat.number(reading))
                             .font(.system(size: 15, weight: .semibold).monospacedDigit())
                             .lineLimit(1).minimumScaleFactor(0.6)
@@ -121,6 +134,12 @@ struct MilestoneWidgetView: View {
                             .font(.caption2).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, entry.appearance.showsBlueStickers ? 19 : 0)
+                    .overlay(alignment: .trailing) {
+                        if entry.appearance.showsBlueStickers {
+                            CampusStickerMark(size: 14, fullColor: false)
+                        }
+                    }
                 default:
                     desktop(item, reading: reading)
                 }
@@ -136,7 +155,11 @@ struct MilestoneWidgetView: View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
-                    Image(systemName: item.category.symbol).font(.caption2).foregroundStyle(.secondary)
+                    if entry.appearance.showsBlueStickers {
+                        CampusStickerMark(symbol: item.category.symbol, size: 11, fullColor: usesBlueInk)
+                    } else {
+                        Image(systemName: item.category.symbol).font(.caption2).foregroundStyle(.secondary)
+                    }
                     Text(item.title).font(.caption.weight(.medium)).lineLimit(1)
                 }
                 Text(MilestoneFormat.number(reading))
@@ -153,7 +176,7 @@ struct MilestoneWidgetView: View {
                     .font(.system(size: 32, weight: .light))
                     .frame(width: 76, height: 76)
                     .overlay { Circle().strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [2, 3])) }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(usesBlueInk ? CampusStickerMark.ink : .secondary)
                     .rotationEffect(.degrees(-12))
                     .accessibilityHidden(true)
             }
@@ -164,7 +187,11 @@ struct MilestoneWidgetView: View {
 
     private var empty: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Image(systemName: "flag").font(.caption).foregroundStyle(.secondary)
+            if entry.appearance.showsBlueStickers {
+                CampusStickerMark(size: 13, fullColor: usesBlueInk)
+            } else {
+                Image(systemName: "flag").font(.caption).foregroundStyle(.secondary)
+            }
             Text(entry.configuredID == nil ? "添加纪念事件" : "事件已归档或移除")
                 .font(.caption.weight(.medium)).lineLimit(2)
             Text(entry.configuredID == nil ? "在设置里记录毕业、生日这类日期。" : "长按组件重新选择事件。")

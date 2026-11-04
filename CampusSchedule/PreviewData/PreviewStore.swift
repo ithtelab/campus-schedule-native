@@ -784,12 +784,13 @@ final class PreviewStore {
         let snapshotTerm = activeTermID
         let snapshotLead = reminderMinutes
         let snapshotMilestones = milestones
+        let snapshotAppearance = appearance
         syncTask = Task { @MainActor in
             do {
                 try await Task.sleep(for: .milliseconds(250))
                 try Task.checkCancellation()
                 try SystemSnapshot.write(items, leadMinutes: snapshotLead, termID: snapshotTerm,
-                                         milestones: snapshotMilestones)
+                                         milestones: snapshotMilestones, appearance: snapshotAppearance)
                 WidgetCenter.shared.reloadAllTimelines()
                 try await CourseNotifications.shared.replace(courses: items, enabled: reminderPreview, lead: reminderMinutes, endEnabled: endReminder, endLead: endLead)
                 try await CourseNotifications.shared.replaceMilestones(snapshotMilestones)

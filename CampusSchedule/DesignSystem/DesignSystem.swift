@@ -29,7 +29,7 @@ struct CampusThemeSurface: View {
 
     private var base: Color {
         guard isSwatch else { return DesignSystem.paper }
-        if theme == .blueStickers { return CampusBlueStickers.blue }
+        if theme == .blueStickers { return CampusStickerMark.blue }
         if theme == .chalkboard { return Color(white: scheme == .dark ? 0.13 : 0.28) }
         return Color(white: scheme == .dark ? 0.32 : 0.92)
     }

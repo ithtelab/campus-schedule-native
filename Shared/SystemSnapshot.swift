@@ -15,17 +15,19 @@ enum SystemSnapshot {
         /// 组件要独立展示纪念事件，因此一并写入快照。
         /// 旧版本写出的快照没有这个键，解码时缺省为空数组。
         var milestones: [Milestone] = []
+        var appearance = AppearancePreferences()
 
         enum CodingKeys: String, CodingKey {
-            case version, generatedAt, courses, reminderLeadMinutes, termID, milestones
+            case version, generatedAt, courses, reminderLeadMinutes, termID, milestones, appearance
         }
 
         init(courses: [CourseOccurrence], reminderLeadMinutes: Int? = nil,
-             termID: String? = nil, milestones: [Milestone] = []) {
+             termID: String? = nil, milestones: [Milestone] = [], appearance: AppearancePreferences = .init()) {
             self.courses = courses
             self.reminderLeadMinutes = reminderLeadMinutes
             self.termID = termID
             self.milestones = milestones
+            self.appearance = appearance
         }
 
         init(from decoder: any Decoder) throws {
@@ -36,6 +38,7 @@ enum SystemSnapshot {
             reminderLeadMinutes = try container.decodeIfPresent(Int.self, forKey: .reminderLeadMinutes)
             termID = try container.decodeIfPresent(String.self, forKey: .termID)
             milestones = try container.decodeIfPresent([Milestone].self, forKey: .milestones) ?? []
+            appearance = (try? container.decode(AppearancePreferences.self, forKey: .appearance)) ?? .init()
         }
     }
     static func readPayload() -> Payload? {
@@ -46,10 +49,10 @@ enum SystemSnapshot {
     static func read() -> [CourseOccurrence] { readPayload()?.courses ?? [] }
     static func readMilestones() -> [Milestone] { readPayload()?.milestones ?? [] }
     static func write(_ courses: [CourseOccurrence], leadMinutes: Int = 10, termID: String? = nil,
-                      milestones: [Milestone] = []) throws {
+                      milestones: [Milestone] = [], appearance: AppearancePreferences = .init()) throws {
         guard let url else { return }
         try JSONEncoder().encode(Payload(courses: courses, reminderLeadMinutes: leadMinutes,
-                                        termID: termID, milestones: milestones))
+                                        termID: termID, milestones: milestones, appearance: appearance))
             .write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }
@@ -74,6 +77,7 @@ struct CourseActivityAttributes: ActivityAttributes {
         var nextTitle: String?
         var nextRoom: String?
         var beforeClass: Bool
+        var blueStickers: Bool? = nil
     }
     var occurrenceID: String
     var title: String

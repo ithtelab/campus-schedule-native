@@ -31,7 +31,7 @@ import Foundation
         guard !suppressed.contains(item.id) else { throw StartError.dismissed }
         let attributes = CourseActivityAttributes(occurrenceID: item.id, title: item.title, room: item.room, start: item.start,
                                                   teacher: item.teacher, courseID: item.courseID, termID: termID)
-        let content = ActivityContent(state: CourseActivityAttributes.ContentState(end: item.end, nextTitle: item.nextTitle, nextRoom: item.nextRoom, beforeClass: Date() < item.start), staleDate: item.end)
+        let content = activityContent(for: item, blueStickers: SystemSnapshot.readPayload()?.appearance.showsBlueStickers)
         let activity: Activity<CourseActivityAttributes>
         if let scheduledAt, scheduledAt > Date(), #available(iOS 26.0, *) {
             activity = try Activity.request(attributes: attributes, content: content, pushType: nil, style: .standard,
@@ -43,6 +43,13 @@ import Foundation
         }
         observe(activity)
     }
+
+    private func activityContent(for item: CourseOccurrence, blueStickers: Bool?) -> ActivityContent<CourseActivityAttributes.ContentState> {
+        ActivityContent(state: .init(end: item.end, nextTitle: item.nextTitle, nextRoom: item.nextRoom,
+                                     beforeClass: Date() < item.start, blueStickers: blueStickers),
+                        staleDate: item.end)
+    }
+
     private func observe(_ activity: Activity<CourseActivityAttributes>) {
         guard watchTasks[activity.id] == nil else { return }
         watchTasks[activity.id] = Task { @MainActor in
@@ -82,6 +89,7 @@ import Foundation
 
     func reconcile(items: [CourseOccurrence], enabled: Bool, lead: Int, termID: String? = nil) async {
         endTask?.cancel()
+        let blueStickers = SystemSnapshot.readPayload()?.appearance.showsBlueStickers
         await deduplicateActivities()
         for activity in Activity<CourseActivityAttributes>.activities {
             observe(activity)
@@ -91,7 +99,7 @@ import Foundation
             if activity.attributes.room != item.room || activity.attributes.start != item.start || activity.attributes.title != item.title {
                 await finish(activity, suppress: false)
             } else {
-                await activity.update(ActivityContent(state: .init(end: item.end, nextTitle: item.nextTitle, nextRoom: item.nextRoom, beforeClass: Date() < item.start), staleDate: item.end))
+                await activity.update(activityContent(for: item, blueStickers: blueStickers))
             }
         }
         guard enabled else { return }

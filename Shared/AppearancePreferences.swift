@@ -100,6 +100,8 @@ public struct AppearancePreferences: Codable, Equatable, Sendable {
     public var density: DecorationDensity
     public var effects: InteractionEffects
 
+    var showsBlueStickers: Bool { theme == .blueStickers && density != .off }
+
     public init(persona: CampusPersona = .fallback,
                 theme: CampusTheme = .fallback,
                 density: DecorationDensity = .light,

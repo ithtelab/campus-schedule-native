@@ -72,6 +72,33 @@ struct CampusWidgetFigure: View {
     }
 }
 
+struct CampusStickerMark: View {
+    static let blue = Color(red: 0.24, green: 0.36, blue: 0.88)
+    static let cream = Color(red: 1, green: 0.98, blue: 0.92)
+    static let ink = Color(red: 0.15, green: 0.21, blue: 0.53)
+
+    var symbol = "paperplane.fill"
+    var size: CGFloat = 22
+    var fullColor = true
+    var decorative = true
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(fullColor ? Self.ink : .primary)
+            .background {
+                if fullColor {
+                    Image(systemName: symbol)
+                        .font(.system(size: size * 1.32, weight: .black))
+                        .foregroundStyle(Self.cream)
+                        .shadow(color: Self.ink.opacity(0.28), radius: 1, y: 1)
+                }
+            }
+            .rotationEffect(.degrees(7))
+            .accessibilityHidden(decorative)
+    }
+}
+
 struct CampusBookMark: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()

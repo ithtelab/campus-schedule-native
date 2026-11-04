@@ -2,7 +2,6 @@ import SwiftUI
 
 /// The sticker cluster fits beside the existing Today heading and does not take up a row.
 struct CampusBlueStickers: View {
-    static let blue = Color(red: 0.24, green: 0.36, blue: 0.88)
     static let width: CGFloat = 108
     static let compactWidth: CGFloat = 68
 
@@ -17,13 +16,13 @@ struct CampusBlueStickers: View {
     @State private var restingOffset: CGSize = .zero
     @State private var taps = 0
 
-    private let ink = Color(red: 0.15, green: 0.21, blue: 0.53)
-    private let paper = Color(red: 1, green: 0.98, blue: 0.92)
+    private let ink = CampusStickerMark.ink
+    private let paper = CampusStickerMark.cream
 
     var body: some View {
         ZStack(alignment: .trailing) {
             RoundedRectangle(cornerRadius: 10)
-                .fill(scheme == .dark ? Color(red: 0.18, green: 0.24, blue: 0.60) : Self.blue)
+                .fill(scheme == .dark ? Color(red: 0.18, green: 0.24, blue: 0.60) : CampusStickerMark.blue)
                 .frame(height: 31)
                 .rotationEffect(.degrees(-4))
                 .padding(.horizontal, 4)
@@ -54,7 +53,7 @@ struct CampusBlueStickers: View {
                 Button {
                     taps += 1
                 } label: {
-                    plane
+                    CampusStickerMark(decorative: false)
                         .keyframeAnimator(initialValue: CGFloat.zero, trigger: taps) { content, lift in
                             content.offset(y: lift)
                         } keyframes: { _ in
@@ -78,7 +77,7 @@ struct CampusBlueStickers: View {
                 .accessibilityHint("轻点让贴纸弹起")
                 .accessibilityIdentifier("today.blue-sticker")
             } else {
-                plane.frame(width: 44, height: 44)
+                CampusStickerMark().frame(width: 44, height: 44)
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
             }
@@ -101,19 +100,6 @@ struct CampusBlueStickers: View {
         .background(Color(red: 0.72, green: 0.79, blue: 1), in: .rect(cornerRadius: 4))
         .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(paper, lineWidth: 2) }
         .shadow(color: ink.opacity(0.25), radius: 1, y: 1)
-    }
-
-    private var plane: some View {
-        Image(systemName: "paperplane.fill")
-            .font(.system(size: 22, weight: .semibold))
-            .foregroundStyle(ink)
-            .background {
-                Image(systemName: "paperplane.fill")
-                    .font(.system(size: 29, weight: .black))
-                    .foregroundStyle(paper)
-                    .shadow(color: ink.opacity(0.35), radius: 1, y: 1)
-            }
-            .rotationEffect(.degrees(7))
     }
 
     private func planeOffset(with translation: CGSize) -> CGSize {

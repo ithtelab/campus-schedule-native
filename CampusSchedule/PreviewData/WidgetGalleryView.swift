@@ -5,6 +5,9 @@ import WidgetKit
 /// 仅供云端截图；直接复用扩展的内容视图，不模拟桌面或锁屏系统宿主。
 struct WidgetGalleryView: View {
     private var isLockScreen: Bool { ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] == "lock" }
+    private var appearance: AppearancePreferences {
+        .init(theme: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_THEME"] == "blueStickers" ? .blueStickers : .paper)
+    }
     private var entry: ScheduleEntry {
         let day = ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 10, day: 26))!
         let now = ScheduleRules.date(day: day, time: "09:41")!
@@ -13,7 +16,7 @@ struct WidgetGalleryView: View {
             CourseOccurrence(id: "math", courseID: "math", title: "线性代数", room: "A 楼 302", start: ScheduleRules.date(day: day, time: "14:00")!, end: ScheduleRules.date(day: day, time: "15:35")!),
             CourseOccurrence(id: "design", courseID: "design", title: "设计基础", room: "艺术楼 401", start: ScheduleRules.date(day: day, time: "16:00")!, end: ScheduleRules.date(day: day, time: "17:35")!)
         ]
-        return ScheduleEntry(date: now, courses: courses)
+        return ScheduleEntry(date: now, courses: courses, appearance: appearance)
     }
     var body: some View {
         NavigationStack {
@@ -58,7 +61,8 @@ struct WidgetGalleryView: View {
         }
     }
     private func content(_ family: WidgetFamily, width: CGFloat, height: CGFloat, empty: Bool = false) -> some View {
-        ScheduleWidgetContent(family: family, entry: empty ? ScheduleEntry(date: entry.date, courses: []) : entry)
+        ScheduleWidgetContent(family: family, entry: empty ? ScheduleEntry(date: entry.date, courses: [], appearance: appearance) : entry)
+            .environment(\.widgetRenderingMode, isLockScreen ? .vibrant : .fullColor)
             .padding(family == .systemSmall || family == .systemMedium ? 16 : 8)
             .frame(width: width, height: height, alignment: .leading)
             .background(DesignSystem.surface, in: RoundedRectangle(cornerRadius: family == .systemSmall || family == .systemMedium ? 22 : 10))

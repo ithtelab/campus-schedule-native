@@ -4,6 +4,7 @@ import SwiftUI
 struct CourseLiveGallery: View {
     private let start = Date().addingTimeInterval(600)
     private var end: Date { start.addingTimeInterval(5700) }
+    private var blueStickers: Bool { ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_THEME"] == "blueStickers" }
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -15,12 +16,17 @@ struct CourseLiveGallery: View {
                     card(title: "大学英语视听说与学术交流", room: "第二教学楼北区 1205")
                     Text("灵动岛紧凑区域 · 结束时刻").font(.headline)
                     HStack {
-                        CampusBookMark().stroke(.white, lineWidth: 1.5).frame(width: 14, height: 17)
+                        if blueStickers {
+                            Image(systemName: "paperplane.fill").font(.system(size: 13, weight: .semibold))
+                        } else {
+                            CampusBookMark().stroke(.white, lineWidth: 1.5).frame(width: 14, height: 17)
+                        }
                         Spacer().frame(width: 76)
                         Text(CourseLivePlan.compactTime(end: end)).font(.system(size: 11, weight: .semibold).monospacedDigit()).frame(width: 36)
                     }.padding(10).foregroundStyle(.white).background(.black, in: Capsule())
                     Text("灵动岛展开内容").font(.headline)
-                    CourseIslandExpanded(title: "大学英语", room: "B楼 508", start: start, end: end, nextTitle: "高等数学", nextRoom: "A楼 302")
+                    CourseIslandExpanded(title: "大学英语", room: "B楼 508", start: start, end: end,
+                                         nextTitle: "高等数学", nextRoom: "A楼 302", blueStickers: blueStickers)
                         .padding(14).background(.black, in: RoundedRectangle(cornerRadius: 20)).environment(\.colorScheme, .dark)
                 }.padding(20)
             }
@@ -29,7 +35,7 @@ struct CourseLiveGallery: View {
         }
     }
     private func card(title: String, room: String) -> some View {
-        CourseLiveCard(title: title, room: room, start: start, end: end, nextRoom: "A楼 302")
+        CourseLiveCard(title: title, room: room, start: start, end: end, nextRoom: "A楼 302", blueStickers: blueStickers)
             .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 24)).environment(\.colorScheme, .dark)
     }
     @MainActor private func verifyLayout() async {

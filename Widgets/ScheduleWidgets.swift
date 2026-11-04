@@ -8,7 +8,8 @@ struct ScheduleProvider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (ScheduleEntry) -> Void) {
         let payload = SystemSnapshot.readPayload()
         completion(.init(date: Date(), courses: payload?.courses ?? [],
-                         leadMinutes: payload?.reminderLeadMinutes ?? 10, interaction: CampusWidgetInteractionStore.read(), termID: payload?.termID))
+                         leadMinutes: payload?.reminderLeadMinutes ?? 10, interaction: CampusWidgetInteractionStore.read(),
+                         termID: payload?.termID, appearance: payload?.appearance ?? .init()))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> Void) {
         let payload = SystemSnapshot.readPayload()
@@ -17,7 +18,8 @@ struct ScheduleProvider: TimelineProvider {
         let interaction = CampusWidgetInteractionStore.read()
         let now = Date()
         let entries = WidgetTimelinePlan.dates(courses: courses, now: now, leadMinutes: lead).map {
-            ScheduleEntry(date: $0, courses: courses, leadMinutes: lead, interaction: interaction, termID: payload?.termID)
+            ScheduleEntry(date: $0, courses: courses, leadMinutes: lead, interaction: interaction,
+                          termID: payload?.termID, appearance: payload?.appearance ?? .init())
         }
         completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(3600 * 12))))
     }
@@ -48,14 +50,16 @@ struct CourseLiveWidget: Widget {
             CourseLiveCard(title: context.attributes.title, room: context.attributes.room,
                 start: context.attributes.start, end: context.state.end,
                 teacher: context.attributes.teacher,
-                nextRoom: context.state.nextRoom, stale: context.isStale)
+                nextRoom: context.state.nextRoom, stale: context.isStale,
+                blueStickers: usesBlueStickers(context.state))
             // 不指定背景与配色：锁屏和灵动岛属于系统界面，由系统按壁纸明暗
             // 决定底色与前景色才能保证可读。此前强制深底白字，在浅色壁纸上
             // 会突兀成一块黑卡，也与 App 本身的纸色风格不连续。
             .widgetURL(CourseDeepLink.activityURL(courseID: context.attributes.courseID, termID: context.attributes.termID,
                                                   occurrenceID: context.attributes.occurrenceID))
         } dynamicIsland: { context in
-            DynamicIsland {
+            let blueStickers = usesBlueStickers(context.state)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Text(context.isStale ? "已结束" : "课程安排").font(.caption).foregroundStyle(.secondary)
                 }
@@ -63,7 +67,8 @@ struct CourseLiveWidget: Widget {
                     CourseIslandExpanded(title: context.attributes.title, room: context.attributes.room,
                         start: context.attributes.start, end: context.state.end,
                         teacher: context.attributes.teacher,
-                        nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom)
+                        nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom,
+                        blueStickers: blueStickers)
                 }
             } compactLeading: {
                 // 课前左侧放课程名（截断显示），上课中回到书本图标。
@@ -71,9 +76,13 @@ struct CourseLiveWidget: Widget {
                 if context.state.beforeClass && !context.isStale {
                     Text(context.attributes.title)
                         .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(blueStickers ? Color(red: 0.72, green: 0.79, blue: 1) : .white)
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(maxWidth: 56, alignment: .leading)
                         .accessibilityHidden(true)
+                } else if blueStickers {
+                    Image(systemName: "paperplane.fill").font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
                 } else {
                     // 灵动岛内部恒为深底，这里的白色不随外观变化。
                     CampusBookMark().stroke(.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)).frame(width: 14, height: 17)
@@ -96,11 +105,21 @@ struct CourseLiveWidget: Widget {
                         .accessibilityLabel("\(context.attributes.title)，\(ScheduleRules.time(context.state.end)) 下课")
                 }
             } minimal: {
-                CampusBookMark().stroke(.white, lineWidth: 1.4).frame(width: 13, height: 16)
+                if blueStickers {
+                    Image(systemName: "paperplane.fill").font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                } else {
+                    CampusBookMark().stroke(.white, lineWidth: 1.4).frame(width: 13, height: 16)
+                }
             }
             .widgetURL(CourseDeepLink.activityURL(courseID: context.attributes.courseID, termID: context.attributes.termID,
                                                   occurrenceID: context.attributes.occurrenceID))
         }
+    }
+
+    private func usesBlueStickers(_ state: CourseActivityAttributes.ContentState) -> Bool {
+        // A scheduled activity can start after the user changes themes.
+        SystemSnapshot.readPayload()?.appearance.showsBlueStickers ?? state.blueStickers ?? false
     }
 }
 @main struct CampusWidgetBundle: WidgetBundle {

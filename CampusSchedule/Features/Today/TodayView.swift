@@ -101,8 +101,7 @@ struct TodayView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if store.appearance.theme == .blueStickers && store.appearance.density != .off
-                && !typeSize.isAccessibilitySize {
+            if store.appearance.showsBlueStickers && !typeSize.isAccessibilitySize {
                 GeometryReader { geometry in
                     let available = geometry.size.width - headingWidth - 12
                     if headingWidth > 0 && available >= CampusBlueStickers.compactWidth {

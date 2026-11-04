@@ -10,6 +10,7 @@ struct CourseLiveCard: View {
     var teacher: String = ""
     var nextRoom: String?
     var stale = false
+    var blueStickers = false
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
@@ -31,7 +32,19 @@ struct CourseLiveCard: View {
                         .tint(.primary).labelsHidden().frame(height: 3)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
-            if !typeSize.isAccessibilitySize { CampusWidgetFigure().frame(width: 52, height: 90) }
+            if !typeSize.isAccessibilitySize {
+                Group {
+                    if blueStickers {
+                        CampusStickerMark(size: 25)
+                            .frame(width: 43, height: 40)
+                            .background(CampusStickerMark.blue, in: .rect(cornerRadius: 11))
+                            .rotationEffect(.degrees(-6))
+                    } else {
+                        CampusWidgetFigure()
+                    }
+                }
+                .frame(width: 52, height: 90)
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .foregroundStyle(.primary)
@@ -53,6 +66,7 @@ struct CourseIslandExpanded: View {
     var teacher: String = ""
     var nextTitle: String?
     var nextRoom: String?
+    var blueStickers = false
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
@@ -75,7 +89,17 @@ struct CourseIslandExpanded: View {
                 }
                 .font(.caption).foregroundStyle(.secondary).minimumScaleFactor(0.8)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            CampusWidgetFigure().frame(width: 40, height: 66)
+            Group {
+                if blueStickers {
+                    CampusStickerMark(size: 19)
+                        .frame(width: 34, height: 32)
+                        .background(CampusStickerMark.blue, in: .rect(cornerRadius: 9))
+                        .rotationEffect(.degrees(-6))
+                } else {
+                    CampusWidgetFigure()
+                }
+            }
+            .frame(width: 40, height: 66)
         }
     }
 }
