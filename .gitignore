@@ -5,6 +5,7 @@ DerivedData/
 .swiftpm/
 ios/build/
 screenshots/
+appstore-screenshots/
 *.xcuserstate
 xcuserdata/
 /CampusSchedule.xcodeproj/

@@ -1,0 +1,41 @@
+name: App Store screenshots
+
+# App Store 提交要求截图，而本地是 Windows 无法跑模拟器。
+# 单独一个手动触发的任务：只在需要提交审核时跑一次，避免占用 macOS 额度。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Generate project and run rule tests
+        run: |
+          node scripts/generate-ios-project.mjs
+          node scripts/check-preview-config.mjs
+          swift test
+      - name: Build simulator app
+        run: bash scripts/build-native-simulator.sh 2>&1 | tee native-build.log
+      - name: Capture App Store sized screenshots
+        run: bash scripts/appstore-screenshots.sh 2>&1 | tee appstore-screenshots.log
+      - name: Save screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: appstore-screenshots
+          path: |
+            appstore-screenshots/
+            appstore-screenshots.log
+            native-build.log
+          retention-days: 7
+          if-no-files-found: warn
