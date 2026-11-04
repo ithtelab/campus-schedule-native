@@ -20,6 +20,8 @@ struct ImportView: View {
     @State private var mode: Mode = .school
     @State private var selectedSchool: SchoolEntry?
     @State private var numbering: AcademicSystemProfile.WeekdayNumbering = .automatic
+    @State private var refresh = AcademicRefreshService.shared
+    @State private var reviewingChanges = false
 
     enum Mode: String, CaseIterable, Identifiable {
         case school = "学校"
@@ -59,7 +61,13 @@ struct ImportView: View {
             .sheet(item: $selectedSchool) { school in
                 AcademicLoginView(school: school)
             }
-            .task { loadDirectory() }
+            .sheet(isPresented: $reviewingChanges) {
+                if let connection = refresh.connection { changesView(connection) }
+            }
+            .task {
+                loadDirectory()
+                if !store.isPreview { refresh.restore() }
+            }
         }
     }
 
@@ -67,6 +75,7 @@ struct ImportView: View {
 
     private var schoolList: some View {
         List {
+            if query.isEmpty { refreshSection }
             if let error = directoryError {
                 Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
             }
@@ -87,6 +96,76 @@ struct ImportView: View {
             }
         }
         .searchable(text: $query, prompt: "搜索学校名称或教务地址")
+    }
+
+    @ViewBuilder private var refreshSection: some View {
+        if refresh.connection != nil || refresh.busy || refresh.message != nil {
+            Section {
+                if let connection = refresh.connection {
+                    LabeledContent("教务来源", value: connection.school)
+                    LabeledContent("绑定时学期", value: connection.term)
+                    LabeledContent("最近成功检查") { Text(connection.checkedAt, format: .dateTime.month().day().hour().minute()) }
+                    if connection.needsLogin {
+                        Button("重新登录", systemImage: "person.badge.key") {
+                            selectedSchool = SchoolEntry(name: connection.school, url: connection.scope.entrance.absoluteString,
+                                                         system: nil, confidence: 0)
+                        }
+                    } else {
+                        Button("立即检查", systemImage: "arrow.clockwise") { Task { await refresh.check(force: true) } }
+                            .disabled(refresh.busy)
+                    }
+                    if !connection.diff.isEmpty {
+                        Button("查看课表变更", systemImage: "list.bullet.rectangle") { reviewingChanges = true }
+                    }
+                    Button("关闭检查并清除会话", systemImage: "trash", role: .destructive) { refresh.disconnect() }
+                }
+                if refresh.busy { ProgressView("正在检查教务课表…") }
+                if let message = refresh.message {
+                    Text(message).font(.footnote).foregroundStyle(.secondary)
+                }
+            } header: { Text("课表变更检查") }
+            footer: { Text("系统允许时尝试后台检查，间隔至少 6 小时。查到差异会留在这里供核对。") }
+        }
+    }
+
+    private func changesView(_ connection: AcademicRefreshService.Connection) -> some View {
+        let diff = connection.diff
+        return NavigationStack {
+            List {
+                Section("教务来源") {
+                    LabeledContent("学校", value: connection.school)
+                    LabeledContent("绑定时学期", value: connection.term)
+                    Text("以下是两次教务页面之间的差异。请对照学校通知，确认调课或停课后，再调整本地课表。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                if !diff.appeared.isEmpty { changesSection("新页面出现的安排", courses: diff.appeared) }
+                if !diff.missing.isEmpty { changesSection("新页面未见的安排", courses: diff.missing) }
+                if diff.isEmpty { Text("当前没有待核对的变更。") }
+                if let message = refresh.message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+                Button("已核对，使用这次页面作为基准") {
+                    refresh.markReviewed(id: connection.id, latest: connection.latest)
+                    if refresh.connection?.diff.isEmpty == true { reviewingChanges = false }
+                }
+                .disabled(refresh.busy || diff.isEmpty)
+            }
+            .navigationTitle("教务课表变更")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("完成") { reviewingChanges = false } } }
+        }
+    }
+
+    private func changesSection(_ title: String, courses: [ParsedCourse]) -> some View {
+        Section(title) {
+            ForEach(courses, id: \.self) { course in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(course.title).font(.headline)
+                    Text("周\(ImportPlanner.weekdayName(course.weekday)) 第 \(course.startPeriod)–\(course.endPeriod) 节 · \(course.room.isEmpty ? "教室待确认" : course.room)")
+                    Text(course.weeks.isEmpty ? "整学期" : "第 \(course.weeks.sorted().map(String.init).joined(separator: "、")) 周")
+                    if !course.teacher.isEmpty { Text(course.teacher) }
+                }
+                .font(.subheadline)
+            }
+        }
     }
 
     private func row(_ entry: SchoolEntry) -> some View {

@@ -4,13 +4,12 @@ import WebKit
 /// 在 App 内登录教务系统并提取课表。
 ///
 /// 流程：打开学校入口 → 用户自行登录 → 进入课表页 → 点「提取课表」。
-/// 不保存密码，Cookie 只在本次会话的内存里。
+/// WebView 默认使用临时会话。仅在用户选择自动检查时提取当前课表页所需的 Cookie。
 struct AcademicLoginView: View {
     @Environment(PreviewStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
     let school: SchoolEntry
-    @State private var extractedHTML: String?
     @State private var isLoading = true
     @State private var hasLoadedPage = false
     @State private var loadError: String?
@@ -18,8 +17,22 @@ struct AcademicLoginView: View {
     @State private var plan: ImportPlanner.Plan?
     @State private var extracting = false
     @State private var numbering: AcademicSystemProfile.WeekdayNumbering = .automatic
+    @State private var enablesRefresh = false
+    @State private var refreshCandidate: RefreshCandidate?
     /// 由 WebViewHost 在创建时回填，供提取按钮读取页面。
     @State private var webViewRef: WKWebView?
+
+    private struct RefreshCandidate {
+        let scope: AcademicRefreshScope
+        let cookies: [AcademicRefreshCookie]
+        let baseline: Set<ParsedCourse>
+        let numbering: AcademicSystemProfile.WeekdayNumbering
+    }
+
+    private var refreshScope: AcademicRefreshScope? {
+        guard !store.isPreview, let entrance = URL(string: school.url), let page = webViewRef?.url else { return nil }
+        return AcademicRefreshScope(entrance: entrance, page: page)
+    }
 
     var body: some View {
         NavigationStack {
@@ -49,10 +62,19 @@ struct AcademicLoginView: View {
             .sheet(item: $plan) { plan in
                 ImportPreviewView(plan: plan) { confirmed in
                     guard store.applyImport(confirmed) > 0 else { return false }
+                    if let candidate = refreshCandidate {
+                        let term = store.semesterName
+                        let totalWeeks = store.totalWeeks
+                        Task {
+                            await AcademicRefreshService.shared.connect(school: school.name, term: term, scope: candidate.scope,
+                                totalWeeks: totalWeeks, numbering: candidate.numbering, cookies: candidate.cookies,
+                                baseline: candidate.baseline)
+                        }
+                    }
                     self.plan = nil
                     dismiss()
                     return true
-                } onCancel: { self.plan = nil }
+                } onCancel: { self.plan = nil; refreshCandidate = nil }
             }
             .alert("无法访问", isPresented: .init(
                 get: { lastError != nil },
@@ -99,7 +121,18 @@ struct AcademicLoginView: View {
         VStack(alignment: .leading, spacing: 6) {
             Label("登录后进入「我的课表」页面，再点右上角「提取课表」", systemImage: "info.circle")
                 .font(.footnote)
-            Text("账密不会被保存，登录状态只在本次会话有效。")
+            if hasLoadedPage, refreshScope != nil {
+                Toggle("导入后自动检查变更", isOn: $enablesRefresh)
+                    .font(.footnote).tint(DesignSystem.switchTint)
+                if enablesRefresh {
+                    Text("课表页的登录会话只存本机钥匙串，最多复用 7 天。通过读取验证后启用，并替换本机已保存的教务连接。")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            } else if hasLoadedPage && !store.isPreview {
+                Text("自动检查需要同一教务站点的 HTTPS 课表页。")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            Text("密码不会保存。")
                 .font(.caption2).foregroundStyle(.secondary)
             if (webViewRef?.url ?? URL(string: school.url))?.scheme == "http" {
                 Text("学校页面使用 HTTP 连接，请在可信网络下登录。")
@@ -125,32 +158,40 @@ struct AcademicLoginView: View {
             return
         }
         extracting = true
+        refreshCandidate = nil
+        let wantsRefresh = enablesRefresh
+        let scope = refreshScope
+        let selectedNumbering = numbering
         Task { @MainActor in
             defer { extracting = false }
             do {
                 let html = try await WebContentCollector.collect(from: webView)
-                extractedHTML = html
-                try planFromHTML(html)
+                let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: store.totalWeeks, numbering: selectedNumbering)
+                guard !outcome.courses.isEmpty else {
+                    throw NSError(domain: "AcademicImport", code: 1, userInfo: [NSLocalizedDescriptionKey: outcome.warnings.first ?? ImportFailure.noCourses.localizedDescription])
+                }
+                var proposal = store.makeImportPlan(outcome)
+                if wantsRefresh, let scope, scope == refreshScope, proposal.warnings.isEmpty {
+                    let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
+                    if scope == refreshScope {
+                        let now = Date()
+                        let scopedCookies = cookies.map {
+                            AcademicRefreshCookie(name: $0.name, value: $0.value, domain: $0.domain, path: $0.path, expires: $0.expiresDate)
+                        }.filter { $0.isUsable(in: scope, now: now) }
+                        if !scopedCookies.isEmpty {
+                            refreshCandidate = RefreshCandidate(scope: scope, cookies: scopedCookies,
+                                baseline: Set(outcome.courses), numbering: selectedNumbering)
+                        }
+                    }
+                }
+                if wantsRefresh && refreshCandidate == nil {
+                    proposal.warnings.append("该页无法建立自动检查，仍可手动导入。")
+                }
+                plan = proposal
             } catch {
                 lastError = error.localizedDescription
             }
         }
-    }
-
-    private func planFromHTML(_ html: String) throws {
-        let outcome = AcademicSystemProfile.parsePage(html, totalWeeks: store.totalWeeks, numbering: numbering)
-        guard !outcome.courses.isEmpty else {
-            throw NSError(domain: "AcademicImport", code: 1, userInfo: [NSLocalizedDescriptionKey: outcome.warnings.first ?? ImportFailure.noCourses.localizedDescription])
-        }
-        finish(plan: makePlan(outcome))
-    }
-
-    private func makePlan(_ outcome: ParseOutcome) -> ImportPlanner.Plan {
-        store.makeImportPlan(outcome)
-    }
-
-    private func finish(plan: ImportPlanner.Plan) {
-        self.plan = plan
     }
 
     enum ImportFailure: LocalizedError {
@@ -177,7 +218,7 @@ private struct WebViewHost: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
-        // 内存级 Cookie：退出即失效，不在磁盘留下登录凭据。
+        // 不使用全局 WebKit Cookie；后台检查只使用用户授权导入时提取的会话。
         configuration.websiteDataStore = .nonPersistent()
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator

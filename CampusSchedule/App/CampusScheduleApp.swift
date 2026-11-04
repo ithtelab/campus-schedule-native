@@ -21,6 +21,9 @@ struct CampusScheduleApp: App {
         }
         // iPad 允许任意尺寸窗口，才能在分屏与台前调度里按需调整。
         .windowResizability(.contentMinSize)
+        .backgroundTask(.appRefresh(AcademicRefreshService.taskID)) {
+            await AcademicRefreshService.shared.check()
+        }
     }
 }
 
@@ -146,6 +149,10 @@ struct RootView: View {
             }
         }
         .task { await runSmokeChecksIfRequested() }
+        .task(id: phase) {
+            guard phase == .active, !store.isPreview else { return }
+            await AcademicRefreshService.shared.check()
+        }
         .environment(store)
         .environment(\.timeZone, ScheduleRules.calendar.timeZone)
         .environment(\.dynamicTypeSize,

@@ -5,6 +5,8 @@
 <key>CampusDemoEdition</key><true/>
 <key>ITSAppUsesNonExemptEncryption</key><false/>
 <key>NSSupportsLiveActivities</key><true/>
+<key>UIBackgroundModes</key><array><string>fetch</string></array>
+<key>BGTaskSchedulerPermittedIdentifiers</key><array><string>com.ithtelab.campustimetable.academic-refresh</string></array>
 <!-- 多校教务网页及其登录跳转可能仍使用 HTTP，仅放宽 WebKit；URLSession 保留 ATS。 -->
 <key>NSAppTransportSecurity</key><dict>
 <key>NSAllowsArbitraryLoadsInWebContent</key><true/>
