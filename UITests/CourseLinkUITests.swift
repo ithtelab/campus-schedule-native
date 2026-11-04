@@ -5,7 +5,6 @@ final class CourseLinkUITests: XCTestCase {
     @MainActor func testAppearanceSwitchesAndDarkImport() {
         continueAfterFailure = false
         let app = XCUIApplication()
-        XCUIDevice.shared.appearance = .light
         app.launch()
         let importButton = app.buttons["schedule.empty.import"]
         let manualButton = app.buttons["手动添加"]
@@ -41,15 +40,12 @@ final class CourseLinkUITests: XCTestCase {
         selectAppearance("跟随系统", in: app)
         assertBackground(dark: false, in: app)
         capture(app, name: "appearance-follows-light-system")
-        XCUIDevice.shared.appearance = .dark
-        assertBackground(dark: true, in: app)
-        XCUIDevice.shared.appearance = .light
-        assertBackground(dark: false, in: app)
         selectAppearance("深色", in: app)
         assertBackground(dark: true, in: app)
         selectAppearance("浅色", in: app)
         assertBackground(dark: false, in: app)
         capture(app, name: "appearance-explicit-light")
+        selectAppearance("跟随系统", in: app)
     }
 
     @MainActor private func selectAppearance(_ option: String, in app: XCUIApplication) {

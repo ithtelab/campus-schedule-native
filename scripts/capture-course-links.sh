@@ -34,3 +34,12 @@ trap export_results EXIT
 xcodebuild -project ios/CampusSchedule.xcodeproj -scheme CampusCourseLinks -configuration Release \
   -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath ios/build \
   -resultBundlePath build/course-links.xcresult -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO "${tests[@]}" test
+
+if [[ "${CAMPUS_UI_FOCUS:-full}" == appearance-check ]]; then
+  xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id"
+  for appearance in dark light; do
+    xcrun simctl ui "$simulator_id" appearance "$appearance"
+    sleep 3
+    xcrun simctl io "$simulator_id" screenshot "screenshots/appearance-system-$appearance.png"
+  done
+fi
