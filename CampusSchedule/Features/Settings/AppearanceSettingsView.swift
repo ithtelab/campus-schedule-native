@@ -33,7 +33,7 @@ struct AppearanceSettingsView: View {
                 Text("人物动作随课程状态变化：课前准备、换教室、上课、课间与当天结束。轻点人物会回应，不会修改课表。")
             }
 
-            Section("人物形象") {
+            Section {
                 ForEach(CampusPersona.allCases) { persona in
                     Button { select(persona) } label: {
                         row(title: persona.title,
@@ -44,9 +44,11 @@ struct AppearanceSettingsView: View {
                     .buttonStyle(.plain)
                     .disabled(!persona.isAvailable)
                 }
+            } header: {
+                Text("人物形象")
             }
 
-            Section("主题") {
+            Section {
                 ForEach(CampusTheme.allCases) { theme in
                     Button { settings.appearance.theme = theme } label: {
                         row(title: theme.title,
@@ -57,28 +59,34 @@ struct AppearanceSettingsView: View {
                     .buttonStyle(.plain)
                     .disabled(!theme.isAvailable)
                 }
+            } header: {
+                Text("主题")
             } footer: {
                 Text("主题与浅色／深色是两个独立选择：在「外观」里选择跟随系统、浅色或深色。")
             }
 
-            Section("装饰密度") {
+            Section {
                 Picker("密度", selection: $settings.appearance.density) {
                     ForEach(DecorationDensity.allCases) { density in
                         Text(density.title).tag(density)
                     }
                 }
                 .pickerStyle(.segmented)
+            } header: {
+                Text("装饰密度")
             } footer: {
                 Text("关闭后不显示人物，课表与今日页仍完整可用。任何密度都不会遮挡课程名称、教室和时间。")
             }
 
-            Section("互动效果") {
+            Section {
                 Picker("效果", selection: $settings.appearance.effects) {
                     ForEach(InteractionEffects.allCases) { effect in
                         Text(effect.title).tag(effect)
                     }
                 }
                 .pickerStyle(.segmented)
+            } header: {
+                Text("互动效果")
             } footer: {
                 Text("选择「静态」后人物只保留当前姿态，不播放过渡动作。系统开启「减弱动态效果」时同样只保留静态。")
             }

@@ -30,6 +30,25 @@ enum SettingsRoute: Hashable {
     case exams
 }
 
+/// 上课提醒的提前量。用枚举而不是内联数组：`Picker` 里的 `ForEach([Int])`
+/// 会让整个 `Form` 的类型推导变得极慢，接近编译器的超时阈值。
+enum ReminderLead: Int, CaseIterable {
+    case five = 5, ten = 10, fifteen = 15, thirty = 30
+
+    var minutes: Int { rawValue }
+    var title: String { "\(rawValue) 分钟" }
+}
+
+/// 下课提醒的提前量。0 表示下课时。
+enum EndReminderLead: Int, CaseIterable {
+    case atEnd = 0, one = 1, three = 3, five = 5
+
+    var minutes: Int { rawValue }
+    var title: String {
+        self == .atEnd ? "下课时" : "提前 \(rawValue) 分钟"
+    }
+}
+
 struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
@@ -61,18 +80,19 @@ struct SettingsView: View {
                         Label("纪念事件", systemImage: "flag")
                     }
                 }
-                Section("提醒") {
+                Section {
                     Toggle("上课提醒", isOn: $settings.reminderPreview).tint(DesignSystem.switchTint)
                     Picker("提前时间", selection: $settings.reminderMinutes) {
-                        ForEach([5, 10, 15, 30], id: \.self) { Text("\($0) 分钟").tag($0) }
+                        ForEach(ReminderLead.allCases, id: \.self) { lead in
+                            Text(lead.title).tag(lead.minutes)
+                        }
                     }
                     Toggle("下课提醒", isOn: $settings.endReminder).tint(DesignSystem.switchTint)
                     if settings.endReminder {
                         Picker("下课提醒时间", selection: $settings.endLead) {
-                            Text("下课时").tag(0)
-                            Text("提前 1 分钟").tag(1)
-                            Text("提前 3 分钟").tag(3)
-                            Text("提前 5 分钟").tag(5)
+                            ForEach(EndReminderLead.allCases, id: \.self) { lead in
+                                Text(lead.title).tag(lead.minutes)
+                            }
                         }
                     }
                 } header: { Text("提醒") }
