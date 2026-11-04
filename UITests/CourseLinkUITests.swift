@@ -122,6 +122,8 @@ final class CourseLinkUITests: XCTestCase {
         themes.tap()
         let theme = app.buttons["appearance.theme.blueStickers"]
         reveal(theme, in: app)
+        XCTAssertTrue(app.buttons["appearance.theme.paper"].exists)
+        capture(app, name: "appearance-theme-samples")
         theme.tap()
         XCTAssertTrue(theme.isSelected)
 

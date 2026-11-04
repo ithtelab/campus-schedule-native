@@ -76,7 +76,7 @@ struct AppearanceSettingsView: View {
             Section("主题") {
                 ForEach([CampusTheme.paper, .blueStickers]) { theme in
                     themeRow(theme, title: theme.title, selected: store.appearance.theme.family == theme,
-                             id: "appearance.theme.\(theme.rawValue)")
+                             id: "appearance.theme.\(theme.rawValue)", showsThemeArtwork: theme == .paper)
                 }
             }
 
@@ -178,13 +178,17 @@ struct AppearanceSettingsView: View {
         Color(white: scheme == .dark ? 0.78 : 0.95)
     }
 
-    private func themeRow(_ theme: CampusTheme, title: String, selected: Bool, id: String) -> some View {
+    private func themeRow(_ theme: CampusTheme, title: String, selected: Bool, id: String,
+                          showsThemeArtwork: Bool = false) -> some View {
         Button {
             if !selected { store.appearance.theme = theme }
         } label: {
             HStack(spacing: 12) {
                 CampusThemeSurface(theme: theme, isSwatch: true)
                     .frame(width: 48, height: 36)
+                    .overlay {
+                        if showsThemeArtwork { monochromeThemeSample }
+                    }
                     .clipShape(.rect(cornerRadius: 5))
                     .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(DesignSystem.rule) }
                 Text(title)
@@ -196,6 +200,25 @@ struct AppearanceSettingsView: View {
         .buttonStyle(CampusPressStyle())
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier(id)
+    }
+
+    private var monochromeThemeSample: some View {
+        HStack(spacing: 2) {
+            CampusProp(kind: .notebook)
+                .frame(width: 16, height: 18)
+                .rotationEffect(.degrees(-12))
+            if let portrait = CampusCharacterAssets.image(style: .girl, frame: 0) {
+                Image(uiImage: portrait)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 31)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(white: scheme == .dark ? 0.83 : 0.96))
+        .environment(\.colorScheme, .light)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 
     private func synchronize(animated: Bool) {
