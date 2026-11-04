@@ -67,8 +67,18 @@ struct TodayView: View {
                 if ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "detail", let next { openCourse(next) }
             }
             .sensoryFeedback(.selection, trigger: courseFeedback)
+            .task {
+                // 人物形象来自外观偏好；切换后重新建立播放器，避免沿用旧图集。
+                if character.style != store.characterStyle {
+                    character = CampusCharacterPlayer(style: store.characterStyle)
+                }
+            }
+            .onChange(of: store.characterStyle) { _, style in
+                character = CampusCharacterPlayer(style: style)
+            }
             .onChange(of: characterContext, initial: true) { _, context in
-                character.synchronize(context, animated: scenePhase == .active && !reduceMotion && !suppressMotion)
+                let follows = store.appearance.effects == .followSchedule
+                character.synchronize(context, animated: follows && scenePhase == .active && !reduceMotion && !suppressMotion)
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active { character.stop() }
@@ -155,7 +165,7 @@ struct TodayView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(CampusPressStyle()).accessibilityHint("查看课程详情")
-                    if !typeSize.isAccessibilitySize {
+                    if !typeSize.isAccessibilitySize && store.showsCharacter {
                         CampusCharacter(player: character, contextDriven: true).frame(width: 78, height: 150)
                     }
                 }

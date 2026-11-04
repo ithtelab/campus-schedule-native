@@ -8,13 +8,15 @@ import AppIntents
 /// 候选从 App Group 快照里读，与 App 内的顺序保持一致。
 struct MilestoneEntity: AppEntity, Identifiable, Codable, Hashable, Sendable {
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "纪念事件" }
-    static var defaultQuery = MilestoneEntityQuery()
+    /// 计算属性而不是存储属性：`defaultQuery` 是协议要求的静态属性，
+    /// 存成 `static var` 会成为非 Sendable 的全局可变状态，在 Swift 6 下编译不过。
+    static var defaultQuery: MilestoneEntityQuery { MilestoneEntityQuery() }
 
     var id: String
     var title: String
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(title)")
+        DisplayRepresentation(title: LocalizedStringResource(stringLiteral: title))
     }
 }
 

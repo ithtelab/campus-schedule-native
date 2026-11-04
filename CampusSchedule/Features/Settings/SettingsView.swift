@@ -87,6 +87,11 @@ struct SettingsView: View {
                         }
                     }
                     .accessibilityIdentifier("settings.appearance")
+                    NavigationLink {
+                        AppearanceSettingsView()
+                    } label: {
+                        Label("人物与主题", systemImage: "person.crop.square")
+                    }
                 }
                 Section {
                     Toggle("iCloud 同步", isOn: $settings.cloudSyncEnabled).tint(DesignSystem.switchTint)

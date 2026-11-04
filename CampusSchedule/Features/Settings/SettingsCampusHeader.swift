@@ -29,15 +29,19 @@ struct SettingsCampusHeader: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if !typeSize.isAccessibilitySize {
+                if !typeSize.isAccessibilitySize && store.showsCharacter {
                     CampusCharacter(player: character, contextDriven: true)
                         .frame(width: 82, height: 132)
                 }
             }
             .padding(.vertical, 10)
             .onChange(of: context, initial: true) { _, value in
-                character.synchronize(value, animated: !reduceMotion && !suppressMotion)
+                let follows = store.appearance.effects == .followSchedule
+                character.synchronize(value, animated: follows && !reduceMotion && !suppressMotion)
             }
+        }
+        .onChange(of: store.characterStyle) { _, style in
+            character = CampusCharacterPlayer(style: style)
         }
         .onDisappear { character.stop() }
     }

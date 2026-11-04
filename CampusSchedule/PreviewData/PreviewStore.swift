@@ -206,6 +206,22 @@ final class PreviewStore {
     /// 纪念事件。跨学期保留，不随切换学期消失。
     var milestones: [Milestone] = [] { didSet { save() } }
 
+    /// 外观偏好。人物、主题、装饰密度与互动效果与课程数据分开保存，
+    /// 切换身份或学期都不会重置。
+    var appearance = AppearancePreferences() { didSet { guard appearance != oldValue else { return }; save() } }
+
+    /// 当前形象对应的角色资源。尚未绘制完成的形象退回默认角色，
+    /// 但保留用户的选择，等资源补齐后自动生效。
+    var characterStyle: CampusCharacterStyle {
+        switch appearance.persona {
+        case .boy: .boy
+        case .girl, .teacher, .cat: .girl
+        }
+    }
+
+    /// 是否显示人物。关闭装饰后界面必须仍然完整可用。
+    var showsCharacter: Bool { appearance.density.showsCharacter }
+
     /// 按今日页的展示顺序排好的纪念事件，已归档的排在最后。
     var sortedMilestones: [Milestone] { MilestoneCounter.sorted(milestones, now: now) }
 
@@ -246,10 +262,13 @@ final class PreviewStore {
         var cloudSyncEnabled: Bool?
         /// 纪念事件跨学期保留，因此存在顶层而不是学期容器里。
         var milestones: [Milestone] = []
+        /// 外观偏好。旧文件没有这个键，缺省即可。
+        var appearance: AppearancePreferences?
 
         init(activeTermID: String, terms: [String: TermContent], reminders: Bool, lead: Int,
              endReminder: Bool, endLead: Int, liveEnabled: Bool,
-             cloudSyncEnabled: Bool?, milestones: [Milestone] = []) {
+             cloudSyncEnabled: Bool?, milestones: [Milestone] = [],
+             appearance: AppearancePreferences? = nil) {
             self.activeTermID = activeTermID
             self.terms = terms
             self.reminders = reminders
@@ -259,12 +278,13 @@ final class PreviewStore {
             self.liveEnabled = liveEnabled
             self.cloudSyncEnabled = cloudSyncEnabled
             self.milestones = milestones
+            self.appearance = appearance
         }
 
-        // 纪念事件是后加的字段，旧文件没有它；缺省为空数组而不是整份数据解码失败。
+        // 纪念事件与外观偏好是后加的字段，旧文件没有它们；缺省而不是解码失败。
         enum CodingKeys: String, CodingKey {
             case activeTermID, terms, reminders, lead, endReminder, endLead, liveEnabled,
-                 cloudSyncEnabled, milestones
+                 cloudSyncEnabled, milestones, appearance
         }
 
         init(from decoder: any Decoder) throws {
@@ -278,6 +298,7 @@ final class PreviewStore {
             liveEnabled = try container.decode(Bool.self, forKey: .liveEnabled)
             cloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .cloudSyncEnabled)
             milestones = try container.decodeIfPresent([Milestone].self, forKey: .milestones) ?? []
+            appearance = try container.decodeIfPresent(AppearancePreferences.self, forKey: .appearance)
         }
     }
 
@@ -413,6 +434,7 @@ final class PreviewStore {
             reminderPreview = saved.reminders; reminderMinutes = saved.lead
             endReminder = saved.endReminder; endLead = saved.endLead; liveEnabled = saved.liveEnabled
             milestones = saved.milestones
+            appearance = saved.appearance ?? AppearancePreferences()
             restoreCloudSync = saved.cloudSyncEnabled == true
             return true
         }
@@ -554,7 +576,7 @@ final class PreviewStore {
             let data = Saved(activeTermID: activeTermID, terms: termContents,
                 reminders: reminderPreview, lead: reminderMinutes, endReminder: endReminder,
                 endLead: endLead, liveEnabled: liveEnabled, cloudSyncEnabled: cloudSyncEnabled,
-                milestones: milestones)
+                milestones: milestones, appearance: appearance)
             let encoded = try JSONEncoder().encode(data)
             try persistence.save(encoded)
             synchronize()
@@ -570,7 +592,7 @@ final class PreviewStore {
     @discardableResult
     private func commitBatch(_ changes: () -> Void) -> Bool {
         let oldTerms = termContents, oldActive = activeTermID, oldWeek = selectedWeek
-        let oldMilestones = milestones
+        let oldMilestones = milestones, oldAppearance = appearance
         batchDepth += 1
         changes()
         batchDepth -= 1
@@ -578,6 +600,7 @@ final class PreviewStore {
         batchDepth += 1
         termContents = oldTerms; activeTermID = oldActive; selectedWeek = oldWeek
         milestones = oldMilestones
+        appearance = oldAppearance
         batchDepth -= 1
         return false
     }
