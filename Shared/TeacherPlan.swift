@@ -4,12 +4,20 @@ import Foundation
 ///
 /// 身份决定信息呈现与快捷操作，不改变课程时间，也不删除任何数据。
 /// 切换随时可以，同一用户可以同时保留学生与教师的安排。
+///
+/// 原始值是稳定的英文标识：展示文案随时可能改措辞，参与持久化后改文案就等于丢数据。
 public enum CampusRole: String, Codable, Sendable, CaseIterable, Identifiable {
-    case student = "学生"
-    case teacher = "教师"
+    case student
+    case teacher
 
     public var id: String { rawValue }
-    public var title: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .student: "学生"
+        case .teacher: "教师"
+        }
+    }
 
     /// 课程卡上第二个信息的标题：学生看任课教师，教师看教学班。
     public var courseContactLabel: String {
