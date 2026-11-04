@@ -339,10 +339,12 @@ struct TodayView: View {
                     Text(state.title)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
-                    Text(state.detail)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
+                    if let detail = state.detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
                 .frame(maxWidth: .infinity)
 
@@ -370,18 +372,18 @@ struct TodayView: View {
     /// 今日页收尾的三种状态。
     private struct ClosingState {
         let title: String
-        let detail: String
+        let detail: String?
 
         init(daily: [DemoCourse], remaining: Int, completed: Int) {
             if daily.isEmpty {
-                title = "今天没有课"
-                detail = "从添加第一门课开始，或到设置里导入课表。"
+                title = "今天没排课"
+                detail = nil
             } else if remaining > 0 {
-                title = "今天的课程到这里"
-                detail = "还有 \(remaining) 节没上。"
+                title = "今天还有 \(remaining) 节课"
+                detail = completed > 0 ? "已经上完 \(completed) 节。" : nil
             } else {
-                title = "今天的课都上完了"
-                detail = completed > 0 ? "共 \(completed) 节，休息一下。" : "休息一下。"
+                title = "今天的课上完啦"
+                detail = "歇会儿吧。"
             }
         }
     }
