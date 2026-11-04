@@ -50,18 +50,28 @@ public struct Milestone: Codable, Equatable, Sendable, Identifiable {
     }
 
     /// 计数方向。倒数日等日期到来，累计日从日期往后记。
+    ///
+    /// 原始值是稳定的英文标识而不是中文文案：展示文字随时可能改措辞，
+    /// 一旦参与持久化，改文案就等于丢数据。
     public enum Direction: String, Codable, Sendable, CaseIterable {
-        case countdown = "倒数"
-        case countUp = "累计"
+        case countdown
+        case countUp
+
+        public var title: String {
+            switch self {
+            case .countdown: "倒数"
+            case .countUp: "累计"
+            }
+        }
     }
 
     public enum Category: String, Codable, Sendable, CaseIterable {
-        case exam = "考试"
-        case birthday = "生日"
-        case enrollment = "入学"
-        case graduation = "毕业"
-        case personal = "纪念日"
-        case custom = "其他"
+        case exam
+        case birthday
+        case enrollment
+        case graduation
+        case personal
+        case custom
 
         /// 分类图标。使用系统符号，避免为每个分类绘制一份资源。
         public var symbol: String {
@@ -75,15 +85,31 @@ public struct Milestone: Codable, Equatable, Sendable, Identifiable {
             }
         }
 
-        public var title: String { rawValue }
+        public var title: String {
+            switch self {
+            case .exam: "考试"
+            case .birthday: "生日"
+            case .enrollment: "入学"
+            case .graduation: "毕业"
+            case .personal: "纪念日"
+            case .custom: "其他"
+            }
+        }
     }
 
     /// 目标日期已过后怎么处理。
     public enum Expiry: String, Codable, Sendable, CaseIterable {
         /// 倒数日转为累计，继续显示天数。
-        case continueCounting = "继续计数"
+        case continueCounting
         /// 从展示列表归档，管理列表里仍可找到并删除。
-        case archive = "归档"
+        case archive
+
+        public var title: String {
+            switch self {
+            case .continueCounting: "继续计数"
+            case .archive: "归档"
+            }
+        }
     }
 }
 

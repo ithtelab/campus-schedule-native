@@ -149,7 +149,7 @@ struct MilestoneEditorView: View {
                         .accessibilityIdentifier("milestone.title")
                     DatePicker("日期", selection: $draft.date, displayedComponents: .date)
                     Picker("方向", selection: $draft.direction) {
-                        ForEach(Milestone.Direction.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        ForEach(Milestone.Direction.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     Picker("分类", selection: $draft.category) {
@@ -173,7 +173,7 @@ struct MilestoneEditorView: View {
 
                 Section {
                     Picker("过期后", selection: $draft.expiry) {
-                        ForEach(Milestone.Expiry.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        ForEach(Milestone.Expiry.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                 } header: { Text("过期处理") }
                 footer: { Text("归档只影响展示，事件仍保留在列表里可以编辑或删除。") }

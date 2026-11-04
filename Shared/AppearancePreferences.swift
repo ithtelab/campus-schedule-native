@@ -1,18 +1,54 @@
 import Foundation
 
+/// 使用身份。
+///
+/// 身份决定信息呈现与快捷操作，不改变课程时间，也不删除任何数据。
+/// 切换随时可以，同一用户可以同时保留学生与教师的安排。
+///
+/// 原始值是稳定的英文标识：展示文案随时可能改措辞，参与持久化后改文案就等于丢数据。
+public enum CampusRole: String, Codable, Sendable, CaseIterable, Identifiable {
+    case student
+    case teacher
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .student: "学生"
+        case .teacher: "教师"
+        }
+    }
+
+    /// 课程卡上第二个信息的标题：学生看任课教师，教师看教学班。
+    public var courseContactLabel: String {
+        switch self {
+        case .student: "教师"
+        case .teacher: "教学班"
+        }
+    }
+}
+
 /// 人物形象。
 ///
 /// 身份（学生／教师）与形象不绑定：教师也能选学生形象，反之亦然。
 /// 只有已经绘制完整姿态的角色才可选用，其余标记为制作中，避免出现
 /// 「能选但画不出来」的空壳选项。
 public enum CampusPersona: String, Codable, Sendable, CaseIterable, Identifiable {
-    case girl = "棒球帽女生"
-    case boy = "耳机男生"
-    case teacher = "手持讲义的教师"
-    case cat = "校园小猫"
+    case girl
+    case boy
+    case teacher
+    case cat
 
     public var id: String { rawValue }
-    public var title: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .girl: "棒球帽女生"
+        case .boy: "耳机男生"
+        case .teacher: "手持讲义的教师"
+        case .cat: "校园小猫"
+        }
+    }
 
     /// 当前版本是否已经具备完整姿态资源。
     public var isAvailable: Bool {
@@ -32,12 +68,19 @@ public enum CampusPersona: String, Codable, Sendable, CaseIterable, Identifiable
 /// 首版只有「简洁纸面」具备完整令牌，其余两项先保留选择位，资源补齐后
 /// 只需在这里补上令牌映射，不必改业务页面。
 public enum CampusTheme: String, Codable, Sendable, CaseIterable, Identifiable {
-    case paper = "简洁纸面"
-    case notebook = "校园手账"
-    case chalkboard = "黑板笔记"
+    case paper
+    case notebook
+    case chalkboard
 
     public var id: String { rawValue }
-    public var title: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .paper: "简洁纸面"
+        case .notebook: "校园手账"
+        case .chalkboard: "黑板笔记"
+        }
+    }
 
     public var isAvailable: Bool {
         switch self {
@@ -51,12 +94,19 @@ public enum CampusTheme: String, Codable, Sendable, CaseIterable, Identifiable {
 
 /// 装饰密度。任何密度下都不遮挡课程名、教室、时间与按钮。
 public enum DecorationDensity: String, Codable, Sendable, CaseIterable, Identifiable {
-    case off = "关闭"
-    case light = "少量"
-    case rich = "丰富"
+    case off
+    case light
+    case rich
 
     public var id: String { rawValue }
-    public var title: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .off: "关闭"
+        case .light: "少量"
+        case .rich: "丰富"
+        }
+    }
 
     /// 是否显示人物。
     public var showsCharacter: Bool { self != .off }
@@ -66,11 +116,17 @@ public enum DecorationDensity: String, Codable, Sendable, CaseIterable, Identifi
 
 /// 互动效果：静态或跟随课表。
 public enum InteractionEffects: String, Codable, Sendable, CaseIterable, Identifiable {
-    case followSchedule = "跟随课表"
-    case staticOnly = "静态"
+    case followSchedule
+    case staticOnly
 
     public var id: String { rawValue }
-    public var title: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .followSchedule: "跟随课表"
+        case .staticOnly: "静态"
+        }
+    }
 }
 
 /// 外观偏好。不随切换身份或学期丢失。
@@ -102,6 +158,7 @@ public struct AppearancePreferences: Codable, Equatable, Sendable {
         theme = (try? container.decode(CampusTheme.self, forKey: .theme)) ?? .fallback
         density = (try? container.decode(DecorationDensity.self, forKey: .density)) ?? .light
         effects = (try? container.decode(InteractionEffects.self, forKey: .effects)) ?? .followSchedule
+        // 制作中的形象与主题即使被写进文件也退回可用项，否则界面会去找不存在的图集。
         if !persona.isAvailable { persona = .fallback }
         if !theme.isAvailable { theme = .fallback }
     }

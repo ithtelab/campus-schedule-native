@@ -75,7 +75,7 @@ struct AppearancePreferencesTests {
     @Test func unknownEnumFallsBackInsteadOfFailing() throws {
         // 未来版本写入了当前不认识的枚举值，不能整份外观偏好失效。
         let json = """
-        {"role":"teacher","persona":"机甲","theme":"纸面","density":"light","effects":"followSchedule"}
+        {"role":"teacher","persona":"mecha","theme":"paper2","density":"light","effects":"followSchedule"}
         """
         let decoded = try JSONDecoder().decode(AppearancePreferences.self, from: Data(json.utf8))
         #expect(decoded.role == .teacher)
@@ -93,7 +93,7 @@ struct AppearancePreferencesTests {
         // 即使有人手工把制作中的形象写进文件，也要退回可用形象，
         // 否则界面会去取不存在的图集。
         let json = """
-        {"role":"student","persona":"校园小猫","theme":"paper","density":"light","effects":"followSchedule"}
+        {"role":"student","persona":"cat","theme":"paper","density":"light","effects":"followSchedule"}
         """
         let decoded = try JSONDecoder().decode(AppearancePreferences.self, from: Data(json.utf8))
         #expect(decoded.persona == .fallback)
