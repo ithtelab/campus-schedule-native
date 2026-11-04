@@ -66,9 +66,12 @@ async function storeStatus() {
   const record = need(await findApp(), 'App Store Connect app');
   const [infos, versions] = await Promise.all([
     api(`/v1/apps/${record.id}/appInfos`),
-    api(`/v1/apps/${record.id}/appStoreVersions`, { query: { 'filter[platform]': 'IOS' } }),
+    api(`/v1/apps/${record.id}/appStoreVersions`, { query: { 'filter[platform]': 'IOS', include: 'build' } }),
   ]);
-  console.log(JSON.stringify(versions.data.map(item => ({ version: item.attributes.versionString, state: item.attributes.appStoreState }))));
+  console.log(JSON.stringify(versions.data.map(item => ({
+    version: item.attributes.versionString, state: item.attributes.appStoreState,
+    build: versions.included?.find(build => build.id === item.relationships?.build?.data?.id)?.attributes.version ?? null,
+  }))));
   for (const info of infos.data) {
     const state = info.attributes.appStoreState;
     const path = `/v1/appInfos/${info.id}/appInfoLocalizations`;
@@ -76,6 +79,29 @@ async function storeStatus() {
     console.log(JSON.stringify({ state, privacy: localizations.map(item => ({ locale: item.attributes.locale,
       privacyPolicyUrl: item.attributes.privacyPolicyUrl })) }));
   }
+}
+async function selectDraftBuild(buildNumber, expectedPrevious) {
+  const record = need(await findApp(), 'App Store Connect app');
+  const [versions, builds] = await Promise.all([
+    api(`/v1/apps/${record.id}/appStoreVersions`, { query: { 'filter[platform]': 'IOS', include: 'build' } }),
+    api('/v1/builds', { query: { 'filter[app]': record.id, 'filter[version]': need(buildNumber, 'build number'), include: 'preReleaseVersion' } }),
+  ]);
+  const draft = need(versions.data.find(item => item.attributes.versionString === app.version
+    && item.attributes.appStoreState === 'PREPARE_FOR_SUBMISSION'), 'editable App Store draft');
+  const build = need(builds.data.find(item => item.attributes.version === buildNumber
+    && item.attributes.processingState === 'VALID' && !item.attributes.expired
+    && item.attributes.buildAudienceType === 'APP_STORE_ELIGIBLE'), 'eligible build');
+  const train = builds.included?.find(item => item.id === build.relationships?.preReleaseVersion?.data?.id);
+  if (train?.attributes.version !== draft.attributes.versionString) throw new Error('Build belongs to a different version');
+  const currentID = draft.relationships?.build?.data?.id;
+  const previous = versions.included?.find(item => item.id === currentID)?.attributes.version;
+  if (currentID !== build.id) {
+    if (previous !== need(expectedPrevious, 'previous draft build')) throw new Error('The draft build changed since it was read');
+    await api(`/v1/appStoreVersions/${draft.id}/relationships/build`, { method: 'PATCH', data: { type: 'builds', id: build.id } });
+  }
+  const result = await api(`/v1/appStoreVersions/${draft.id}`, { query: { include: 'build' } });
+  if (result.data.relationships?.build?.data?.id !== build.id) throw new Error('Draft build selection could not be verified');
+  console.log(JSON.stringify({ version: app.version, build: buildNumber, previous, state: result.data.attributes.appStoreState }));
 }
 async function setup() {
   for (const [identifier, name] of [[bundle, 'CampusSchedule'], [bundle + '.widgets', 'CampusSchedule Widgets']]) {
@@ -593,6 +619,7 @@ try {
     case 'check-key': await api('/v1/bundleIds', { query: { limit: '1' } }); console.log('Apple team API key authenticated'); break;
     case 'setup': await setup(); break;
     case 'store-status': await storeStatus(); break;
+    case 'select-draft-build': await selectDraftBuild(process.argv[3], process.argv[4]); break;
     case 'tidy-identifiers': await tidyIdentifiers(); break;
     case 'certificate': await certificate(); break;
     case 'secrets': secrets(); break;
