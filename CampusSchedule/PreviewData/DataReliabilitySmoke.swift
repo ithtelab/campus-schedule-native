@@ -10,11 +10,9 @@ import Foundation
         let exception = CourseException(courseID: course.id, day: store.date(week: 1, day: course.weekday), cancelled: true)
         store.exceptions = [exception]
         let parsed = ParsedCourse(title: course.title, teacher: course.teacher, room: "新教室",
-            weekday: course.weekday, startPeriod: course.startPeriod, endPeriod: course.endPeriod,
-            weeks: course.weeks, teachingClass: "验证教学班")
+            weekday: course.weekday, startPeriod: course.startPeriod, endPeriod: course.endPeriod, weeks: course.weeks)
         let plan = store.makeImportPlan(.init(courses: [parsed]))
         check(store.applyImport(plan) == 1 && store.applyImport(plan) == 1, "repeat import count")
-        check(store.courses.contains { $0.teachingClassText == "验证教学班" }, "teaching class survives re-import")
         check(store.courses.filter { $0.id == course.id }.count == 1, "stable course identity")
         check(store.exceptions.contains { $0.id == exception.id && $0.courseID == course.id }, "exception association")
         let odd = ParsedCourse(title: "单双周用例", weekday: 2, startPeriod: 3, endPeriod: 4, weeks: [1, 3])

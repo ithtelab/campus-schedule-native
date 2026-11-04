@@ -101,20 +101,17 @@ public enum InteractionEffects: String, Codable, Sendable, CaseIterable, Identif
     }
 }
 
-/// 外观偏好。不随切换身份或学期丢失。
+/// 外观偏好。不随切换学期丢失。
 public struct AppearancePreferences: Codable, Equatable, Sendable {
-    /// 使用身份。与人物形象解耦：教师也能选学生形象。
-    public var role: CampusRole
     public var persona: CampusPersona
     public var theme: CampusTheme
     public var density: DecorationDensity
     public var effects: InteractionEffects
 
-    public init(role: CampusRole = .student, persona: CampusPersona = .fallback,
+    public init(persona: CampusPersona = .fallback,
                 theme: CampusTheme = .fallback,
                 density: DecorationDensity = .light,
                 effects: InteractionEffects = .followSchedule) {
-        self.role = role
         self.persona = persona
         self.theme = theme
         self.density = density
@@ -125,7 +122,6 @@ public struct AppearancePreferences: Codable, Equatable, Sendable {
     /// 只会退回该字段的默认值。
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        role = (try? container.decode(CampusRole.self, forKey: .role)) ?? .student
         persona = (try? container.decode(CampusPersona.self, forKey: .persona)) ?? .fallback
         theme = (try? container.decode(CampusTheme.self, forKey: .theme)) ?? .fallback
         density = (try? container.decode(DecorationDensity.self, forKey: .density)) ?? .light

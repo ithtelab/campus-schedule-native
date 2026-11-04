@@ -11,16 +11,9 @@ public struct ParsedCourse: Equatable, Hashable, Sendable {
     public var endPeriod: Int
     /// 周次集合；空表示未指定，调用方按整学期处理。
     public var weeks: Set<Int>
-    /// 教学班名称，教师端课表才有；学生端为空。
-    ///
-    /// 同一位教师可能在周一、周三给两个不同教学班上同一门课，课程名、教师、教室
-    /// 完全相同。没有这个字段，去重会把两门课合成一门，教师统计任课量时会少算。
-    /// 因此它必须同时进入去重键与冲突判定。
-    public var teachingClass: String
 
     public init(title: String, teacher: String = "", room: String = "",
-                weekday: Int, startPeriod: Int, endPeriod: Int, weeks: Set<Int> = [],
-                teachingClass: String = "") {
+                weekday: Int, startPeriod: Int, endPeriod: Int, weeks: Set<Int> = []) {
         self.title = title
         self.teacher = teacher
         self.room = room
@@ -28,7 +21,6 @@ public struct ParsedCourse: Equatable, Hashable, Sendable {
         self.startPeriod = startPeriod
         self.endPeriod = endPeriod
         self.weeks = weeks
-        self.teachingClass = teachingClass
     }
 }
 
@@ -452,14 +444,11 @@ public enum TimetableTextParser {
     }
 
     /// 同一门课可能出现在多个单元格（如单双周分开写），合并完全相同的条目。
-    ///
-    /// 键里必须包含教学班：教师端同一门课、同一教室、同一时段，但教学班不同，
-    /// 是两门课，合并会让任课量统计少算。
     static func deduplicate(_ courses: [ParsedCourse]) -> [ParsedCourse] {
         var seen = Set<String>()
         var result: [ParsedCourse] = []
         for course in courses {
-            let key = "\(course.title)|\(course.weekday)|\(course.startPeriod)|\(course.endPeriod)|\(course.room)|\(course.teachingClass)|\(course.weeks.sorted())"
+            let key = "\(course.title)|\(course.weekday)|\(course.startPeriod)|\(course.endPeriod)|\(course.room)|\(course.weeks.sorted())"
             if seen.insert(key).inserted { result.append(course) }
         }
         return result

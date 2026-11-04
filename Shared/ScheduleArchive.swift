@@ -110,12 +110,10 @@ public struct ArchivedCourse: Codable, Equatable {
     public var color: String
     public var weeks: [Int]
     public var remindersEnabled: Bool
-    /// 教学班名称，教师端课表才有。旧备份没有这个键，缺省为空。
-    public var teachingClass: String?
 
     public init(id: String, sourceID: String? = nil, title: String, room: String, teacher: String,
                 weekday: Int, startPeriod: Int, endPeriod: Int, color: String, weeks: [Int],
-                remindersEnabled: Bool = true, teachingClass: String? = nil) {
+                remindersEnabled: Bool = true) {
         self.id = id
         self.sourceID = sourceID
         self.title = title
@@ -127,7 +125,6 @@ public struct ArchivedCourse: Codable, Equatable {
         self.color = color
         self.weeks = weeks
         self.remindersEnabled = remindersEnabled
-        self.teachingClass = teachingClass
     }
 }
 

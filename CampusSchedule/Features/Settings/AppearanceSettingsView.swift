@@ -15,19 +15,6 @@ struct AppearanceSettingsView: View {
         @Bindable var settings = store
         Form {
             Section {
-                Picker("身份", selection: $settings.appearance.role) {
-                    ForEach(CampusRole.allCases) { role in
-                        Text(role.title).tag(role)
-                    }
-                }
-                .pickerStyle(.segmented)
-            } header: {
-                Text("使用身份")
-            } footer: {
-                Text("身份决定信息呈现与快捷操作，不改变已有课程时间，也不删除任何数据。可以随时切换。\n\n教师端教务导入暂未支持：各校教师端页面结构与学生端不同，目前没有可用的公开数据源。教师课程需手动录入或从文件导入，教学班可在课程编辑里填写。")
-            }
-
-            Section {
                 HStack(alignment: .center, spacing: 16) {
                     CampusCharacter(player: player, contextDriven: true)
                         .frame(width: 74, height: 128)

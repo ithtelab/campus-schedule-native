@@ -17,24 +17,6 @@ struct CourseDetailView: View {
         nextOccurrence.map { CourseLivePlan.canStartManually($0, now: store.now, lead: store.reminderMinutes) } ?? false
     }
 
-    /// 详情页的联系信息。
-    ///
-    /// 标题必须跟着值一起变：教务导入拿不到教学班时（教师端没有可用的公开数据源），
-    /// 若标题写着「教学班」而值是教师姓名，比不显示还糟。因此只有确实有教学班时
-    /// 才把它当主字段。
-    private var contactLabel: String {
-        if store.appearance.role == .teacher, !original.teachingClassText.isEmpty {
-            return CampusRole.teacher.courseContactLabel
-        }
-        return CampusRole.student.courseContactLabel
-    }
-
-    private var contact: String {
-        if store.appearance.role == .teacher, !original.teachingClassText.isEmpty {
-            return original.teachingClassText
-        }
-        return original.teacher
-    }
     var body: some View {
         NavigationStack {
             List {
@@ -46,25 +28,10 @@ struct CourseDetailView: View {
                         Text(original.title).font(.title.weight(.semibold))
                         if let character { CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176) }
                     }
-                    LabeledContent(contactLabel, value: contact)
-                    if !original.teachingClassText.isEmpty && store.appearance.role == .student {
-                        // 学生视角很少关心教学班，但合班上课时会写在教务页上，有就显示。
-                        LabeledContent("教学班", value: original.teachingClassText)
-                    }
+                    LabeledContent("教师", value: original.teacher)
                     LabeledContent("地点", value: original.room)
                     LabeledContent("时间", value: "\(original.startTime)–\(original.endTime)")
                     LabeledContent("周次", value: original.weeks.sorted().map(String.init).joined(separator: "、"))
-                }
-                if store.appearance.role == .teacher, let item = nextOccurrence {
-                    Section {
-                        // 备课状态按这一堂课记录；标记后课程仍完整保留在课表里。
-                        Toggle("本次已备课", isOn: Binding(
-                            get: { store.isPrepared(item) },
-                            set: { _ in store.togglePrepared(item) }
-                        )).tint(DesignSystem.switchTint)
-                        Text("只标记 \(item.start.formatted(.dateTime.month().day().hour().minute())) 这一次课，不影响其他教学周。")
-                            .font(.caption).foregroundStyle(.secondary)
-                    } header: { Text("备课") }
                 }
                 Section {
                     Button("编辑整门课程", systemImage: "pencil") { editing = true }

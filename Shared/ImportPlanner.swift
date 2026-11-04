@@ -125,12 +125,8 @@ public enum ImportPlanner {
                     replacedCount: replaced, warnings: warnings)
     }
 
-    /// 课程的身份键。
-    ///
-    /// 教学班必须参与：教师端同一门课、同一时段、同一教室但教学班不同，是两门课。
-    /// 不带教学班会让后导入的条目覆盖前一条，任课统计因此少算。
     static func key(_ course: ParsedCourse) -> String {
-        "\(course.title)|\(course.weekday)|\(course.startPeriod)|\(course.endPeriod)|\(course.teachingClass)"
+        "\(course.title)|\(course.weekday)|\(course.startPeriod)|\(course.endPeriod)"
     }
 
     /// 周次不同的记录不自动覆盖；避免单双周后写的条目吃掉先写的条目。

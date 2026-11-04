@@ -22,16 +22,7 @@ struct DemoCourse: Identifiable, Codable {
     var originalRoom: String?
     /// 周次规律，用于课表角标。
     var weekPattern: WeekPattern = .everyWeek
-    /// 教学班名称，教师端课表才有。
-    ///
-    /// 存成可选而不是带默认值的字符串：Swift 合成的 `init(from:)` **不会**使用
-    /// 属性默认值，缺失的键会直接解码失败。可选属性才会按 `decodeIfPresent`
-    /// 处理，因此老课表仍能读回。
-    var teachingClass: String?
-
     var shortRoom: String { Self.shorten(room) }
-    /// 便于界面的非可选读写。
-    var teachingClassText: String { teachingClass ?? "" }
 
     /// 教室名的缩写规则。与状态条共用 `NowStatus.shorten`，只保留一个实现。
     static func shorten(_ room: String) -> String { NowStatus.shorten(room) }
@@ -42,7 +33,6 @@ struct DemoCourse: Identifiable, Codable {
             startTime: start, endTime: end, color: color, weeks: weeks)
         result.sourceID = sourceID; result.remindersEnabled = remindersEnabled
         result.wasRescheduled = wasRescheduled; result.originalRoom = originalRoom; result.weekPattern = weekPattern
-        result.teachingClass = teachingClass
         return result
     }
 }
@@ -231,20 +221,6 @@ final class PreviewStore {
     /// 是否显示人物。关闭装饰后界面必须仍然完整可用。
     var showsCharacter: Bool { appearance.density.showsCharacter }
 
-    /// 按次记录的备课状态。键是课程实例标识，与课程本身分开保存：
-    /// 标记已备课不会隐藏或删除课程。
-    var prepRecords: [String: PrepRecord] = [:] { didSet { save() } }
-
-    /// 某一次课是否已备课。
-    func isPrepared(_ occurrence: CourseOccurrence) -> Bool {
-        PrepPlan.isPrepared(prepRecords, occurrenceID: occurrence.id)
-    }
-
-    /// 切换某一次课的备课状态。取消标记时移除条目，不留空记录。
-    func togglePrepared(_ occurrence: CourseOccurrence) {
-        prepRecords = PrepPlan.toggle(prepRecords, occurrenceID: occurrence.id)
-    }
-
     /// 按今日页的展示顺序排好的纪念事件，已归档的排在最后。
     var sortedMilestones: [Milestone] { MilestoneCounter.sorted(milestones, now: now) }
 
@@ -287,14 +263,11 @@ final class PreviewStore {
         var milestones: [Milestone] = []
         /// 外观偏好。旧文件没有这个键，缺省即可。
         var appearance: AppearancePreferences?
-        /// 按次备课状态。教师首版使用，旧文件缺省为空。
-        var prepRecords: [String: PrepRecord] = [:]
 
         init(activeTermID: String, terms: [String: TermContent], reminders: Bool, lead: Int,
              endReminder: Bool, endLead: Int, liveEnabled: Bool,
              cloudSyncEnabled: Bool?, milestones: [Milestone] = [],
-             appearance: AppearancePreferences? = nil,
-             prepRecords: [String: PrepRecord] = [:]) {
+             appearance: AppearancePreferences? = nil) {
             self.activeTermID = activeTermID
             self.terms = terms
             self.reminders = reminders
@@ -305,13 +278,12 @@ final class PreviewStore {
             self.cloudSyncEnabled = cloudSyncEnabled
             self.milestones = milestones
             self.appearance = appearance
-            self.prepRecords = prepRecords
         }
 
         // 纪念事件、外观偏好与备课状态都是后加的字段，旧文件没有它们。
         enum CodingKeys: String, CodingKey {
             case activeTermID, terms, reminders, lead, endReminder, endLead, liveEnabled,
-                 cloudSyncEnabled, milestones, appearance, prepRecords
+                 cloudSyncEnabled, milestones, appearance
         }
 
         init(from decoder: any Decoder) throws {
@@ -326,7 +298,6 @@ final class PreviewStore {
             cloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .cloudSyncEnabled)
             milestones = try container.decodeIfPresent([Milestone].self, forKey: .milestones) ?? []
             appearance = try container.decodeIfPresent(AppearancePreferences.self, forKey: .appearance)
-            prepRecords = try container.decodeIfPresent([String: PrepRecord].self, forKey: .prepRecords) ?? [:]
         }
     }
 
@@ -463,8 +434,6 @@ final class PreviewStore {
             endReminder = saved.endReminder; endLead = saved.endLead; liveEnabled = saved.liveEnabled
             milestones = saved.milestones
             appearance = saved.appearance ?? AppearancePreferences()
-            // 只保留仍存在的课程实例，避免学期改动后留下孤儿键。
-            prepRecords = PrepPlan.prune(saved.prepRecords, keeping: Set(occurrences.map(\.id)))
             restoreCloudSync = saved.cloudSyncEnabled == true
             return true
         }
@@ -606,7 +575,7 @@ final class PreviewStore {
             let data = Saved(activeTermID: activeTermID, terms: termContents,
                 reminders: reminderPreview, lead: reminderMinutes, endReminder: endReminder,
                 endLead: endLead, liveEnabled: liveEnabled, cloudSyncEnabled: cloudSyncEnabled,
-                milestones: milestones, appearance: appearance, prepRecords: prepRecords)
+                milestones: milestones, appearance: appearance)
             let encoded = try JSONEncoder().encode(data)
             try persistence.save(encoded)
             synchronize()
@@ -623,7 +592,6 @@ final class PreviewStore {
     private func commitBatch(_ changes: () -> Void) -> Bool {
         let oldTerms = termContents, oldActive = activeTermID, oldWeek = selectedWeek
         let oldMilestones = milestones, oldAppearance = appearance
-        let oldPrep = prepRecords
         batchDepth += 1
         changes()
         batchDepth -= 1
@@ -632,7 +600,6 @@ final class PreviewStore {
         termContents = oldTerms; activeTermID = oldActive; selectedWeek = oldWeek
         milestones = oldMilestones
         appearance = oldAppearance
-        prepRecords = oldPrep
         batchDepth -= 1
         return false
     }
@@ -879,8 +846,7 @@ final class PreviewStore {
                     ArchivedCourse(id: course.id, sourceID: course.sourceID, title: course.title, room: course.room,
                                    teacher: course.teacher, weekday: course.weekday, startPeriod: course.startPeriod,
                                    endPeriod: course.endPeriod, color: course.color.rawValue,
-                                   weeks: course.weeks.sorted(), remindersEnabled: course.remindersEnabled,
-                                   teachingClass: course.teachingClass)
+                                   weeks: course.weeks.sorted(), remindersEnabled: course.remindersEnabled)
                 },
                 exceptions: content.exceptions.map { change in
                     ArchivedException(id: change.id.uuidString, courseID: change.courseID, day: change.day,
@@ -924,7 +890,6 @@ final class PreviewStore {
                                         color: color, weeks: Set(archived.weeks))
                 course.sourceID = archived.sourceID
                 course.remindersEnabled = archived.remindersEnabled
-                course.teachingClass = archived.teachingClass
                 return course
             }
             guard restoredCourses.count == term.courses.count else {
@@ -1056,8 +1021,7 @@ final class PreviewStore {
         let existing = courses.map {
             ParsedCourse(title: $0.title, teacher: $0.teacher, room: $0.room,
                          weekday: $0.weekday, startPeriod: $0.startPeriod,
-                         endPeriod: $0.endPeriod, weeks: $0.weeks,
-                         teachingClass: $0.teachingClassText)
+                         endPeriod: $0.endPeriod, weeks: $0.weeks)
         }
         var plan = ImportPlanner.plan(outcome, existing: existing,
                                       totalWeeks: totalWeeks, periodCount: periods.count)
@@ -1094,8 +1058,7 @@ final class PreviewStore {
                 continue
             }
             let existing = result.map { ParsedCourse(title: $0.title, teacher: $0.teacher, room: $0.room,
-                weekday: $0.weekday, startPeriod: $0.startPeriod, endPeriod: $0.endPeriod, weeks: $0.weeks,
-                teachingClass: $0.teachingClassText) }
+                weekday: $0.weekday, startPeriod: $0.startPeriod, endPeriod: $0.endPeriod, weeks: $0.weeks) }
             let matchingIndex = ImportPlanner.replacementIndex(for: parsed, in: existing, totalWeeks: totalWeeks)
             var course = DemoCourse(
                 id: matchingIndex.map { result[$0].id } ?? "import-\(UUID().uuidString)",
@@ -1110,10 +1073,6 @@ final class PreviewStore {
                 color: matchingIndex.map { result[$0].color } ?? Self.color(for: parsed.title),
                 weeks: parsed.weeks.isEmpty ? Set(1...totalWeeks) : parsed.weeks
             )
-            // 本次解析没带教学班时沿用原条目的，避免重新导入把已有教学班抹掉。
-            course.teachingClass = parsed.teachingClass.isEmpty
-                ? matchingIndex.flatMap { result[$0].teachingClass }
-                : parsed.teachingClass
             // 同名同节次同天视为同一门课，替换以保留用户之后的手动修改位置。
             if let index = matchingIndex {
                 // 保留身份与用户设置，调停课记录继续引用同一门课程。

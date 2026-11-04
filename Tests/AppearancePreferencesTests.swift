@@ -2,70 +2,16 @@ import Foundation
 import Testing
 @testable import ScheduleCore
 
-struct PrepPlanTests {
-    let course: CourseOccurrence = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-        let start = calendar.date(from: DateComponents(year: 2027, month: 3, day: 1, hour: 8))!
-        return CourseOccurrence(id: "c1:1770000000", courseID: "c1", title: "高等数学",
-                                room: "A302", start: start, end: start.addingTimeInterval(5400))
-    }()
-
-    @Test func toggleMarksPrepared() {
-        let records = PrepPlan.toggle([:], occurrenceID: course.id)
-        #expect(PrepPlan.isPrepared(records, occurrenceID: course.id))
-    }
-
-    @Test func toggleTwiceUnmarksAndRemovesEntry() {
-        var records = PrepPlan.toggle([:], occurrenceID: course.id)
-        records = PrepPlan.toggle(records, occurrenceID: course.id)
-        #expect(!PrepPlan.isPrepared(records, occurrenceID: course.id))
-        // 取消标记不留空条目，避免备份里堆满 false。
-        #expect(records[course.id] == nil)
-    }
-
-    @Test func onlyAffectsSelectedOccurrence() {
-        let other = course.id + "-other"
-        var records = PrepPlan.toggle([:], occurrenceID: course.id)
-        #expect(PrepPlan.isPrepared(records, occurrenceID: course.id))
-        #expect(!PrepPlan.isPrepared(records, occurrenceID: other))
-        records = PrepPlan.toggle(records, occurrenceID: other)
-        #expect(records.count == 2)
-    }
-
-    @Test func pruneDropsOrphans() {
-        let records = [course.id: PrepRecord(prepared: true), "gone:1": PrepRecord(prepared: true)]
-        let pruned = PrepPlan.prune(records, keeping: [course.id])
-        #expect(pruned.keys.sorted() == [course.id])
-    }
-
-    @Test func pruneKeepsEverythingWhenAllPresent() {
-        let records = [course.id: PrepRecord(prepared: true)]
-        #expect(PrepPlan.prune(records, keeping: [course.id]).count == 1)
-    }
-
-    @Test func preparedCountIgnoresUnknownIDs() {
-        let records = [course.id: PrepRecord(prepared: true), "gone:1": PrepRecord(prepared: true)]
-        #expect(PrepPlan.preparedCount(records, in: [course.id]) == 1)
-    }
-
-    @Test func roleDecidesContactLabel() {
-        #expect(CampusRole.student.courseContactLabel == "教师")
-        #expect(CampusRole.teacher.courseContactLabel == "教学班")
-    }
-}
-
 struct AppearancePreferencesTests {
     @Test func defaultsToStudentAndPaper() {
         let preferences = AppearancePreferences()
-        #expect(preferences.role == .student)
         #expect(preferences.theme == .paper)
         #expect(preferences.density == .light)
         #expect(preferences.effects == .followSchedule)
     }
 
     @Test func roundTripsThroughJSON() throws {
-        let preferences = AppearancePreferences(role: .teacher, persona: .boy, theme: .paper,
+        let preferences = AppearancePreferences(persona: .boy, theme: .paper,
                                                density: .off, effects: .staticOnly)
         let data = try JSONEncoder().encode(preferences)
         let decoded = try JSONDecoder().decode(AppearancePreferences.self, from: data)
@@ -75,10 +21,9 @@ struct AppearancePreferencesTests {
     @Test func unknownEnumFallsBackInsteadOfFailing() throws {
         // 未来版本写入了当前不认识的枚举值，不能整份外观偏好失效。
         let json = """
-        {"role":"teacher","persona":"mecha","theme":"paper2","density":"light","effects":"followSchedule"}
+        {"persona":"mecha","theme":"paper2","density":"light","effects":"followSchedule"}
         """
         let decoded = try JSONDecoder().decode(AppearancePreferences.self, from: Data(json.utf8))
-        #expect(decoded.role == .teacher)
         #expect(decoded.persona == .fallback)
         #expect(decoded.theme == .fallback)
     }
@@ -93,7 +38,7 @@ struct AppearancePreferencesTests {
         // 即使有人手工把制作中的形象写进文件，也要退回可用形象，
         // 否则界面会去取不存在的图集。
         let json = """
-        {"role":"student","persona":"cat","theme":"paper","density":"light","effects":"followSchedule"}
+        {"persona":"cat","theme":"paper","density":"light","effects":"followSchedule"}
         """
         let decoded = try JSONDecoder().decode(AppearancePreferences.self, from: Data(json.utf8))
         #expect(decoded.persona == .fallback)
