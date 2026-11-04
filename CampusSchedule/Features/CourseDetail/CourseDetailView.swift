@@ -27,10 +27,21 @@ struct CourseDetailView: View {
                         Text(original.title).font(.title.weight(.semibold))
                         if let character { CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176) }
                     }
-                    LabeledContent("教师", value: original.teacher)
+                    LabeledContent(store.appearance.role.courseContactLabel, value: original.teacher)
                     LabeledContent("地点", value: original.room)
                     LabeledContent("时间", value: "\(original.startTime)–\(original.endTime)")
                     LabeledContent("周次", value: original.weeks.sorted().map(String.init).joined(separator: "、"))
+                }
+                if store.appearance.role == .teacher, let item = nextOccurrence {
+                    Section {
+                        // 备课状态按这一堂课记录；标记后课程仍完整保留在课表里。
+                        Toggle("本次已备课", isOn: Binding(
+                            get: { store.isPrepared(item) },
+                            set: { _ in store.togglePrepared(item) }
+                        )).tint(DesignSystem.switchTint)
+                        Text("只标记 \(item.start.formatted(.dateTime.month().day().hour().minute())) 这一次课，不影响其他教学周。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } header: { Text("备课") }
                 }
                 Section {
                     Button("编辑整门课程", systemImage: "pencil") { editing = true }

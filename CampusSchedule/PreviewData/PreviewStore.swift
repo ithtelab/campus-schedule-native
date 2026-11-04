@@ -222,6 +222,20 @@ final class PreviewStore {
     /// 是否显示人物。关闭装饰后界面必须仍然完整可用。
     var showsCharacter: Bool { appearance.density.showsCharacter }
 
+    /// 按次记录的备课状态。键是课程实例标识，与课程本身分开保存：
+    /// 标记已备课不会隐藏或删除课程。
+    var prepRecords: [String: PrepRecord] = [:] { didSet { save() } }
+
+    /// 某一次课是否已备课。
+    func isPrepared(_ occurrence: CourseOccurrence) -> Bool {
+        PrepPlan.isPrepared(prepRecords, occurrenceID: occurrence.id)
+    }
+
+    /// 切换某一次课的备课状态。取消标记时移除条目，不留空记录。
+    func togglePrepared(_ occurrence: CourseOccurrence) {
+        prepRecords = PrepPlan.toggle(prepRecords, occurrenceID: occurrence.id)
+    }
+
     /// 按今日页的展示顺序排好的纪念事件，已归档的排在最后。
     var sortedMilestones: [Milestone] { MilestoneCounter.sorted(milestones, now: now) }
 
@@ -264,11 +278,14 @@ final class PreviewStore {
         var milestones: [Milestone] = []
         /// 外观偏好。旧文件没有这个键，缺省即可。
         var appearance: AppearancePreferences?
+        /// 按次备课状态。教师首版使用，旧文件缺省为空。
+        var prepRecords: [String: PrepRecord] = [:]
 
         init(activeTermID: String, terms: [String: TermContent], reminders: Bool, lead: Int,
              endReminder: Bool, endLead: Int, liveEnabled: Bool,
              cloudSyncEnabled: Bool?, milestones: [Milestone] = [],
-             appearance: AppearancePreferences? = nil) {
+             appearance: AppearancePreferences? = nil,
+             prepRecords: [String: PrepRecord] = [:]) {
             self.activeTermID = activeTermID
             self.terms = terms
             self.reminders = reminders
@@ -279,12 +296,13 @@ final class PreviewStore {
             self.cloudSyncEnabled = cloudSyncEnabled
             self.milestones = milestones
             self.appearance = appearance
+            self.prepRecords = prepRecords
         }
 
-        // 纪念事件与外观偏好是后加的字段，旧文件没有它们；缺省而不是解码失败。
+        // 纪念事件、外观偏好与备课状态都是后加的字段，旧文件没有它们。
         enum CodingKeys: String, CodingKey {
             case activeTermID, terms, reminders, lead, endReminder, endLead, liveEnabled,
-                 cloudSyncEnabled, milestones, appearance
+                 cloudSyncEnabled, milestones, appearance, prepRecords
         }
 
         init(from decoder: any Decoder) throws {
@@ -299,6 +317,7 @@ final class PreviewStore {
             cloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .cloudSyncEnabled)
             milestones = try container.decodeIfPresent([Milestone].self, forKey: .milestones) ?? []
             appearance = try container.decodeIfPresent(AppearancePreferences.self, forKey: .appearance)
+            prepRecords = try container.decodeIfPresent([String: PrepRecord].self, forKey: .prepRecords) ?? [:]
         }
     }
 
@@ -435,6 +454,8 @@ final class PreviewStore {
             endReminder = saved.endReminder; endLead = saved.endLead; liveEnabled = saved.liveEnabled
             milestones = saved.milestones
             appearance = saved.appearance ?? AppearancePreferences()
+            // 只保留仍存在的课程实例，避免学期改动后留下孤儿键。
+            prepRecords = PrepPlan.prune(saved.prepRecords, keeping: Set(occurrences.map(\.id)))
             restoreCloudSync = saved.cloudSyncEnabled == true
             return true
         }
@@ -576,7 +597,7 @@ final class PreviewStore {
             let data = Saved(activeTermID: activeTermID, terms: termContents,
                 reminders: reminderPreview, lead: reminderMinutes, endReminder: endReminder,
                 endLead: endLead, liveEnabled: liveEnabled, cloudSyncEnabled: cloudSyncEnabled,
-                milestones: milestones, appearance: appearance)
+                milestones: milestones, appearance: appearance, prepRecords: prepRecords)
             let encoded = try JSONEncoder().encode(data)
             try persistence.save(encoded)
             synchronize()
@@ -593,6 +614,7 @@ final class PreviewStore {
     private func commitBatch(_ changes: () -> Void) -> Bool {
         let oldTerms = termContents, oldActive = activeTermID, oldWeek = selectedWeek
         let oldMilestones = milestones, oldAppearance = appearance
+        let oldPrep = prepRecords
         batchDepth += 1
         changes()
         batchDepth -= 1
@@ -601,6 +623,7 @@ final class PreviewStore {
         termContents = oldTerms; activeTermID = oldActive; selectedWeek = oldWeek
         milestones = oldMilestones
         appearance = oldAppearance
+        prepRecords = oldPrep
         batchDepth -= 1
         return false
     }
