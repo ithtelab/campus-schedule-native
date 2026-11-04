@@ -28,6 +28,8 @@ struct BackupDocument: FileDocument {
 
 enum SettingsRoute: Hashable {
     case exams
+    case milestones
+    case appearance
 }
 
 /// 上课提醒的提前量。用枚举而不是内联数组：`Picker` 里的 `ForEach([Int])`
@@ -74,11 +76,7 @@ struct SettingsView: View {
                     Button("全部学期", systemImage: "list.bullet.rectangle") { showingTermList = true }
                     Button("导入课表", systemImage: "square.and.arrow.down.on.square") { showingImport = true }
                     NavigationLink("考试安排", value: SettingsRoute.exams)
-                    NavigationLink {
-                        MilestoneListView()
-                    } label: {
-                        Label("纪念事件", systemImage: "flag")
-                    }
+                    NavigationLink("纪念事件", value: SettingsRoute.milestones)
                 }
                 Section {
                     Toggle("上课提醒", isOn: $settings.reminderPreview).tint(DesignSystem.switchTint)
@@ -107,11 +105,7 @@ struct SettingsView: View {
                         }
                     }
                     .accessibilityIdentifier("settings.appearance")
-                    NavigationLink {
-                        AppearanceSettingsView()
-                    } label: {
-                        Label("人物与主题", systemImage: "person.crop.square")
-                    }
+                    NavigationLink("人物与主题", value: SettingsRoute.appearance)
                 }
                 Section {
                     Toggle("iCloud 同步", isOn: $settings.cloudSyncEnabled).tint(DesignSystem.switchTint)
@@ -155,6 +149,8 @@ struct SettingsView: View {
             .navigationDestination(for: SettingsRoute.self) { route in
                 switch route {
                 case .exams: ExamListView()
+                case .milestones: MilestoneListView()
+                case .appearance: AppearanceSettingsView()
                 }
             }
             .sheet(isPresented: $showingAcademicSettings) { AcademicSettingsView() }
@@ -197,6 +193,9 @@ struct SettingsView: View {
                 case "terms": showingTermList = true
                 case "import": showingImport = true
                 case "exams", "exam-editor": path.append(SettingsRoute.exams)
+                case "milestones", "milestone-editor":
+                    path.append(SettingsRoute.milestones)
+                case "appearance": path.append(SettingsRoute.appearance)
                 default: break
                 }
             }

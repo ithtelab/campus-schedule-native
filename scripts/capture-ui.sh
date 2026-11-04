@@ -45,7 +45,7 @@ for appearance in light dark; do
     xcrun simctl io booted screenshot "screenshots/${screen}-${appearance}.png"
   done
   # 新增功能页面：学期列表、导入、考试安排。
-  for screen in terms import exams exam-editor; do
+  for screen in terms import exams exam-editor milestones milestone-editor appearance; do
     SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=settings SIMCTL_CHILD_CAMPUS_PREVIEW_SHEET="$screen" xcrun simctl launch --terminate-running-process booted "$bundle_id"
     sleep 3
     xcrun simctl io booted screenshot "screenshots/${screen}-${appearance}.png"
