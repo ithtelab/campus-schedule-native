@@ -22,19 +22,33 @@ enum DesignSystem {
 
 /// The same surface is shown in the selector and on the two illustrated campus cards.
 struct CampusThemeSurface: View {
+    @Environment(\.colorScheme) private var scheme
     let theme: CampusTheme
     var density: DecorationDensity = .light
+    var isSwatch = false
+
+    private var base: Color {
+        guard isSwatch else { return DesignSystem.paper }
+        if theme == .chalkboard { return Color(white: scheme == .dark ? 0.13 : 0.28) }
+        return Color(white: scheme == .dark ? 0.32 : 0.92)
+    }
+
+    private var lineColor: Color {
+        if isSwatch && theme == .chalkboard { return .white.opacity(0.72) }
+        if isSwatch { return Color.primary.opacity(0.42) }
+        return Color.primary.opacity(theme == .chalkboard ? 0.28 : 0.16)
+    }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            DesignSystem.paper
+            base
             Canvas { context, size in
                 var lines = Path()
                 switch theme {
                 case .paper:
                     break
                 case .notebook:
-                    for y in stride(from: 21.0, to: size.height, by: 18) {
+                    for y in stride(from: isSwatch ? 9.0 : 21.0, to: size.height, by: isSwatch ? 8 : 18) {
                         lines.move(to: CGPoint(x: 0, y: y))
                         lines.addLine(to: CGPoint(x: size.width, y: y))
                     }
@@ -46,9 +60,9 @@ struct CampusThemeSurface: View {
                     lines.move(to: CGPoint(x: 12, y: size.height - 9))
                     lines.addLine(to: CGPoint(x: size.width - 12, y: size.height - 9))
                 }
-                context.stroke(lines, with: .color(.primary.opacity(theme == .chalkboard ? 0.22 : 0.10)), lineWidth: 1)
+                context.stroke(lines, with: .color(lineColor), lineWidth: 1)
             }
-            .background(theme == .chalkboard ? Color.primary.opacity(0.075) : .clear)
+            .background(theme == .chalkboard && !isSwatch ? Color.primary.opacity(0.075) : .clear)
 
             if density == .rich {
                 Image(systemName: theme == .chalkboard ? "sparkles" : "paperclip")

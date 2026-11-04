@@ -1,6 +1,78 @@
 import XCTest
+import UIKit
 
 final class CourseLinkUITests: XCTestCase {
+    @MainActor func testAppearanceSwitchesAndDarkImport() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        XCUIDevice.shared.appearance = .light
+        app.launch()
+        app.tabBars.buttons["设置"].tap()
+        selectAppearance("深色", in: app)
+        assertBackground(dark: true, in: app)
+
+        app.tabBars.buttons["课表"].tap()
+        let importButton = app.buttons["schedule.empty.import"]
+        XCTAssertTrue(importButton.waitForExistence(timeout: 8))
+        assertBackground(dark: true, in: app)
+        capture(app, name: "dark-empty-import-button")
+        importButton.tap()
+        XCTAssertTrue(app.navigationBars["导入课表"].waitForExistence(timeout: 8))
+        assertBackground(dark: true, in: app)
+        capture(app, name: "dark-import-sheet")
+        app.navigationBars["导入课表"].buttons["取消"].tap()
+
+        app.tabBars.buttons["设置"].tap()
+        let themes = app.buttons["人物与主题"]
+        reveal(themes, in: app)
+        themes.tap()
+        XCTAssertTrue(app.buttons["appearance.persona.girl"].waitForExistence(timeout: 8))
+        reveal(app.buttons["appearance.theme.notebook"], in: app)
+        app.buttons["appearance.theme.notebook"].tap()
+        capture(app, name: "dark-theme-swatches")
+        app.navigationBars["人物与主题"].buttons.firstMatch.tap()
+
+        selectAppearance("跟随系统", in: app)
+        assertBackground(dark: false, in: app)
+        capture(app, name: "appearance-follows-light-system")
+        selectAppearance("深色", in: app)
+        assertBackground(dark: true, in: app)
+        selectAppearance("浅色", in: app)
+        assertBackground(dark: false, in: app)
+        capture(app, name: "appearance-explicit-light")
+    }
+
+    @MainActor private func selectAppearance(_ option: String, in app: XCUIApplication) {
+        let picker = app.buttons["settings.appearance"]
+        reveal(picker, in: app)
+        picker.tap()
+        let choice = app.buttons[option].firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 5))
+        choice.tap()
+    }
+
+    @MainActor private func assertBackground(dark: Bool, in app: XCUIApplication) {
+        for _ in 0..<8 {
+            if let image = app.screenshot().image.cgImage,
+               let pixel = image.cropping(to: CGRect(x: Double(image.width) * 0.014,
+                                                     y: Double(image.height) * 0.56, width: 1, height: 1)) {
+                var rgba = [UInt8](repeating: 0, count: 4)
+                let sampled = rgba.withUnsafeMutableBytes { buffer in
+                    guard let context = CGContext(data: buffer.baseAddress, width: 1, height: 1,
+                                                  bitsPerComponent: 8, bytesPerRow: 4,
+                                                  space: CGColorSpaceCreateDeviceRGB(),
+                                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+                    context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+                    return true
+                }
+                if sampled && (dark ? rgba[0] < 65 : rgba[0] > 180) { return }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        capture(app, name: "unexpected-interface-style")
+        XCTFail("Expected a \(dark ? "dark" : "light") screen background")
+    }
+
     @MainActor func testReleaseStartsEmptyAndHasPrivacyPolicy() {
         continueAfterFailure = false
         let app = XCUIApplication()

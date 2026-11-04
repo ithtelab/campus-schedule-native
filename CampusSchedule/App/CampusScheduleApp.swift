@@ -21,7 +21,9 @@ struct CampusScheduleApp: App {
                 RootView()
                 #endif
             }
-            .preferredColorScheme(appearance.colorScheme)
+            .background(alignment: .topLeading) {
+                AppAppearanceHost(appearance: appearance).frame(width: 0, height: 0)
+            }
         }
         // iPad 允许任意尺寸窗口，才能在分屏与台前调度里按需调整。
         .windowResizability(.contentMinSize)

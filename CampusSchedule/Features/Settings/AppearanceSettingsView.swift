@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AppearanceSettingsView: View {
     @Environment(PreviewStore.self) private var store
+    @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.campusSuppressMotion) private var suppressMotion
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -51,7 +52,10 @@ struct AppearanceSettingsView: View {
                             let style: CampusCharacterStyle = persona == .boy ? .boy : .girl
                             if let portrait = CampusCharacterAssets.image(style: style, frame: 0) {
                                 Image(uiImage: portrait).resizable().scaledToFit()
-                                    .frame(width: 28, height: 38).accessibilityHidden(true)
+                                    .frame(width: 32, height: 43)
+                                    .frame(width: 48, height: 52)
+                                    .background(portraitPaper, in: .rect(cornerRadius: 9))
+                                    .accessibilityHidden(true)
                             }
                             Text(persona.title)
                             Spacer()
@@ -71,8 +75,8 @@ struct AppearanceSettingsView: View {
                         store.appearance.theme = theme
                     } label: {
                         HStack(spacing: 12) {
-                            CampusThemeSurface(theme: theme)
-                                .frame(width: 40, height: 31)
+                            CampusThemeSurface(theme: theme, isSwatch: true)
+                                .frame(width: 48, height: 36)
                                 .clipShape(.rect(cornerRadius: 5))
                                 .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(DesignSystem.rule) }
                             Text(theme.title)
@@ -145,12 +149,18 @@ struct AppearanceSettingsView: View {
             if store.showsCharacter {
                 CampusCharacter(player: player, contextDriven: true, showsCaption: false)
                     .frame(width: 76, height: 108)
+                    .padding(6)
+                    .background(portraitPaper, in: .rect(cornerRadius: 12))
                     .accessibilityIdentifier("appearance.preview.character")
             }
         }
         .padding(18)
         .frame(minHeight: 136)
         .background { CampusThemeSurface(theme: store.appearance.theme, density: store.appearance.density) }
+    }
+
+    private var portraitPaper: Color {
+        Color(white: scheme == .dark ? 0.78 : 0.95)
     }
 
     private func synchronize(animated: Bool) {

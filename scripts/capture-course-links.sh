@@ -2,7 +2,10 @@
 set -euo pipefail
 bundle_id="${1:?Expected app bundle identifier}"
 
-if [[ "${CAMPUS_UI_FOCUS:-full}" == release-check ]]; then
+if [[ "${CAMPUS_UI_FOCUS:-full}" == appearance-check ]]; then
+  xcrun simctl ui booted appearance light
+  tests=(-only-testing:CampusCourseLinkUITests/CourseLinkUITests/testAppearanceSwitchesAndDarkImport)
+elif [[ "${CAMPUS_UI_FOCUS:-full}" == release-check ]]; then
   tests=(-only-testing:CampusCourseLinkUITests/CourseLinkUITests/testReleaseStartsEmptyAndHasPrivacyPolicy)
 elif [[ "${CAMPUS_UI_FOCUS:-full}" == campus-style ]]; then
   tests=(

@@ -72,7 +72,7 @@ struct CourseEditorView: View {
                                         if color == option {
                                             Image(systemName: "checkmark")
                                                 .font(.system(size: 11, weight: .bold))
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(.black)
                                         }
                                     }
                             }
