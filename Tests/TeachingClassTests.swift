@@ -121,7 +121,8 @@ struct TeachingClassArchiveTests {
                                     weeks: [1, 2], teachingClass: "2026 级 1 班")
         let archive = ScheduleArchive(semesters: [
             ArchivedSemester(id: "t1", name: "学期", startDate: day(2027, 2, 22), totalWeeks: 20,
-                             periods: [ArchivedPeriod(index: 1, start: "08:00", end: "08:45")],
+                             periods: [ArchivedPeriod(index: 1, start: "08:00", end: "08:45"),
+                                       ArchivedPeriod(index: 2, start: "08:50", end: "09:35")],
                              courses: [course], exceptions: []),
         ])
         let decoded = try ScheduleArchive.decoded(from: archive.encoded())
