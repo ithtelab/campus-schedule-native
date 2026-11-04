@@ -6,7 +6,7 @@ struct CampusBlueStickers: View {
     static let compactWidth: CGFloat = 68
 
     var compact = false
-    var showsSun = false
+    var density: DecorationDensity = .light
     var interactive = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -36,17 +36,23 @@ struct CampusBlueStickers: View {
                 .accessibilityHidden(true)
                 .allowsHitTesting(false)
 
-            if showsSun && !compact {
+            if density.showsExtras {
                 Image(systemName: "sun.max.fill")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: compact ? 10 : 15, weight: .medium))
                     .foregroundStyle(ink)
                     .padding(3)
                     .background(Color(red: 1, green: 0.79, blue: 0.27), in: Circle())
                     .overlay { Circle().strokeBorder(paper, lineWidth: 1.5) }
                     .rotationEffect(.degrees(9))
-                    .offset(x: -44, y: -11)
+                    .offset(x: compact ? -35 : -44, y: -11)
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
+                if !compact {
+                    CampusProp(kind: .headphones, colorful: true)
+                        .frame(width: 23, height: 23)
+                        .rotationEffect(.degrees(-12))
+                        .offset(x: -54, y: 10)
+                }
             }
 
             if interactive && !reduceMotion && !suppressMotion {
@@ -108,8 +114,24 @@ struct CampusBlueStickers: View {
     }
 }
 
-/// A blue notebook scrap behind the existing monochrome character, within its original slot.
-struct CampusBluePortraitPaper: View {
+struct CampusPortraitDecor: View {
+    let appearance: AppearancePreferences
+
+    var body: some View {
+        Group {
+            if appearance.showsBlueStickers {
+                bluePaper
+            } else if appearance.density.showsExtras {
+                CampusDeskDoodles(density: .rich, compact: true)
+                    .rotationEffect(.degrees(-11))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var bluePaper: some View {
     var body: some View {
         RoundedRectangle(cornerRadius: 14)
             .fill(CampusStickerMark.accent.opacity(0.12))
@@ -126,10 +148,26 @@ struct CampusBluePortraitPaper: View {
                     .rotationEffect(.degrees(-22))
             }
             .overlay(alignment: .topTrailing) {
-                Image(systemName: "sparkle")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(CampusStickerMark.accent)
-                    .rotationEffect(.degrees(10))
+                if appearance.density.showsExtras {
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CampusStickerMark.accent)
+                        .rotationEffect(.degrees(10))
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if appearance.density.showsExtras {
+                    CampusProp(kind: .milk, colorful: true)
+                        .frame(width: 25, height: 25)
+                        .rotationEffect(.degrees(12))
+                }
+            }
+            .overlay(alignment: .bottomLeading) {
+                if appearance.density.showsExtras {
+                    CampusProp(kind: .cassette, colorful: true)
+                        .frame(width: 25, height: 22)
+                        .rotationEffect(.degrees(-16))
+                }
             }
             .padding(.horizontal, 3)
             .padding(.top, 6)

@@ -245,6 +245,126 @@ struct CampusStickerMark: View {
     }
 }
 
+struct CampusProp: View {
+    enum Kind { case notebook, pencil, libraryTicket, headphones, milk, cassette }
+
+    let kind: Kind
+    var colorful = false
+
+    var body: some View {
+        Canvas { original, size in
+            var context = original
+            let scale = min(size.width, size.height) / 32
+            context.translateBy(x: (size.width - 32 * scale) / 2, y: (size.height - 32 * scale) / 2)
+            context.scaleBy(x: scale, y: scale)
+            let ink = colorful ? CampusStickerMark.ink : Color.primary
+            let pink = Color(red: 1, green: 0.65, blue: 0.78)
+            let blue = Color(red: 0.68, green: 0.78, blue: 1)
+            let honey = Color(red: 1, green: 0.83, blue: 0.41)
+            func line(_ path: Path, width: CGFloat = 1.8) {
+                context.stroke(path, with: .color(ink),
+                               style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            }
+            func shape(_ path: Path, fill: Color) {
+                if colorful {
+                    context.stroke(path, with: .color(CampusStickerMark.cream),
+                                   style: StrokeStyle(lineWidth: 4.5, lineCap: .round, lineJoin: .round))
+                    context.fill(path, with: .color(fill))
+                }
+                line(path)
+            }
+            func polygon(_ points: [(CGFloat, CGFloat)], closed: Bool = false) -> Path {
+                Path { path in
+                    path.addLines(points.map { CGPoint(x: $0.0, y: $0.1) })
+                    if closed { path.closeSubpath() }
+                }
+            }
+            func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat, radius: CGFloat) -> Path {
+                Path(roundedRect: CGRect(x: x, y: y, width: width, height: height), cornerRadius: radius)
+            }
+            switch kind {
+            case .notebook:
+                shape(polygon([(7, 5), (25, 4), (26, 26), (7, 28)], closed: true), fill: blue)
+                for y in [9.0, 15.0, 21.0] {
+                    line(polygon([(4, y), (9, y - 0.5)]))
+                }
+                line(polygon([(13, 11), (21, 10), (21, 15), (13, 16)], closed: true), width: 1.3)
+            case .pencil:
+                shape(polygon([(5, 23), (21, 5), (27, 10), (11, 28), (4, 29)], closed: true), fill: honey)
+                line(polygon([(18, 8), (24, 13)]))
+                line(polygon([(5, 23), (11, 28), (4, 29)], closed: true), width: 1.2)
+            case .libraryTicket:
+                shape(polygon([(4, 8), (10, 8), (12, 6), (15, 8), (28, 8), (28, 14), (25, 16),
+                               (28, 18), (28, 24), (4, 24), (4, 18), (7, 16), (4, 14)], closed: true), fill: pink)
+                line(polygon([(10, 13), (19, 13), (19, 19), (10, 19)], closed: true), width: 1.3)
+                line(polygon([(22, 11), (22, 13), (22, 19), (22, 21)]), width: 1)
+            case .headphones:
+                let arch = Path { path in
+                    path.move(to: .init(x: 6, y: 19))
+                    path.addCurve(to: .init(x: 26, y: 19), control1: .init(x: 4, y: 1), control2: .init(x: 28, y: 1))
+                }
+                if colorful {
+                    context.stroke(arch, with: .color(CampusStickerMark.cream),
+                                   style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                }
+                line(arch, width: 2.4)
+                shape(rect(4, 17, 7, 10, radius: 3), fill: pink)
+                shape(rect(21, 17, 7, 10, radius: 3), fill: pink)
+            case .milk:
+                shape(polygon([(9, 5), (22, 5), (26, 12), (25, 28), (7, 28), (7, 12)], closed: true), fill: blue)
+                line(polygon([(8, 12), (25, 12), (21, 5)]), width: 1.3)
+                line(polygon([(12, 20), (15, 22), (19, 20)]), width: 1.3)
+                context.fill(Path(ellipseIn: CGRect(x: 10.5, y: 17, width: 2, height: 2)), with: .color(ink))
+                context.fill(Path(ellipseIn: CGRect(x: 19, y: 17, width: 2, height: 2)), with: .color(ink))
+            case .cassette:
+                shape(rect(3, 8, 26, 17, radius: 3), fill: honey)
+                line(rect(8, 12, 16, 6, radius: 3), width: 1.3)
+                for x in [10.0, 19.0] {
+                    context.fill(Path(ellipseIn: CGRect(x: x, y: 14, width: 2.5, height: 2.5)), with: .color(ink))
+                }
+                line(polygon([(11, 23), (13, 21), (20, 21), (22, 23)]), width: 1.2)
+            }
+        }
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+}
+
+/// Quiet monochrome stationery, used beside titles and in the tighter system surfaces.
+struct CampusDeskDoodles: View {
+    var density: DecorationDensity
+    var compact = false
+
+    var body: some View {
+        if density.showsCharacter {
+            HStack(spacing: compact ? 3 : 7) {
+                Image(systemName: "paperclip")
+                    .font(.system(size: compact ? 9 : 15, weight: .medium))
+                    .rotationEffect(.degrees(-20))
+                CampusProp(kind: .notebook)
+                    .frame(width: compact ? 12 : 24, height: compact ? 14 : 25)
+                    .rotationEffect(.degrees(8))
+                if density.showsExtras {
+                    CampusProp(kind: .pencil)
+                        .frame(width: compact ? 11 : 23, height: compact ? 14 : 25)
+                        .rotationEffect(.degrees(-12))
+                    if !compact {
+                        CampusProp(kind: .libraryTicket)
+                            .frame(width: 23, height: 25)
+                            .rotationEffect(.degrees(11))
+                            .offset(y: -4)
+                    }
+                }
+            }
+            .foregroundStyle(Color.primary.opacity(compact ? 0.8 : 0.67))
+            .padding(.horizontal, compact ? 0 : 7)
+            .frame(height: compact ? 20 : 44)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+        }
+    }
+}
+
 struct CampusBookMark: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()

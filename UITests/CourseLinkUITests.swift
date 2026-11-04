@@ -136,6 +136,21 @@ final class CourseLinkUITests: XCTestCase {
         app.tabBars.buttons["课表"].tap()
         XCTAssertTrue(app.buttons["下一周"].waitForExistence(timeout: 8))
         capture(app, name: "week-blue-stickers-light")
+
+        app.tabBars.buttons["设置"].tap()
+        let rich = app.buttons["丰富"]
+        reveal(rich, in: app)
+        rich.tap()
+        app.tabBars.buttons["今日"].tap()
+        XCTAssertTrue(plane.waitForExistence(timeout: 8))
+        XCTAssertEqual(agenda.frame.minY, agendaTop, accuracy: 1)
+        app.tabBars.buttons["设置"].tap()
+        let off = app.buttons["关闭"]
+        reveal(off, in: app)
+        off.tap()
+        app.tabBars.buttons["今日"].tap()
+        XCTAssertTrue(nextCourse.waitForExistence(timeout: 8))
+        XCTAssertFalse(plane.exists)
     }
 
     @MainActor func testAppearanceRehearsalAndStaticMode() {

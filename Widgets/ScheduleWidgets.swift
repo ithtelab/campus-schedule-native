@@ -60,8 +60,9 @@ struct CourseLiveWidget: Widget {
                 start: context.attributes.start, end: context.state.end,
                 teacher: context.attributes.teacher,
                 nextRoom: context.state.nextRoom, stale: context.isStale,
-                blueStickers: appearance?.showsBlueStickers ?? context.state.blueStickers ?? false,
-                stickerPersona: appearance?.persona ?? .girl)
+                blueStickers: appearance.map { $0.theme == .blueStickers } ?? context.state.blueStickers ?? false,
+                stickerPersona: appearance?.persona ?? .girl,
+                density: appearance?.density ?? context.state.decorationDensity ?? .light)
             // 不指定背景与配色：锁屏和灵动岛属于系统界面，由系统按壁纸明暗
             // 决定底色与前景色才能保证可读。此前强制深底白字，在浅色壁纸上
             // 会突兀成一块黑卡，也与 App 本身的纸色风格不连续。
@@ -70,7 +71,7 @@ struct CourseLiveWidget: Widget {
         } dynamicIsland: { context in
             // A scheduled activity can start after the user changes themes.
             let appearance = SystemSnapshot.readPayload()?.appearance
-            let blueStickers = appearance?.showsBlueStickers ?? context.state.blueStickers ?? false
+            let blueStickers = appearance.map { $0.theme == .blueStickers } ?? context.state.blueStickers ?? false
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Text(context.isStale ? "已结束" : "课程安排").font(.caption).foregroundStyle(.secondary)
@@ -80,7 +81,8 @@ struct CourseLiveWidget: Widget {
                         start: context.attributes.start, end: context.state.end,
                         teacher: context.attributes.teacher,
                         nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom,
-                        blueStickers: blueStickers, stickerPersona: appearance?.persona ?? .girl)
+                        blueStickers: blueStickers, stickerPersona: appearance?.persona ?? .girl,
+                        density: appearance?.density ?? context.state.decorationDensity ?? .light)
                 }
             } compactLeading: {
                 // 课前左侧放课程名（截断显示），上课中回到书本图标。

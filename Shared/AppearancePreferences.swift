@@ -75,8 +75,8 @@ public enum DecorationDensity: String, Codable, Sendable, CaseIterable, Identifi
 
     /// 是否显示人物。
     public var showsCharacter: Bool { self != .off }
-    /// 是否显示今日页底部的统计摘要。它是信息而不是装饰，但丰富模式才显示更克制。
     public var showsStats: Bool { self == .rich }
+    var showsExtras: Bool { self == .rich }
 }
 
 /// 互动效果：静态或跟随课表。
@@ -102,6 +102,14 @@ public struct AppearancePreferences: Codable, Equatable, Sendable {
     public var effects: InteractionEffects
 
     var showsBlueStickers: Bool { theme == .blueStickers && density != .off }
+
+    #if targetEnvironment(simulator)
+    static var simulatorPreview: Self {
+        let environment = ProcessInfo.processInfo.environment
+        return .init(theme: environment["CAMPUS_PREVIEW_THEME"].flatMap(CampusTheme.init(rawValue:)) ?? .paper,
+                     density: environment["CAMPUS_PREVIEW_DENSITY"].flatMap(DecorationDensity.init(rawValue:)) ?? .light)
+    }
+    #endif
 
     public init(persona: CampusPersona = .fallback,
                 theme: CampusTheme = .fallback,

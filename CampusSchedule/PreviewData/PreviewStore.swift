@@ -334,6 +334,7 @@ final class PreviewStore {
             initialTerm.name = "2026 秋季学期"
             initialTerm.startDate = calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))!
             initialTerm.courses = Self.sampleCourses
+            appearance = .simulatorPreview
         }
         #endif
         termContents[initialID] = initialTerm

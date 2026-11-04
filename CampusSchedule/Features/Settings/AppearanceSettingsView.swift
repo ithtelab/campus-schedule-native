@@ -90,13 +90,23 @@ struct AppearanceSettingsView: View {
                 }
             }
 
-            Section("装饰密度") {
+            Section {
                 Picker("装饰密度", selection: $settings.appearance.density) {
                     ForEach(DecorationDensity.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                .accessibilityIdentifier("appearance.density")
                 .onChange(of: store.showsCharacter) { _, visible in
                     if !visible { player.stop() }
+                }
+            } header: {
+                Text("装饰密度")
+            } footer: {
+                switch store.appearance.density {
+                case .off: Text("只保留课程信息和主题配色。")
+                case .light: Text("显示校园人物和少量点缀。")
+                case .rich:
+                    Text(store.appearance.showsBlueStickers ? "加上太阳、耳机、牛奶盒和磁带贴纸。" : "加上铅笔和手绘借书票。")
                 }
             }
 
@@ -151,11 +161,10 @@ struct AppearanceSettingsView: View {
                     .frame(width: 76, height: 108)
                     .padding(6)
                     .background {
-                        if store.appearance.showsBlueStickers {
-                            CampusBluePortraitPaper()
-                        } else {
+                        if !store.appearance.showsBlueStickers {
                             RoundedRectangle(cornerRadius: 12).fill(portraitPaper)
                         }
+                        CampusPortraitDecor(appearance: store.appearance)
                     }
                     .accessibilityIdentifier("appearance.preview.character")
             }

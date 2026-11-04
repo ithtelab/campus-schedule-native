@@ -5,9 +5,7 @@ import WidgetKit
 /// 仅供云端截图；直接复用扩展的内容视图，不模拟桌面或锁屏系统宿主。
 struct WidgetGalleryView: View {
     private var isLockScreen: Bool { ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] == "lock" }
-    private var appearance: AppearancePreferences {
-        .init(theme: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_THEME"] == "blueStickers" ? .blueStickers : .paper)
-    }
+    private let appearance = AppearancePreferences.simulatorPreview
     private var entry: ScheduleEntry {
         let day = ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 10, day: 26))!
         let now = ScheduleRules.date(day: day, time: "09:41")!

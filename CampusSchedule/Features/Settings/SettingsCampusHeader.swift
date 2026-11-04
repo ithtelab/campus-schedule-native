@@ -34,7 +34,7 @@ struct SettingsCampusHeader: View {
                     CampusCharacter(player: character, contextDriven: true)
                         .frame(width: 82, height: 132)
                         .background {
-                            if store.appearance.showsBlueStickers { CampusBluePortraitPaper() }
+                            CampusPortraitDecor(appearance: store.appearance)
                         }
                 }
             }

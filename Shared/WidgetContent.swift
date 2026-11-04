@@ -66,7 +66,7 @@ struct ScheduleWidgetContent: View {
                         Text(entry.courses.isEmpty ? "添加第一门课程" : "把时间留给自己").font(.caption).foregroundStyle(.secondary)
                         if entry.appearance.showsBlueStickers {
                             CampusStickerMark(size: 16, fullColor: usesBlueInk).frame(width: 22, height: 24)
-                        } else {
+                        } else if entry.appearance.density.showsCharacter {
                             CampusBookMark().stroke(.primary, lineWidth: 1.8).frame(width: 22, height: 24)
                         }
                     }
@@ -105,18 +105,36 @@ struct ScheduleWidgetContent: View {
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var accessoryArt: some View {
-        Group {
-            if entry.appearance.showsBlueStickers {
-                CampusStickerMark(size: 16, fullColor: false)
-            } else {
-                CampusWidgetFigure(frame: characterFrame)
+    @ViewBuilder private var accessoryArt: some View {
+        if entry.appearance.density.showsCharacter {
+            Group {
+                if entry.appearance.showsBlueStickers {
+                    VStack(spacing: 5) {
+                        if entry.appearance.density.showsExtras {
+                            CampusProp(kind: .milk).frame(width: 10, height: 12)
+                        }
+                        CampusStickerMark(size: 16, fullColor: false)
+                    }
+                } else {
+                    CampusWidgetFigure(frame: characterFrame)
+                        .overlay(alignment: .topTrailing) {
+                            if entry.appearance.density.showsExtras {
+                                CampusProp(kind: .libraryTicket).frame(width: 11, height: 12)
+                            }
+                        }
+                }
             }
+            .frame(width: 30, height: 58)
         }
-        .frame(width: 30, height: 58)
     }
 
-    private func interactiveFigure(width: CGFloat, height: CGFloat) -> some View {
+    @ViewBuilder private func interactiveFigure(width: CGFloat, height: CGFloat) -> some View {
+        if entry.appearance.density.showsCharacter {
+            figureButton(width: width, height: height)
+        }
+    }
+
+    private func figureButton(width: CGFloat, height: CGFloat) -> some View {
         Button(intent: RespondToCampusCharacterIntent()) {
             CampusWidgetFigure(frame: characterFrame,
                                stickerPersona: entry.appearance.showsBlueStickers ? entry.appearance.persona : nil)
@@ -141,6 +159,17 @@ struct ScheduleWidgetContent: View {
                     if entry.appearance.showsBlueStickers {
                         CampusStickerMark(size: 16, fullColor: usesBlueInk)
                             .padding(4)
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if entry.appearance.density.showsExtras {
+                        if entry.appearance.showsBlueStickers {
+                            CampusProp(kind: width > 50 ? .cassette : .milk, colorful: usesBlueInk)
+                                .frame(width: 19, height: 20)
+                                .rotationEffect(.degrees(-12))
+                        } else {
+                            CampusDeskDoodles(density: .rich, compact: true)
+                        }
                     }
                 }
                 .contentShape(Rectangle())

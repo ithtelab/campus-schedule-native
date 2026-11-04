@@ -46,13 +46,21 @@ if [[ "${CAMPUS_UI_FOCUS:-full}" == appearance-check ]]; then
     xcrun simctl io "$simulator_id" screenshot "screenshots/appearance-system-$appearance.png"
   done
 elif [[ "${CAMPUS_UI_FOCUS:-full}" == blue-stickers ]]; then
+  for theme in paper blueStickers; do
+    for density in off light rich; do
+      SIMCTL_CHILD_CAMPUS_PREVIEW_TAB=today SIMCTL_CHILD_CAMPUS_PREVIEW_THEME="$theme" SIMCTL_CHILD_CAMPUS_PREVIEW_DENSITY="$density" \
+        xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id"
+      sleep 2
+      xcrun simctl io "$simulator_id" screenshot "screenshots/decoration-$theme-$density.png"
+    done
+  done
   for gallery in desktop lock; do
-    SIMCTL_CHILD_CAMPUS_WIDGET_PREVIEW="$gallery" SIMCTL_CHILD_CAMPUS_PREVIEW_THEME=blueStickers \
+    SIMCTL_CHILD_CAMPUS_WIDGET_PREVIEW="$gallery" SIMCTL_CHILD_CAMPUS_PREVIEW_THEME=blueStickers SIMCTL_CHILD_CAMPUS_PREVIEW_DENSITY=rich \
       xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id"
     sleep 3
     xcrun simctl io "$simulator_id" screenshot "screenshots/blue-stickers-widget-$gallery.png"
   done
-  SIMCTL_CHILD_CAMPUS_LIVE_PREVIEW=1 SIMCTL_CHILD_CAMPUS_PREVIEW_THEME=blueStickers \
+  SIMCTL_CHILD_CAMPUS_LIVE_PREVIEW=1 SIMCTL_CHILD_CAMPUS_PREVIEW_THEME=blueStickers SIMCTL_CHILD_CAMPUS_PREVIEW_DENSITY=rich \
     xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id"
   sleep 3
   xcrun simctl io "$simulator_id" screenshot screenshots/blue-stickers-live-activity.png

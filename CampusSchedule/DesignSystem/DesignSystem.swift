@@ -64,17 +64,12 @@ struct CampusThemeSurface: View {
                 context.stroke(lines, with: .color(lineColor), lineWidth: 1)
             }
             .background(theme == .chalkboard && !isSwatch ? Color.primary.opacity(0.075) : .clear)
+            .opacity(isSwatch || density.showsCharacter ? 1 : 0)
 
             if isSwatch && theme == .blueStickers {
                 CampusBlueStickers(compact: true, interactive: false)
                     .scaleEffect(0.65)
                     .frame(width: 48, height: 36)
-            } else if density == .rich && theme != .blueStickers {
-                Image(systemName: theme == .chalkboard ? "sparkles" : "paperclip")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.tertiary)
-                    .rotationEffect(.degrees(-12))
-                    .padding(10)
             }
         }
         .allowsHitTesting(false)

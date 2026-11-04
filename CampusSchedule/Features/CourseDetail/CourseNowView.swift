@@ -66,7 +66,7 @@ struct CourseNowView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("course.now.title")
                     }.frame(maxWidth: .infinity, alignment: .leading)
-                    if !typeSize.isAccessibilitySize {
+                    if !typeSize.isAccessibilitySize && store.appearance.density.showsCharacter {
                         Group {
                             if store.appearance.showsBlueStickers {
                                 let phase = sketchPhase(item, now: now)

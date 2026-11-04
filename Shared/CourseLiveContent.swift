@@ -12,6 +12,7 @@ struct CourseLiveCard: View {
     var stale = false
     var blueStickers = false
     var stickerPersona: CampusPersona = .girl
+    var density: DecorationDensity = .light
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
@@ -33,7 +34,7 @@ struct CourseLiveCard: View {
                         .tint(.primary).labelsHidden().frame(height: 3)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
-            if !typeSize.isAccessibilitySize {
+            if !typeSize.isAccessibilitySize && density.showsCharacter {
                 Group {
                     if blueStickers {
                         CampusStickerStudent(frame: stale ? 3 : 0, wearsCap: stickerPersona != .boy)
@@ -43,6 +44,13 @@ struct CourseLiveCard: View {
                     }
                 }
                 .frame(width: 52, height: 90)
+                .overlay(alignment: .topTrailing) {
+                    if density.showsExtras {
+                        CampusProp(kind: blueStickers ? .milk : .libraryTicket, colorful: blueStickers)
+                            .frame(width: 15, height: 17)
+                            .rotationEffect(.degrees(12))
+                    }
+                }
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
@@ -67,6 +75,7 @@ struct CourseIslandExpanded: View {
     var nextRoom: String?
     var blueStickers = false
     var stickerPersona: CampusPersona = .girl
+    var density: DecorationDensity = .light
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
@@ -89,14 +98,22 @@ struct CourseIslandExpanded: View {
                 }
                 .font(.caption).foregroundStyle(.secondary).minimumScaleFactor(0.8)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            Group {
-                if blueStickers {
-                    CampusStickerStudent(frame: 0, wearsCap: stickerPersona != .boy)
-                } else {
-                    CampusWidgetFigure()
+            if density.showsCharacter {
+                Group {
+                    if blueStickers {
+                        CampusStickerStudent(frame: 0, wearsCap: stickerPersona != .boy)
+                    } else {
+                        CampusWidgetFigure()
+                    }
+                }
+                .frame(width: 40, height: 66)
+                .overlay(alignment: .topTrailing) {
+                    if density.showsExtras {
+                        CampusProp(kind: blueStickers ? .cassette : .notebook, colorful: blueStickers)
+                            .frame(width: 13, height: 14)
+                    }
                 }
             }
-            .frame(width: 40, height: 66)
         }
     }
 }

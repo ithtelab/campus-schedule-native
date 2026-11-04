@@ -4,7 +4,8 @@ import SwiftUI
 struct CourseLiveGallery: View {
     private let start = Date().addingTimeInterval(600)
     private var end: Date { start.addingTimeInterval(5700) }
-    private var blueStickers: Bool { ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_THEME"] == "blueStickers" }
+    private let appearance = AppearancePreferences.simulatorPreview
+    private var blueStickers: Bool { appearance.theme == .blueStickers }
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -26,7 +27,8 @@ struct CourseLiveGallery: View {
                     }.padding(10).foregroundStyle(.white).background(.black, in: Capsule())
                     Text("灵动岛展开内容").font(.headline)
                     CourseIslandExpanded(title: "大学英语", room: "B楼 508", start: start, end: end,
-                                         nextTitle: "高等数学", nextRoom: "A楼 302", blueStickers: blueStickers)
+                                         nextTitle: "高等数学", nextRoom: "A楼 302", blueStickers: blueStickers,
+                                         density: appearance.density)
                         .padding(14).background(.black, in: RoundedRectangle(cornerRadius: 20)).environment(\.colorScheme, .dark)
                 }.padding(20)
             }
@@ -35,7 +37,8 @@ struct CourseLiveGallery: View {
         }
     }
     private func card(title: String, room: String) -> some View {
-        CourseLiveCard(title: title, room: room, start: start, end: end, nextRoom: "A楼 302", blueStickers: blueStickers)
+        CourseLiveCard(title: title, room: room, start: start, end: end, nextRoom: "A楼 302",
+                       blueStickers: blueStickers, density: appearance.density)
             .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 24)).environment(\.colorScheme, .dark)
     }
     @MainActor private func verifyLayout() async {

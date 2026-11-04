@@ -100,6 +100,7 @@ struct MilestoneWidgetView: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
     var entry: MilestoneEntry
     private var usesBlueInk: Bool { entry.appearance.showsBlueStickers && renderingMode == .fullColor }
+    private var hasAccessoryDecor: Bool { entry.appearance.showsBlueStickers || entry.appearance.density.showsExtras }
 
     var body: some View {
         Group {
@@ -134,9 +135,12 @@ struct MilestoneWidgetView: View {
                             .font(.caption2).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.trailing, entry.appearance.showsBlueStickers ? 19 : 0)
+                    .padding(.trailing, hasAccessoryDecor ? 19 : 0)
                     .overlay(alignment: .trailing) {
-                        if entry.appearance.showsBlueStickers {
+                        if entry.appearance.density.showsExtras {
+                            CampusProp(kind: entry.appearance.showsBlueStickers ? .cassette : .libraryTicket)
+                                .frame(width: 17, height: 18)
+                        } else if entry.appearance.showsBlueStickers {
                             CampusStickerMark(size: 14, fullColor: false)
                         }
                     }
@@ -171,13 +175,20 @@ struct MilestoneWidgetView: View {
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if family == .systemMedium {
+            if family == .systemMedium && entry.appearance.density.showsCharacter {
                 Image(systemName: item.category.symbol)
                     .font(.system(size: 32, weight: .light))
                     .frame(width: 76, height: 76)
                     .overlay { Circle().strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [2, 3])) }
                     .foregroundStyle(usesBlueInk ? CampusStickerMark.accent : .secondary)
                     .rotationEffect(.degrees(-12))
+                    .overlay(alignment: .topTrailing) {
+                        if entry.appearance.density.showsExtras {
+                            CampusProp(kind: entry.appearance.showsBlueStickers ? .cassette : .libraryTicket, colorful: usesBlueInk)
+                                .frame(width: 23, height: 24)
+                                .rotationEffect(.degrees(12))
+                        }
+                    }
                     .accessibilityHidden(true)
             }
         }
@@ -189,7 +200,7 @@ struct MilestoneWidgetView: View {
         VStack(alignment: .leading, spacing: 4) {
             if entry.appearance.showsBlueStickers {
                 CampusStickerMark(size: 13, fullColor: usesBlueInk)
-            } else {
+            } else if entry.appearance.density.showsCharacter {
                 Image(systemName: "flag").font(.caption).foregroundStyle(.secondary)
             }
             Text(entry.configuredID == nil ? "添加纪念事件" : "事件已归档或移除")

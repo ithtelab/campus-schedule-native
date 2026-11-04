@@ -78,6 +78,7 @@ struct CourseActivityAttributes: ActivityAttributes {
         var nextRoom: String?
         var beforeClass: Bool
         var blueStickers: Bool? = nil
+        var decorationDensity: DecorationDensity? = nil
     }
     var occurrenceID: String
     var title: String

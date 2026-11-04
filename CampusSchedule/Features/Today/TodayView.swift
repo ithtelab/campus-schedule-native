@@ -106,13 +106,20 @@ struct TodayView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if store.appearance.showsBlueStickers && !typeSize.isAccessibilitySize {
+            if store.appearance.density.showsCharacter && !typeSize.isAccessibilitySize {
                 GeometryReader { geometry in
                     let available = geometry.size.width - headingWidth - 12
                     if headingWidth > 0 && available >= CampusBlueStickers.compactWidth {
-                        CampusBlueStickers(compact: available < CampusBlueStickers.width,
-                                           showsSun: store.appearance.density == .rich)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        Group {
+                            if store.appearance.showsBlueStickers {
+                                CampusBlueStickers(compact: available < CampusBlueStickers.width,
+                                                   density: store.appearance.density)
+                            } else {
+                                CampusDeskDoodles(density: store.appearance.density,
+                                                  compact: available < CampusBlueStickers.width)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
             }
@@ -196,7 +203,7 @@ struct TodayView: View {
                     if !typeSize.isAccessibilitySize && store.showsCharacter {
                         CampusCharacter(player: character, contextDriven: true).frame(width: 78, height: 150)
                             .background {
-                                if store.appearance.showsBlueStickers { CampusBluePortraitPaper() }
+                                CampusPortraitDecor(appearance: store.appearance)
                             }
                     }
                 }
