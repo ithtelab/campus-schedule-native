@@ -91,10 +91,11 @@ struct CampusStickerStudent: View {
     var body: some View {
         Canvas { context, size in
             var context = context
-            context.scaleBy(x: size.width / 112, y: size.height / 150)
+            context.scaleBy(x: size.width / 82, y: size.height / 148)
+            context.translateBy(x: -15, y: -1)
             draw(in: context)
         }
-        .aspectRatio(112.0 / 150, contentMode: .fit)
+        .aspectRatio(82.0 / 148, contentMode: .fit)
         .accessibilityHidden(true)
     }
 
