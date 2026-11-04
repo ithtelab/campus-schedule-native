@@ -103,6 +103,9 @@ struct ImportView: View {
             Section {
                 if let connection = refresh.connection {
                     LabeledContent("教务来源", value: connection.school)
+                    if connection.scope.usesHTTP {
+                        LabeledContent("连接方式", value: "HTTP · 未加密")
+                    }
                     LabeledContent("绑定时学期", value: connection.term)
                     LabeledContent("最近成功检查") { Text(connection.checkedAt, format: .dateTime.month().day().hour().minute()) }
                     if connection.needsLogin {

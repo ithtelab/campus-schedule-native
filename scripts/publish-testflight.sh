@@ -79,6 +79,9 @@ for bundle, identifier in [(app, config['ios']['bundleIdentifier']), (app / 'Plu
         transport = info.get('NSAppTransportSecurity', {})
         assert transport.get('NSAllowsArbitraryLoadsInWebContent') is True, 'Packaged academic WebView HTTP compatibility is missing'
         assert transport.get('NSAllowsArbitraryLoads') is not True, 'General ATS must stay enabled'
+        assert transport.get('NSExceptionDomains') == {
+            'jw.qit.edu.cn': {'NSExceptionAllowsInsecureHTTPLoads': True}
+        }, 'Background HTTP compatibility must remain scoped to the QIT teaching host'
     assert (bundle / 'PrivacyInfo.xcprivacy').is_file(), 'Missing privacy manifest'
     result = subprocess.run(['codesign', '-d', '--entitlements', ':-', str(bundle)], check=True, capture_output=True)
     entitlements = plistlib.loads(result.stdout)

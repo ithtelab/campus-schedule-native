@@ -7,9 +7,14 @@
 <key>NSSupportsLiveActivities</key><true/>
 <key>UIBackgroundModes</key><array><string>fetch</string></array>
 <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>com.ithtelab.campustimetable.academic-refresh</string></array>
-<!-- 多校教务网页及其登录跳转可能仍使用 HTTP，仅放宽 WebKit；URLSession 保留 ATS。 -->
+<!-- WebKit 兼容学校登录页面。后台检查仅对青岛工学院的教务主机放行 HTTP。 -->
 <key>NSAppTransportSecurity</key><dict>
 <key>NSAllowsArbitraryLoadsInWebContent</key><true/>
+<key>NSExceptionDomains</key><dict>
+  <key>jw.qit.edu.cn</key><dict>
+    <key>NSExceptionAllowsInsecureHTTPLoads</key><true/>
+  </dict>
+</dict>
 </dict>
 <key>UIAppFonts</key><array><string>CampusHand.ttf</string></array>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>campusschedule</string></array></dict></array>

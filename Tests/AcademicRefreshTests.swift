@@ -36,6 +36,29 @@ struct AcademicRefreshTests {
         #expect(!cookie("jw.example.edu", value: "x; other=secret").isUsable(in: scope, now: now))
     }
 
+    @Test func legacyHTTPAllowsOnlyQITAndNeverSendsSecureCookies() throws {
+        let entrance = try #require(URL(string: "http://jw.qit.edu.cn/jwglxt/xtgl/login_slogin.html"))
+        let page = try #require(URL(string: "http://jw.qit.edu.cn/jwglxt/kbcx/table.html"))
+        let scope = try #require(AcademicRefreshScope(entrance: entrance, page: page))
+        #expect(scope.usesHTTP)
+
+        var cookie = AcademicRefreshCookie(name: "JSESSIONID", value: "sample", domain: "jw.qit.edu.cn",
+                                            path: "/jwglxt", expires: nil, secure: false)
+        let now = Date()
+        #expect(cookie.isUsable(in: scope, now: now))
+        cookie.secure = true
+        #expect(!cookie.isUsable(in: scope, now: now))
+        cookie.secure = nil
+        #expect(!cookie.isUsable(in: scope, now: now))
+
+        for address in ["http://jw.qit.edu.cn:8080/table", "http://other.qit.edu.cn/table",
+                        "http://jw.qit.edu.cn.example.edu/table", "https://jw.qit.edu.cn/table"] {
+            let other = try #require(URL(string: address))
+            #expect(AcademicRefreshScope(entrance: entrance, page: other) == nil)
+            #expect(AcademicRefreshScope(entrance: other, page: other)?.usesHTTP != true)
+        }
+    }
+
     @Test func comparesScheduleWithoutGuessingMovesOrCancellations() {
         let math = ParsedCourse(title: "数学", room: "302", weekday: 1, startPeriod: 3, endPeriod: 4, weeks: [1, 2])
         let english = ParsedCourse(title: "英语", weekday: 2, startPeriod: 1, endPeriod: 2)

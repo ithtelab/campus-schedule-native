@@ -121,15 +121,19 @@ struct AcademicLoginView: View {
         VStack(alignment: .leading, spacing: 6) {
             Label("登录后进入「我的课表」页面，再点右上角「提取课表」", systemImage: "info.circle")
                 .font(.footnote)
-            if hasLoadedPage, refreshScope != nil {
-                Toggle("导入后自动检查变更", isOn: $enablesRefresh)
+            if hasLoadedPage, let scope = refreshScope {
+                Toggle(scope.usesHTTP ? "允许通过 HTTP 自动检查" : "导入后自动检查变更", isOn: $enablesRefresh)
                     .font(.footnote).tint(DesignSystem.switchTint)
+                if scope.usesHTTP {
+                    Text("开启后会通过未加密的 HTTP 向学校发送登录会话。请仅在信任的网络环境中使用。")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
                 if enablesRefresh {
                     Text("课表页的登录会话只存本机钥匙串，最多复用 7 天。通过读取验证后启用，并替换本机已保存的教务连接。")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
             } else if hasLoadedPage && !store.isPreview {
-                Text("自动检查需要同一教务站点的 HTTPS 课表页。")
+                Text("当前课表页不支持自动检查。")
                     .font(.caption2).foregroundStyle(.secondary)
             }
             Text("密码不会保存。")
@@ -176,7 +180,8 @@ struct AcademicLoginView: View {
                     if scope == refreshScope {
                         let now = Date()
                         let scopedCookies = cookies.map {
-                            AcademicRefreshCookie(name: $0.name, value: $0.value, domain: $0.domain, path: $0.path, expires: $0.expiresDate)
+                            AcademicRefreshCookie(name: $0.name, value: $0.value, domain: $0.domain, path: $0.path,
+                                                  expires: $0.expiresDate, secure: $0.isSecure)
                         }.filter { $0.isUsable(in: scope, now: now) }
                         if !scopedCookies.isEmpty {
                             refreshCandidate = RefreshCandidate(scope: scope, cookies: scopedCookies,
