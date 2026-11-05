@@ -312,7 +312,7 @@ final class CourseLinkUITests: XCTestCase {
         XCTAssertEqual(pin.label, "取消置顶")
         capture(app, name: "relationship-detail-dark")
         app.tabBars.buttons["今日"].tap()
-        let pinned = app.buttons["我们的恋爱日就是今天"]
+        let pinned = app.buttons["我们的恋爱日从今天开始"]
         reveal(pinned, in: app)
         capture(app, name: "relationship-today-dark")
         pinned.tap()
