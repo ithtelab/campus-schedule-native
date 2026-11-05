@@ -6,6 +6,7 @@ struct CourseDetailView: View {
     var character: CampusCharacterPlayer? = nil
     var tasksOnly = false
     var onClose: (() -> Void)? = nil
+    var linkedTermID: String? = nil
     @Environment(PreviewStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
@@ -14,7 +15,8 @@ struct CourseDetailView: View {
     @State private var makeup = false
     @State private var activityMessage: String?
     @State private var editingTask: CourseTask?
-    private var original: DemoCourse { store.courses.first { $0.id == (course.sourceID ?? course.id) } ?? course }
+    private var termID: String { linkedTermID ?? store.activeTermID }
+    private var original: DemoCourse { store.course(withID: course.sourceID ?? course.id, in: termID) ?? course }
     private var nextOccurrence: CourseOccurrence? { store.occurrences.first { $0.courseID == original.id && $0.end > store.now } }
     private var canStartActivity: Bool {
         nextOccurrence.map { CourseLivePlan.canStartManually($0, now: store.now, lead: store.reminderMinutes) } ?? false
@@ -40,7 +42,7 @@ struct CourseDetailView: View {
                         LabeledContent("周次", value: original.weeks.sorted().map(String.init).joined(separator: "、"))
                     }
                 }
-                CourseTaskSection(editing: $editingTask, courseID: original.id)
+                CourseTaskSection(editing: $editingTask, courseID: original.id, termID: termID)
                 if !tasksOnly {
                     Section {
                         Button("编辑整门课程", systemImage: "pencil") { editing = true }
@@ -68,10 +70,10 @@ struct CourseDetailView: View {
             .sheet(isPresented: $changing) { CourseExceptionView(course: original) }
             .sheet(isPresented: $makeup) { CourseEditorView(template: original) }
             .sheet(item: $editingTask) { task in
-                let termID = store.activeTermID
+                let termID = self.termID
                 CourseTaskEditor(task: task, now: store.now) { updated in
                     if store.updateCourseTask(updated, termID: termID) { return nil }
-                    return store.errorMessage ?? "未能保存待办。请确认课程仍在当前学期。"
+                    return store.errorMessage ?? "未能保存待办。请确认课程仍在原学期。"
                 }
             }
             .alert("未能完成操作", isPresented: Binding(get: { activityMessage != nil }, set: { if !$0 { activityMessage = nil } })) {

@@ -138,6 +138,22 @@ final class PreviewStore {
         get { activeContent?.courses ?? [] }
         set { mutateActive { $0.courses = newValue } }
     }
+
+    func saveCourse(_ course: DemoCourse, replacingExisting: Bool) -> Bool {
+        guard !storageReadOnly, var content = activeContent else { return false }
+        if replacingExisting {
+            guard let index = content.courses.firstIndex(where: { $0.id == course.id }) else {
+                errorMessage = "这门课程已移除，请返回课表查看。"
+                return false
+            }
+            var updated = course
+            updated.remindersEnabled = content.courses[index].remindersEnabled
+            content.courses[index] = updated
+        } else {
+            content.courses.append(course)
+        }
+        return commitBatch { termContents[activeTermID] = content }
+    }
     var exceptions: [CourseException] {
         get { activeContent?.exceptions ?? [] }
         set { mutateActive { $0.exceptions = newValue } }
@@ -148,6 +164,8 @@ final class PreviewStore {
     }
 
     var courseTasks: [CourseTask] { activeContent?.courseTasks ?? [] }
+
+    func courseTasks(in termID: String) -> [CourseTask] { termContents[termID]?.courseTasks ?? [] }
 
     /// 把全部学期里未完成且有截止时间的待办投影成组件用的形状。
     ///
@@ -168,7 +186,7 @@ final class PreviewStore {
     }
 
     func updateCourseTask(_ task: CourseTask, termID: String, deleting: Bool = false) -> Bool {
-        guard !storageReadOnly, termID == activeTermID, var content = activeContent,
+        guard !storageReadOnly, var content = termContents[termID],
               content.courses.contains(where: { $0.id == task.courseID }), task.isValid else { return false }
         content.courseTasks.removeAll { $0.id == task.id }
         if !deleting { content.courseTasks.append(task) }
@@ -223,7 +241,13 @@ final class PreviewStore {
     }
     var clockDate = Date()
     var timeText: String { time(now) }
-    func time(_ date: Date) -> String { let f = DateFormatter(); f.timeZone = ScheduleRules.calendar.timeZone; f.dateFormat = "HH:mm"; return f.string(from: date) }
+    func time(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = ScheduleRules.calendar.timeZone
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
     var now: Date {
         if isPreview {
             let time = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TIME"] ?? "09:41"
@@ -605,13 +629,16 @@ final class PreviewStore {
         if saved { errorMessage = nil }
         return saved
     }
-    var occurrences: [CourseOccurrence] {
+    var occurrences: [CourseOccurrence] { occurrences(in: activeTermID) }
+
+    func occurrences(in termID: String) -> [CourseOccurrence] {
+        guard let content = termContents[termID] else { return [] }
         var result: [CourseOccurrence] = []
-        for course in courses {
-            let pattern = WeekPattern.infer(from: course.weeks, totalWeeks: totalWeeks)
-            for week in course.weeks where (1...totalWeeks).contains(week) {
-                let day = date(week: week, day: course.weekday)
-                let change = exceptions.last { $0.courseID == course.id && ScheduleRules.calendar.isDate($0.day, inSameDayAs: day) }
+        for course in content.courses {
+            let pattern = WeekPattern.infer(from: course.weeks, totalWeeks: content.totalWeeks)
+            for week in course.weeks where (1...content.totalWeeks).contains(week) {
+                let day = Self.date(week: week, day: course.weekday, semesterStart: content.startDate)
+                let change = content.exceptions.last { $0.courseID == course.id && ScheduleRules.calendar.isDate($0.day, inSameDayAs: day) }
                 // 停课不在课表里占位：学生看到的应当是没有这节课，而不是一条划掉的记录。
                 // 需要回顾停课的话，课程详情里仍可查到。
                 if change?.cancelled == true { continue }
@@ -736,34 +763,34 @@ final class PreviewStore {
         guard !isPreview else { return false }
         cloudSync.startObserving { [weak self] payload in self?.handleRemoteChange(payload) }
         do {
-            try cloudSync.requestSync()
-            guard !cloudSync.remoteIsCorrupt else { throw CloudSyncError.decodeFailed }
             // 云端只存归档格式：它有版本号与校验，恢复路径也复用它。
             // 比较必须用同一种格式，否则「本地未改动」永远判不出来。
-            let localData = hasCloudContent ? try makeArchive().encoded() : nil
-            switch cloudSync.decision(local: localData) {
-            case .idle:
-                cloudSyncStatus = localData == nil ? "正在检查 iCloud 中是否有课表。" : "已是最新。"
-            case .pushLocal:
-                if let localData { try cloudSync.push(localData) }
-                cloudSyncStatus = "已交给 iCloud 同步，其他设备更新可能稍有延迟。"
-            case .applyRemote:
-                guard let remote = cloudSync.remote(), let term = try? ScheduleArchive.decoded(from: remote.payload) else {
-                    throw CloudSyncError.decodeFailed
-                }
-                try restore(from: term)
-                cloudSync.markSynced(remote.payload)
-                cloudSyncStatus = "已采用 iCloud 中的课表。"
-            case .conflict:
-                pendingCloudConflict = cloudSync.remote()
-                cloudSyncStatus = "iCloud 与本机都有改动，需要你选择保留哪一份。"
-            }
+            try reconcileCloud(localData: hasCloudContent ? makeArchive().encoded() : nil)
         } catch {
             cloudSync.stopObserving()
             cloudSyncStatus = error.localizedDescription
             return false
         }
         return true
+    }
+
+    private func reconcileCloud(localData: Data?) throws {
+        guard pendingCloudConflict == nil else { return }
+        try cloudSync.requestSync()
+        guard !cloudSync.remoteIsCorrupt else { throw CloudSyncError.decodeFailed }
+        switch cloudSync.decision(local: localData) {
+        case .idle:
+            if let localData { cloudSync.markSynced(localData) }
+            cloudSyncStatus = localData == nil ? "正在检查 iCloud 中是否有课表。" : "已是最新。"
+        case .pushLocal:
+            if let localData { try cloudSync.push(localData) }
+            cloudSyncStatus = "已交给 iCloud 同步，其他设备更新可能稍有延迟。"
+        case .applyRemote:
+            guard let remote = cloudSync.remote() else { throw CloudSyncError.decodeFailed }
+            try applyRemote(remote)
+        case .conflict:
+            if let remote = cloudSync.remote() { holdCloudConflict(remote) }
+        }
     }
 
     private func stopCloudSync() {
@@ -778,6 +805,10 @@ final class PreviewStore {
     private func handleRemoteChange(_ payload: StampedPayload) {
         guard cloudSyncEnabled, !storageReadOnly, payload.deviceID != cloudSync.deviceID else { return }
         guard !payload.payload.isEmpty else { cloudSyncStatus = "iCloud 同步空间不足，课表已保留在本机。"; return }
+        if pendingCloudConflict != nil {
+            holdCloudConflict(payload)
+            return
+        }
         guard let localData = try? makeArchive().encoded() else {
             cloudSyncStatus = "本机课表尚未通过校验，未应用云端内容。"; return
         }
@@ -786,28 +817,35 @@ final class PreviewStore {
             remote: payload,
             lastSyncedPayload: cloudSync.lastSyncedPayloadForComparison
         ) {
-        case .applyRemote: applyRemote(payload)
-        case .conflict: pendingCloudConflict = payload
+        case .applyRemote:
+            do { try applyRemote(payload) }
+            catch { cloudSyncStatus = error.localizedDescription }
+        case .conflict: holdCloudConflict(payload)
+        case .idle: cloudSync.markSynced(payload.payload)
         default: break
         }
     }
 
-    private func applyRemote(_ payload: StampedPayload) {
-        do {
-            let term = try ScheduleArchive.decoded(from: payload.payload)
-            try restore(from: term)
-            cloudSync.markSynced(payload.payload)
-            pendingCloudConflict = nil
-            cloudSyncStatus = "已同步来自其他设备的改动。"
-        } catch {
-            cloudSyncStatus = "远端课表无法读取：\(error.localizedDescription)"
-        }
+    private func holdCloudConflict(_ payload: StampedPayload) {
+        cloudPushTask?.cancel()
+        pendingCloudConflict = payload
+        cloudSyncStatus = "iCloud 与本机都有改动，解决冲突后会继续同步。"
+    }
+
+    private func applyRemote(_ payload: StampedPayload) throws {
+        let archive = try ScheduleArchive.decoded(from: payload.payload)
+        try restore(from: archive)
+        cloudPushTask?.cancel()
+        cloudSync.markSynced(payload.payload)
+        pendingCloudConflict = nil
+        cloudSyncStatus = "已同步来自其他设备的改动。"
     }
 
     /// 用户选择采用 iCloud 版本。
     func resolveConflictUsingCloud() {
         guard let payload = pendingCloudConflict else { return }
-        applyRemote(payload)
+        do { try applyRemote(payload) }
+        catch { cloudSyncStatus = error.localizedDescription }
     }
 
     /// 用户选择保留本机版本，覆盖云端。
@@ -822,8 +860,6 @@ final class PreviewStore {
         }
     }
 
-    func dismissCloudConflict() { pendingCloudConflict = nil }
-
     /// 合并连续保存，避免每敲一个字就写一次 iCloud。
     private func scheduleCloudPush(_ data: Data) {
         cloudPushTask?.cancel()
@@ -832,16 +868,15 @@ final class PreviewStore {
                 try await Task.sleep(for: .seconds(2))
                 try Task.checkCancellation()
                 guard cloudSyncEnabled, pendingCloudConflict == nil else { return }
-                try cloudSync.push(data)
-                cloudSyncStatus = "已交给 iCloud 同步，其他设备更新可能稍有延迟。"
+                try reconcileCloud(localData: data)
             } catch is CancellationError {} catch { cloudSyncStatus = error.localizedDescription }
         }
     }
     func synchronize() {
         guard !isPreview, !storageReadOnly else { return }
         syncTask?.cancel()
-        let items = occurrences
-        let snapshotTerm = activeTermID
+        let snapshotTerm = TermSelection.preferred(in: terms, on: Date())?.id ?? activeTermID
+        let items = occurrences(in: snapshotTerm)
         let snapshotLead = reminderMinutes
         let snapshotMilestones = milestones
         let examsByTerm = termContents.mapValues(\.exams)
@@ -894,6 +929,10 @@ final class PreviewStore {
     }
 
     func date(week: Int, day: Int = 0) -> Date {
+        Self.date(week: week, day: day, semesterStart: semesterStart)
+    }
+
+    private static func date(week: Int, day: Int, semesterStart: Date) -> Date {
         ScheduleRules.calendar.date(byAdding: .day, value: (week - 1) * 7 + day, to: semesterStart) ?? semesterStart
     }
 
@@ -1067,18 +1106,23 @@ final class PreviewStore {
         }
     }
 
-    func resolveCourseLink(_ target: CourseDeepLink.Target) -> DemoCourse? {
+    func resolveCourseLink(_ target: CourseDeepLink.Target) -> (course: DemoCourse, termID: String)? {
         guard !storageReadOnly else { return nil }
         if let term = target.termID {
-            guard termContents[term]?.courses.contains(where: { $0.id == target.courseID }) == true else { return nil }
-            selectTerm(term)
-            guard activeTermID == term else { return nil }
-        } else if target.opensTasks || !courses.contains(where: { $0.id == target.courseID }) {
-            let matches = termContents.filter { $0.value.courses.contains { $0.id == target.courseID } }.map(\.key)
-            guard matches.count == 1 else { return nil }
-            selectTerm(matches[0])
+            guard let course = course(withID: target.courseID, in: term) else { return nil }
+            return (course, term)
         }
-        return courses.first { $0.id == target.courseID }
+        if !target.opensTasks, let course = course(withID: target.courseID, in: activeTermID) {
+            return (course, activeTermID)
+        }
+        let matches = termContents.keys.compactMap { termID in
+            course(withID: target.courseID, in: termID).map { (course: $0, termID: termID) }
+        }
+        return matches.count == 1 ? matches.first : nil
+    }
+
+    func course(withID id: String, in termID: String) -> DemoCourse? {
+        termContents[termID]?.courses.first { $0.id == id }
     }
 
     /// 新建学期，返回新学期标识。节次时间沿用当前学期的作息，减少重复输入。

@@ -55,7 +55,7 @@ struct RootView: View {
     @Environment(\.dynamicTypeSize) private var systemTypeSize
     @Environment(\.scenePhase) private var phase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var linkedCourse: DemoCourse?
+    @State private var linkedCourse: (course: DemoCourse, termID: String)?
     @State private var linkedOccurrenceID: String?
     @State private var linkedTasks = false
     @State private var courseNavigationRevision = 0
@@ -94,9 +94,11 @@ struct RootView: View {
         Group {
             if let linkedCourse {
                 if linkedTasks {
-                    CourseDetailView(course: linkedCourse, tasksOnly: true, onClose: closeLinkedCourse)
+                    CourseDetailView(course: linkedCourse.course, tasksOnly: true, onClose: closeLinkedCourse,
+                                     linkedTermID: linkedCourse.termID)
                 } else {
-                    CourseNowView(course: linkedCourse, occurrenceID: linkedOccurrenceID, onClose: closeLinkedCourse)
+                    CourseNowView(course: linkedCourse.course, termID: linkedCourse.termID,
+                                  occurrenceID: linkedOccurrenceID, onClose: closeLinkedCourse)
                 }
             } else if linkUnavailable {
                 NavigationStack {
@@ -149,10 +151,10 @@ struct RootView: View {
                 linkedCourse = store.resolveCourseLink(target)
                 linkUnavailable = linkedCourse == nil
                 linkedTasks = target.opensTasks
-                if !target.opensTasks {
-                    let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences, now: store.now)
+                if !target.opensTasks, let termID = linkedCourse?.termID {
+                    let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences(in: termID), now: store.now)
                     linkedOccurrenceID = target.occurrenceID ?? occurrence?.id
-                    if let occurrence {
+                    if let occurrence, termID == store.activeTermID {
                         store.selectedWeek = min(store.totalWeeks, max(1, ScheduleRules.week(on: occurrence.start, semesterStart: store.semesterStart)))
                     }
                 }

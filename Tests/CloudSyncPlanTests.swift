@@ -56,6 +56,12 @@ struct CloudSyncPlanTests {
         #expect(CloudSyncPlan.decide(local: local, remote: remote, lastSyncedPayload: synced) == .applyRemote)
     }
 
+    @Test func untouchedRemoteAcceptsLocalAfterSyncingFromAnotherDevice() {
+        let base = stamped("base", device: "device-b")
+        let local = stamped("local-edit", at: 50)
+        #expect(CloudSyncPlan.decide(local: local, remote: base, lastSyncedPayload: base.payload) == .pushLocal)
+    }
+
     @Test func locallyEditedAndRemotelyEditedConflicts() {
         let synced = Data("base".utf8)
         let local = StampedPayload(updatedAt: now.addingTimeInterval(10), deviceID: "device-a",

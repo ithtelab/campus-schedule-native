@@ -12,6 +12,7 @@ struct ImportView: View {
     @State private var query = ""
     @State private var directory: SchoolDirectory?
     @State private var directoryError: String?
+    @State private var importError: String?
     @State private var pastedText = ""
     @State private var showingPaste = false
     @State private var showingFile = false
@@ -64,6 +65,9 @@ struct ImportView: View {
             .sheet(isPresented: $reviewingChanges) {
                 if let connection = refresh.connection { changesView(connection) }
             }
+            .alert("未能导入课表", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+                Button("好", role: .cancel) {}
+            } message: { Text(importError ?? "") }
             .task {
                 loadDirectory()
                 if !store.isPreview { refresh.restore() }
@@ -278,14 +282,16 @@ struct ImportView: View {
             guard let text = String(data: data, encoding: .utf8)
                     ?? String(data: data, encoding: gb18030)
                     ?? String(data: data, encoding: .isoLatin1) else {
-                store.errorMessage = "无法读取文件内容，请另存为 UTF-8 后重试。"
+                importError = "无法读取文件内容，请另存为 UTF-8 后重试。"
                 return
             }
             pastedText = text
             // 文件读取后直接进入解析，省一次点击。
             parsePasted()
+        } catch let error as CocoaError where error.code == .userCancelled {
+            return
         } catch {
-            store.errorMessage = "读取文件失败：\(error.localizedDescription)"
+            importError = "读取文件失败：\(error.localizedDescription)"
         }
     }
 
@@ -304,7 +310,7 @@ struct ImportView: View {
             parsed = lineOutcome.courses.isEmpty ? parseAsTable(text) : lineOutcome
         }
         guard !parsed.courses.isEmpty else {
-            store.errorMessage = parsed.warnings.first ?? "没有识别到课程。"
+            importError = parsed.warnings.first ?? "没有识别到课程。请检查内容是否包含课程名称、星期和节次。"
             return
         }
         outcome = parsed

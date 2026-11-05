@@ -273,22 +273,21 @@ struct WeekScheduleView: View {
         }
     }
 
-    /// 「下午」「晚上」两个分界标记。
-    ///
-    /// 各校节次数不同（8…14 节），因此按总节次三等分取近似位置，
-    /// 而不是写死第 5 节和第 9 节。
+    /// 按节次的实际开始时间划分时段。
     private struct PeriodGroupMark: Hashable {
         let period: Int
         let label: String
     }
 
     private var periodGroupMarks: [PeriodGroupMark] {
-        let ids = store.periods.map(\.id)
-        guard ids.count >= 6 else { return [] }
-        let afternoon = ids[ids.count / 3]
-        let evening = ids[ids.count * 2 / 3]
-        return [PeriodGroupMark(period: afternoon, label: "下午"),
-                PeriodGroupMark(period: evening, label: "晚上")]
+        var marks: [PeriodGroupMark] = []
+        if let afternoon = store.periods.first(where: { $0.start >= "12:00" && $0.start < "18:00" }) {
+            marks.append(PeriodGroupMark(period: afternoon.id, label: "下午"))
+        }
+        if let evening = store.periods.first(where: { $0.start >= "18:00" }) {
+            marks.append(PeriodGroupMark(period: evening.id, label: "晚上"))
+        }
+        return marks
     }
 
     /// 教室文案。调课换教室时同时给出原地点，便于对照。
@@ -339,12 +338,13 @@ struct WeekScheduleView: View {
         }
         .frame(width: width, height: totalHeight, alignment: .top)
         .overlay(alignment: .top) {
-            if week == store.currentWeek && day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7 {
+            if week == store.currentWeek, day == (ScheduleRules.calendar.component(.weekday, from: store.now) + 5) % 7,
+               let nowLineOffset {
                 HStack(spacing: 0) {
                     Circle().fill(.primary).frame(width: 5, height: 5)
                     Rectangle().fill(.primary).frame(height: 1)
                 }
-                .offset(y: previewLineOffset - 2).allowsHitTesting(false).accessibilityHidden(true)
+                .offset(y: nowLineOffset - 2).allowsHitTesting(false).accessibilityHidden(true)
             }
         }
     }
@@ -454,21 +454,11 @@ struct WeekScheduleView: View {
         .offset(y: min(totalHeight - 32, position(course.startTime)))
     }
 
-    private var previewLineOffset: CGFloat {
-        func minutes(_ value: String) -> Int {
-            let pieces = value.split(separator: ":").compactMap { Int($0) }
-            return pieces[0] * 60 + pieces[1]
-        }
-        let now = minutes(store.timeText)
-        for period in store.periods {
-            let start = minutes(period.start)
-            let end = minutes(period.end)
-            if now < start { return offset(period.id) }
-            if now <= end {
-                return offset(period.id) + rowHeight * CGFloat(now - start) / CGFloat(max(1, end - start))
-            }
-        }
-        return totalHeight
+    private var nowLineOffset: CGFloat? {
+        let time = store.timeText
+        guard let first = store.periods.first, let last = store.periods.last,
+              time >= first.start, time < last.end else { return nil }
+        return position(time)
     }
 
     private func accessibleList(week: Int) -> some View {

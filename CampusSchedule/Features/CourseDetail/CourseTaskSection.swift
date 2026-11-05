@@ -5,10 +5,10 @@ struct CourseTaskSection: View {
     @Binding var editing: CourseTask?
     @State private var actionError: String?
     let courseID: String
+    let termID: String
 
     var body: some View {
-        let termID = store.activeTermID
-        let tasks = CourseTask.ordered(store.courseTasks.filter { $0.courseID == courseID })
+        let tasks = CourseTask.ordered(store.courseTasks(in: termID).filter { $0.courseID == courseID })
         Section("课程待办") {
             ForEach(tasks) { task in
                 taskRow(task, termID: termID)
@@ -59,7 +59,7 @@ struct CourseTaskSection: View {
 
     private func save(_ task: CourseTask, termID: String, deleting: Bool = false) {
         if !store.updateCourseTask(task, termID: termID, deleting: deleting) {
-            actionError = store.errorMessage ?? "请确认课程仍在当前学期。"
+            actionError = store.errorMessage ?? "请确认课程仍在原学期。"
         }
     }
 }

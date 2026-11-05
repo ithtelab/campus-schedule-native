@@ -66,6 +66,7 @@ struct SettingsView: View {
     @State private var pendingArchive: ScheduleArchive?
     @State private var showingRestorePrompt = false
     @State private var confirmingCloudDeletion = false
+    @State private var showingCloudConflict = false
     var body: some View {
         @Bindable var settings = store
         NavigationStack(path: $path) {
@@ -115,6 +116,9 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.icloud")
                     if settings.cloudSyncEnabled {
                         Button("立即同步", systemImage: "arrow.clockwise") { store.refreshCloudSync() }
+                        if store.pendingCloudConflict != nil {
+                            Button("解决同步冲突", systemImage: "exclamationmark.icloud") { showingCloudConflict = true }
+                        }
                         Button("删除 iCloud 副本", systemImage: "trash", role: .destructive) {
                             confirmingCloudDeletion = true
                         }
@@ -197,13 +201,13 @@ struct SettingsView: View {
                     Text("将覆盖本机全部 \(store.terms.count) 个学期：\n\(store.terms.map(\.name).joined(separator: "、"))\n\n替换为备份中的 \(archive.semesters.count) 个学期：\n\(archive.summary)\n\n覆盖前会自动保留原始副本；不能保留副本时将停止恢复。")
                 }
             }
-            .alert("iCloud 与本机都有改动", isPresented: .init(
-                get: { store.pendingCloudConflict != nil },
-                set: { if !$0 { store.dismissCloudConflict() } }
-            )) {
+            .onChange(of: store.pendingCloudConflict != nil, initial: true) { _, hasConflict in
+                showingCloudConflict = hasConflict
+            }
+            .alert("iCloud 与本机都有改动", isPresented: $showingCloudConflict) {
                 Button("使用 iCloud 版本") { store.resolveConflictUsingCloud() }
                 Button("保留本机版本", role: .destructive) { store.resolveConflictKeepingLocal() }
-                Button("稍后决定", role: .cancel) { store.dismissCloudConflict() }
+                Button("稍后决定", role: .cancel) {}
             } message: {
                 Text("两台设备各自修改了课表，无法自动合并。选择要保留的那一份，另一份会被覆盖。")
             }

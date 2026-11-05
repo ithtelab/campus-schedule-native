@@ -13,6 +13,14 @@ final class CourseLinkUITests: XCTestCase {
         XCTAssertTrue(app.buttons["course-task.toggle.跨学期待办"].exists)
         XCTAssertFalse(app.navigationBars["本次课程"].exists)
         capture(app, name: "smart-agenda-task-destination")
+        app.buttons["course-task.toggle.跨学期待办"].tap()
+        XCTAssertEqual(app.buttons["course-task.toggle.跨学期待办"].label, "将跨学期待办标为未完成")
+        app.navigationBars["课程待办"].buttons["完成"].tap()
+        app.tabBars.buttons["设置"].tap()
+        app.buttons["全部学期"].tap()
+        let originalTerm = app.buttons.containing(.staticText, identifier: "2026 秋季学期").firstMatch
+        XCTAssertTrue(originalTerm.waitForExistence(timeout: 8))
+        XCTAssertTrue(originalTerm.isSelected)
     }
 
     @MainActor func testExamReminderOptionsAndReadOnlyDetails() throws {
@@ -71,6 +79,16 @@ final class CourseLinkUITests: XCTestCase {
 
         let detail = app.navigationBars["课程详情"]
         XCTAssertTrue(detail.waitForExistence(timeout: 8))
+        let editCourse = app.buttons["编辑整门课程"]
+        reveal(editCourse, in: app)
+        editCourse.tap()
+        let editor = app.navigationBars["编辑课程"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 8))
+        let room = app.textFields["上课地点，例如 A 楼 302"]
+        room.tap()
+        room.typeText(" 2")
+        editor.buttons["保存"].tap()
+        reveal(app.buttons["course-task.toggle.Read chapter"], in: app)
         detail.buttons["完成"].tap()
         let due = app.buttons["today.course-task.Read chapter"]
         reveal(due, in: app)

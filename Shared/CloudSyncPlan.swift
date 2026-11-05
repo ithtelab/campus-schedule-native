@@ -91,6 +91,9 @@ public enum CloudSyncPlan {
             if let lastSyncedPayload, lastSyncedPayload == local.payload {
                 return .applyRemote
             }
+            if let lastSyncedPayload, lastSyncedPayload == remote.payload {
+                return .pushLocal
+            }
             // 本地改过、云端也改过：交给用户决定。
             return .conflict
         }

@@ -20,6 +20,7 @@ struct TermListView: View {
                             row(term)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(term.id == store.activeTermID ? .isSelected : [])
                         .swipeActions(edge: .trailing) {
                             if store.terms.count > 1 {
                                 Button("删除", systemImage: "trash", role: .destructive) {
@@ -35,7 +36,7 @@ struct TermListView: View {
                 } header: {
                     Text("全部学期")
                 } footer: {
-                    Text("轻点切换。当前学期决定课表、提醒与组件显示的内容。")
+                    Text("轻点切换查看课表。课程提醒和组件按学期日期自动选择课表。")
                 }
             }
             .navigationTitle("学期")

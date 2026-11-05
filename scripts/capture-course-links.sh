@@ -8,6 +8,7 @@ elif [[ "${CAMPUS_UI_FOCUS:-full}" == exam-tasks ]]; then
   tests=(
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testExamReminderOptionsAndReadOnlyDetails
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testCourseTaskAppearsInTodayAndCanBeCompleted
+    -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testSmartAgendaTaskLinkOpensCorrectTerm
   )
 elif [[ "${CAMPUS_UI_FOCUS:-full}" == blue-stickers ]]; then
   xcrun simctl ui booted appearance light

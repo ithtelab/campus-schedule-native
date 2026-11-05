@@ -3,6 +3,7 @@ import SwiftUI
 /// System surfaces open this read-only view; editing remains in the app's course management flow.
 struct CourseNowView: View {
     let course: DemoCourse
+    let termID: String
     var occurrenceID: String?
     var onClose: () -> Void
     @Environment(PreviewStore.self) private var store
@@ -10,8 +11,8 @@ struct CourseNowView: View {
     private var blueTheme: Bool { store.appearance.theme == .blueStickers }
     private var themeAccent: Color { blueTheme ? CampusStickerMark.accent : .primary }
     private var occurrence: CourseOccurrence? {
-        CourseDeepLink.occurrence(for: .init(courseID: course.id, termID: store.activeTermID, occurrenceID: occurrenceID),
-                                  in: store.occurrences, now: store.now)
+        CourseDeepLink.occurrence(for: .init(courseID: course.id, termID: termID, occurrenceID: occurrenceID),
+                                  in: store.occurrences(in: termID), now: store.now)
     }
 
     var body: some View {
@@ -50,8 +51,10 @@ struct CourseNowView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("课堂入场券").font(DesignSystem.hand(28))
                 Spacer(minLength: 12)
-                Text("第 \(ScheduleRules.week(on: item.start, semesterStart: store.semesterStart)) 周")
-                    .font(.caption.weight(.medium).monospacedDigit()).foregroundStyle(.secondary)
+                if let term = store.terms.first(where: { $0.id == termID }) {
+                    Text("第 \(ScheduleRules.week(on: item.start, semesterStart: term.startDate)) 周")
+                        .font(.caption.weight(.medium).monospacedDigit()).foregroundStyle(.secondary)
+                }
             }
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .top, spacing: 8) {

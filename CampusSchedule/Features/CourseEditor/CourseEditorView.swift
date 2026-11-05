@@ -12,6 +12,7 @@ struct CourseEditorView: View {
     @State private var color = CourseColor.blue
     @State private var frequency = "每周"
     @State private var customWeeks: Set<Int> = [8]
+    @State private var saveError: String?
     var editing: DemoCourse? = nil
     var template: DemoCourse? = nil
     private let weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
@@ -27,10 +28,22 @@ struct CourseEditorView: View {
     }
 
     private var conflict: Bool {
-        store.courses.contains {
-            $0.id != editing?.id && $0.weekday == weekday && !$0.weeks.isDisjoint(with: weeks)
-                && $0.startPeriod <= endPeriod && $0.endPeriod >= startPeriod
+        store.courses.contains { course in
+            guard course.id != editing?.id, course.weekday == weekday else { return false }
+            let sharedWeeks = course.weeks.intersection(weeks)
+            let overlapStart = max(startPeriod, course.startPeriod)
+            let overlapEnd = min(endPeriod, course.endPeriod)
+            guard !sharedWeeks.isEmpty, overlapStart <= overlapEnd else { return false }
+            guard let editing, editing.weekday == weekday else { return true }
+            return !sharedWeeks.isSubset(of: editing.weeks)
+                || overlapStart < editing.startPeriod || overlapEnd > editing.endPeriod
         }
+    }
+
+    private var selectedPeriods: (start: DemoPeriod, end: DemoPeriod)? {
+        guard store.periods.indices.contains(startPeriod - 1),
+              store.periods.indices.contains(endPeriod - 1), startPeriod <= endPeriod else { return nil }
+        return (store.periods[startPeriod - 1], store.periods[endPeriod - 1])
     }
 
     var body: some View {
@@ -52,8 +65,10 @@ struct CourseEditorView: View {
                     Picker("结束节次", selection: $endPeriod) {
                         ForEach(startPeriod...max(startPeriod, store.periods.count), id: \.self) { Text("第 \($0) 节").tag($0) }
                     }
-                    LabeledContent("对应时间", value: "\(store.periods[startPeriod - 1].start)–\(store.periods[endPeriod - 1].end)")
-                        .foregroundStyle(.secondary)
+                    if let selectedPeriods {
+                        LabeledContent("对应时间", value: "\(selectedPeriods.start.start)–\(selectedPeriods.end.end)")
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section {
@@ -119,7 +134,8 @@ struct CourseEditorView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editing == nil ? "添加" : "保存") { addCourse() }
-                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || weeks.isEmpty || conflict)
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                  || weeks.isEmpty || conflict || selectedPeriods == nil)
                 }
             }
             .onChange(of: startPeriod) { _, value in endPeriod = max(endPeriod, value) }
@@ -142,23 +158,26 @@ struct CourseEditorView: View {
                     let palette = CourseColor.allCases
                     color = palette[store.courses.count % palette.count]
                 }
+                startPeriod = min(startPeriod, store.periods.count)
+                endPeriod = min(endPeriod, store.periods.count)
             }
+            .alert("未能保存课程", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("好", role: .cancel) {}
+            } message: { Text(saveError ?? "") }
         }
         .presentationDetents([.large])
     }
 
     private func addCourse() {
-        guard !conflict, !weeks.isEmpty else { return }
-        var value = DemoCourse(
+        guard !conflict, !weeks.isEmpty, let selectedPeriods else { return }
+        let value = DemoCourse(
             id: editing?.id ?? UUID().uuidString, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             room: room.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "地点待定" : room,
             teacher: teacher.isEmpty ? "教师待定" : teacher, weekday: weekday,
             startPeriod: startPeriod, endPeriod: endPeriod,
-            startTime: store.periods[startPeriod - 1].start, endTime: store.periods[endPeriod - 1].end,
+            startTime: selectedPeriods.start.start, endTime: selectedPeriods.end.end,
             color: color, weeks: weeks)
-        value.remindersEnabled = editing?.remindersEnabled ?? true
-        if let editing { store.courses.removeAll { $0.id == editing.id } }
-        store.courses.append(value)
-        dismiss()
+        if store.saveCourse(value, replacingExisting: editing != nil) { dismiss() }
+        else { saveError = store.errorMessage ?? "请检查学期和课程设置后重试。" }
     }
 }
