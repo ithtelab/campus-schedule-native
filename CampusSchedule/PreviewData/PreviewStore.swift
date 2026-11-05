@@ -149,6 +149,24 @@ final class PreviewStore {
 
     var courseTasks: [CourseTask] { activeContent?.courseTasks ?? [] }
 
+    /// 把全部学期里未完成且有截止时间的待办投影成组件用的形状。
+    ///
+    /// 课程名在这里解析：组件进程拿不到学期容器，只拿得到快照。
+    /// 没有截止时间的待办不参与挑选 —— 它们无法判断紧急程度。
+    nonisolated static func agendaTasks(from terms: [String: TermContent]) -> [AgendaTask] {
+        terms.flatMap { _, content in
+            let titles = Dictionary(uniqueKeysWithValues: content.courses.map { ($0.id, $0.title) })
+            return content.courseTasks.compactMap { task -> AgendaTask? in
+                guard !task.isCompleted, let due = task.due,
+                      let courseTitle = titles[task.courseID] else { return nil }
+                let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !title.isEmpty else { return nil }
+                return AgendaTask(id: task.id.uuidString, courseID: task.courseID,
+                                  courseTitle: courseTitle, title: title, due: due)
+            }
+        }
+    }
+
     func updateCourseTask(_ task: CourseTask, termID: String, deleting: Bool = false) -> Bool {
         guard !storageReadOnly, termID == activeTermID, var content = activeContent,
               content.courses.contains(where: { $0.id == task.courseID }), task.isValid else { return false }
@@ -821,6 +839,7 @@ final class PreviewStore {
         let snapshotLead = reminderMinutes
         let snapshotMilestones = milestones
         let examsByTerm = termContents.mapValues(\.exams)
+        let agendaTasks = Self.agendaTasks(from: termContents)
         let snapshotAppearance = appearance
         let courseRemindersEnabled = reminderPreview
         let endRemindersEnabled = endReminder
@@ -837,7 +856,8 @@ final class PreviewStore {
                     exams.compactMap { ExamSession(exam: $0, termID: termID) }.filter { $0.end > now }
                 }
                 try SystemSnapshot.write(items, leadMinutes: snapshotLead, termID: snapshotTerm,
-                                         milestones: snapshotMilestones, exams: examSessions, appearance: snapshotAppearance)
+                                         milestones: snapshotMilestones, exams: examSessions,
+                                         appearance: snapshotAppearance, tasks: agendaTasks)
                 WidgetCenter.shared.reloadAllTimelines()
             } catch { errorMessage = error.localizedDescription }
             async let activities: Void = CourseLiveActivities.shared.reconcile(items: items, enabled: activitiesEnabled,

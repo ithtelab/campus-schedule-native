@@ -17,19 +17,23 @@ enum SystemSnapshot {
         var milestones: [Milestone] = []
         var exams: [ExamSession] = []
         var appearance = AppearancePreferences()
+        /// 智能课间组件要按截止时间挑待办，因此课程名在写入时就解析好。
+        var tasks: [AgendaTask] = []
 
         enum CodingKeys: String, CodingKey {
-            case version, generatedAt, courses, reminderLeadMinutes, termID, milestones, exams, appearance
+            case version, generatedAt, courses, reminderLeadMinutes, termID, milestones, exams, appearance, tasks
         }
 
         init(courses: [CourseOccurrence], reminderLeadMinutes: Int? = nil,
-             termID: String? = nil, milestones: [Milestone] = [], exams: [ExamSession] = [], appearance: AppearancePreferences = .init()) {
+             termID: String? = nil, milestones: [Milestone] = [], exams: [ExamSession] = [],
+             appearance: AppearancePreferences = .init(), tasks: [AgendaTask] = []) {
             self.courses = courses
             self.reminderLeadMinutes = reminderLeadMinutes
             self.termID = termID
             self.milestones = milestones
             self.exams = exams
             self.appearance = appearance
+            self.tasks = tasks
         }
 
         init(from decoder: any Decoder) throws {
@@ -42,6 +46,7 @@ enum SystemSnapshot {
             milestones = try container.decodeIfPresent([Milestone].self, forKey: .milestones) ?? []
             exams = try container.decodeIfPresent([ExamSession].self, forKey: .exams) ?? []
             appearance = (try? container.decode(AppearancePreferences.self, forKey: .appearance)) ?? .init()
+            tasks = try container.decodeIfPresent([AgendaTask].self, forKey: .tasks) ?? []
         }
     }
     static func readPayload() -> Payload? {
@@ -52,10 +57,11 @@ enum SystemSnapshot {
     static func read() -> [CourseOccurrence] { readPayload()?.courses ?? [] }
     static func readMilestones() -> [Milestone] { readPayload()?.milestones ?? [] }
     static func write(_ courses: [CourseOccurrence], leadMinutes: Int = 10, termID: String? = nil,
-                      milestones: [Milestone] = [], exams: [ExamSession] = [], appearance: AppearancePreferences = .init()) throws {
+                      milestones: [Milestone] = [], exams: [ExamSession] = [],
+                      appearance: AppearancePreferences = .init(), tasks: [AgendaTask] = []) throws {
         guard let url else { return }
-        try JSONEncoder().encode(Payload(courses: courses, reminderLeadMinutes: leadMinutes,
-                                        termID: termID, milestones: milestones, exams: exams, appearance: appearance))
+        try JSONEncoder().encode(Payload(courses: courses, reminderLeadMinutes: leadMinutes, termID: termID,
+                                        milestones: milestones, exams: exams, appearance: appearance, tasks: tasks))
             .write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }
