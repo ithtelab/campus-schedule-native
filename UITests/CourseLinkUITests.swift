@@ -18,7 +18,7 @@ final class CourseLinkUITests: XCTestCase {
         app.navigationBars["课程待办"].buttons["完成"].tap()
         app.tabBars.buttons["设置"].tap()
         app.buttons["全部学期"].tap()
-        let originalTerm = app.buttons.containing(.staticText, identifier: "2026 秋季学期").firstMatch
+        let originalTerm = app.buttons["term.preview-term"]
         XCTAssertTrue(originalTerm.waitForExistence(timeout: 8))
         XCTAssertTrue(originalTerm.isSelected)
     }

@@ -21,6 +21,7 @@ struct TermListView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(term.id == store.activeTermID ? .isSelected : [])
+                        .accessibilityIdentifier("term.\(term.id)")
                         .swipeActions(edge: .trailing) {
                             if store.terms.count > 1 {
                                 Button("删除", systemImage: "trash", role: .destructive) {

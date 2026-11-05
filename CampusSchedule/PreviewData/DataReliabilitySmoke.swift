@@ -26,8 +26,10 @@ import Foundation
         completed.isCompleted = true
         check(store.updateCourseTask(pending, termID: sourceTerm) && store.updateCourseTask(completed, termID: sourceTerm),
               "save course tasks")
-        if var edited = store.course(withID: course.id, in: sourceTerm) {
-            edited.room = "再次换教室"
+        if let saved = store.course(withID: course.id, in: sourceTerm) {
+            let edited = DemoCourse(id: saved.id, title: saved.title, room: "再次换教室", teacher: saved.teacher,
+                weekday: saved.weekday, startPeriod: saved.startPeriod, endPeriod: saved.endPeriod,
+                startTime: saved.startTime, endTime: saved.endTime, color: saved.color, weeks: saved.weeks)
             check(store.saveCourse(edited, replacingExisting: true), "edit course")
             check(Set(store.courseTasks.map(\.id)) == [pending.id, completed.id], "edit preserves pending and completed tasks")
             check(store.exceptions.contains { $0.id == exception.id }, "edit preserves exception")
