@@ -88,9 +88,7 @@ struct SmartAgendaProvider: AppIntentTimelineProvider {
 
     /// 编辑预览用。没有真实数据时也要能看出排版，不能只显示空状态。
     static func placeholderSelection(now: Date) -> SmartAgendaSelection {
-        let calendar = ScheduleRules.calendar
-        let start = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: now) ?? now
-        SmartAgendaSelection(
+        return SmartAgendaSelection(
             primary: SmartAgendaItem(
                 id: "placeholder-course", kind: .course, status: "今天 10:00",
                 title: "大学英语", detail: "B 205", value: "10:00",
