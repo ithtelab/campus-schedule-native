@@ -89,6 +89,8 @@ struct MilestoneFormatTests {
         let item = Milestone(title: "毕业", date: day(2027, 6, 20))
         let reading = MilestoneCounter.read(item, now: day(2027, 6, 10))
         #expect(MilestoneFormat.primary(item, reading: reading) == "10 天")
+        #expect(MilestoneFormat.counterCaption(item, reading: reading) == "还有")
+        #expect(MilestoneFormat.number(reading) == "10 天")
         #expect(MilestoneFormat.sentence(item, reading: reading) == "距毕业还有 10 天")
     }
 
@@ -131,5 +133,13 @@ struct MilestoneFormatTests {
         #expect(MilestoneFormat.relationshipHighlight(item, reading: reading(after: 1315)) == nil)
         item.repeatsAnnually = true
         #expect(MilestoneFormat.relationshipHighlight(item, reading: reading(after: 100)) == nil)
+    }
+
+    @Test func relationshipCounterKeepsTheUnitWithTheNumber() {
+        let item = Milestone(title: "我们的恋爱日", date: day(2026, 11, 4), direction: .countUp, category: .relationship)
+        let reading = MilestoneCounter.read(item, now: day(2026, 11, 5))
+        #expect(MilestoneFormat.counterCaption(item, reading: reading) == "一起走过")
+        #expect(MilestoneFormat.number(reading) == "1 天")
+        #expect(MilestoneFormat.sentence(item, reading: reading) == "我们的恋爱日，一起走过 1 天")
     }
 }

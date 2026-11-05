@@ -14,6 +14,7 @@ public enum MilestoneFormat {
         case .upcoming(let days):
             return "\(days) 天"
         case .past(let days):
+            if item.countsRelationshipDays { return "已走过 \(days) 天" }
             switch item.direction {
             case .countdown: return "已过 \(days) 天"
             case .countUp: return "第 \(days) 天"
@@ -26,13 +27,14 @@ public enum MilestoneFormat {
         let title = item.title.isEmpty ? "这件事" : item.title
         switch reading.state {
         case .today:
-            return "\(title)就是今天"
+            return item.countsRelationshipDays ? "\(title)从今天开始" : "\(title)就是今天"
         case .upcoming(let days):
             switch item.direction {
             case .countdown: return "距\(title)还有 \(days) 天"
             case .countUp: return "距\(title)开始还有 \(days) 天"
             }
         case .past(let days):
+            if item.countsRelationshipDays { return "\(title)，一起走过 \(days) 天" }
             switch item.direction {
             case .countdown: return "\(title)已过去 \(days) 天"
             case .countUp: return "\(title)第 \(days) 天"
@@ -40,23 +42,23 @@ public enum MilestoneFormat {
         }
     }
 
-    /// 大号数字。组件里天数与单位分开排版，因此只取数字部分。
+    /// 大号读数。数字和单位同一行，避免拆开后读成「一起走过 · 天」。
     public static func number(_ reading: MilestoneReading) -> String {
-        reading.state == .today ? "今天" : String(reading.dayCount)
+        reading.state == .today ? "今天" : "\(reading.dayCount) 天"
     }
 
-    public static func counterCaption(_ item: Milestone, reading: MilestoneReading) -> String {
+    public static func counterCaption(_ item: Milestone, reading: MilestoneReading) -> String? {
         if item.countsRelationshipDays {
             switch reading.state {
-            case .today: return "故事从今天开始"
-            case .past: return "一起走过 · 天"
-            case .upcoming: return "距离故事开始 · 天"
+            case .today: return "故事开始"
+            case .past: return "一起走过"
+            case .upcoming: return "离故事开始还有"
             }
         }
         return switch reading.state {
-        case .today: "就是这一天"
-        case .upcoming: item.direction == .countUp ? "距离开始 · 天" : "还有 · 天"
-        case .past: item.direction == .countUp ? "累计 · 天" : "已过 · 天"
+        case .today: nil
+        case .upcoming: item.direction == .countUp ? "距离开始还有" : "还有"
+        case .past: item.direction == .countUp ? "累计" : "已过"
         }
     }
 

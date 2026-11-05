@@ -194,6 +194,9 @@ private struct MilestoneDateCard: View {
                 .font(.footnote.weight(.medium)).foregroundStyle(.secondary)
             Text(item.title.isEmpty ? "未命名事件" : item.title)
                 .font(.title2.weight(.semibold))
+            if let caption = MilestoneFormat.counterCaption(item, reading: reading) {
+                Text(caption).font(.subheadline.weight(.medium))
+            }
             HStack(spacing: 16) {
                 Text(MilestoneFormat.number(reading))
                     .font(.system(size: min(numberSize, 92), weight: .bold, design: .monospaced))
@@ -216,7 +219,6 @@ private struct MilestoneDateCard: View {
                 }
             }
             Divider()
-            Text(MilestoneFormat.counterCaption(item, reading: reading)).font(.subheadline.weight(.medium))
             Text(MilestoneFormat.dateText(reading.effectiveDate, relativeTo: now))
                 .font(.footnote).foregroundStyle(.secondary)
             if let highlight = MilestoneFormat.relationshipHighlight(item, reading: reading) {

@@ -128,11 +128,12 @@ struct MilestoneWidgetView: View {
                 case .accessoryRectangular:
                     VStack(alignment: .leading, spacing: 1) {
                         Text(item.title).font(.caption.weight(.semibold)).lineLimit(1)
+                        if let caption = MilestoneFormat.counterCaption(item, reading: reading) {
+                            Text(caption).font(.caption2).lineLimit(1)
+                        }
                         Text(MilestoneFormat.number(reading))
                             .font(.system(size: 20, weight: .bold).monospacedDigit())
                             .lineLimit(1).minimumScaleFactor(0.7)
-                        Text(MilestoneFormat.counterCaption(item, reading: reading))
-                            .font(.caption2).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.trailing, hasAccessoryDecor ? 19 : 0)
@@ -144,6 +145,8 @@ struct MilestoneWidgetView: View {
                             CampusStickerMark(size: 14, fullColor: false)
                         }
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(MilestoneFormat.sentence(item, reading: reading))
                 default:
                     desktop(item, reading: reading)
                 }
@@ -166,11 +169,12 @@ struct MilestoneWidgetView: View {
                     }
                     Text(item.title).font(.caption.weight(.medium)).lineLimit(1)
                 }
+                if let caption = MilestoneFormat.counterCaption(item, reading: reading) {
+                    Text(caption).font(.caption.weight(.medium)).lineLimit(1)
+                }
                 Text(MilestoneFormat.number(reading))
                     .font(.system(size: family == .systemMedium ? 40 : 32, weight: .bold).monospacedDigit())
                     .lineLimit(1).minimumScaleFactor(0.5)
-                Text(MilestoneFormat.counterCaption(item, reading: reading))
-                    .font(.caption.weight(.medium)).lineLimit(1)
                 Text(MilestoneFormat.dateText(reading.effectiveDate, relativeTo: entry.date))
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
