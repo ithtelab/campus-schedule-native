@@ -115,7 +115,7 @@ struct WidgetGalleryView: View {
             .environment(\.widgetRenderingMode, isHome ? .fullColor : .vibrant)
             .padding(isHome ? 14 : 6)
             .frame(width: width, height: height, alignment: .leading)
-            .background(DesignSystem.surface, in: .rect(cornerRadius: isHome ? 22 : 12))
+            .background(DesignSystem.surface, in: .rect(cornerRadius: family == .accessoryCircular ? width / 2 : isHome ? 22 : 12))
     }
 }
 #endif

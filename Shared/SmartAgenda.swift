@@ -33,6 +33,7 @@ public struct SmartAgendaItem: Equatable, Sendable, Identifiable {
     public var title: String
     /// 次要信息：考场座位、教室、课程名。
     public var detail: String
+    public var examSeat: String?
     /// 右侧主数值：时刻或天数。
     public var value: String
     /// 数值单位。纪念事件的天数与单位一起显示，其他类型为空。
@@ -44,12 +45,13 @@ public struct SmartAgendaItem: Equatable, Sendable, Identifiable {
 
     public init(id: String, kind: Kind, status: String, title: String, detail: String,
                 value: String, unit: String = "", urgency: Urgency, target: Target,
-                changesAt: Date? = nil) {
+                changesAt: Date? = nil, examSeat: String? = nil) {
         self.id = id
         self.kind = kind
         self.status = status
         self.title = title
         self.detail = detail
+        self.examSeat = examSeat
         self.value = value
         self.unit = unit
         self.urgency = urgency
@@ -59,13 +61,16 @@ public struct SmartAgendaItem: Equatable, Sendable, Identifiable {
 
     /// 一行无障碍朗读文本，避免把四段文字拆成四个元素。
     public var accessibilityText: String {
-        [statusWithQuantity, title, detail]
+        [statusWithQuantity, title, detailWithSeat]
             .filter { !$0.isEmpty }
             .joined(separator: "，")
     }
 
     var quantity: String { unit.isEmpty ? value : "\(value) \(unit)" }
     var statusWithQuantity: String { unit.isEmpty ? status : "\(status) \(quantity)" }
+    var detailWithSeat: String {
+        [detail, examSeat ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
 }
 
 /// 用户在长按编辑里对「智能课间」的选择。
@@ -317,19 +322,18 @@ public enum SmartAgenda {
     // MARK: - 文案
 
     static func examItem(_ exam: ExamSession, now: Date, inProgress: Bool) -> SmartAgendaItem {
-        let detail = [exam.room, exam.seat.isEmpty ? "" : "\(exam.seat) 号座"]
-            .filter { !$0.isEmpty }.joined(separator: " · ")
         return SmartAgendaItem(
             id: "exam:\(exam.termID.utf8.count):\(exam.termID).\(exam.id)",
             kind: .exam,
             status: inProgress ? "考试中 · \(ScheduleRules.time(exam.end)) 结束"
                                : "\(ScheduleRules.time(exam.start)) 开考",
             title: exam.title,
-            detail: detail,
+            detail: exam.room,
             value: ScheduleRules.time(inProgress ? exam.end : exam.start),
             urgency: inProgress ? .happening : .imminent,
             target: .exam(id: exam.id, termID: exam.termID),
-            changesAt: inProgress ? exam.end : exam.start)
+            changesAt: inProgress ? exam.end : exam.start,
+            examSeat: exam.seat.isEmpty ? nil : "\(exam.seat) 号座")
     }
 
     static func courseItem(_ course: CourseOccurrence, now: Date, inProgress: Bool,

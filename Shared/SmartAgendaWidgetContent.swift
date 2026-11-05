@@ -52,8 +52,8 @@ struct SmartAgendaWidgetContent: View {
             if let item = selection.primary {
                 Text(item.statusWithQuantity).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.85)
                 Text(item.title).font(.headline).lineLimit(1).minimumScaleFactor(0.85)
-                if !item.detail.isEmpty {
-                    Text(item.detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+                if !item.detailWithSeat.isEmpty {
+                    Text(item.detailWithSeat).font(.caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
                 }
             } else {
                 Label("暂时没有安排", systemImage: "checkmark.circle").font(.headline)
@@ -90,8 +90,14 @@ struct SmartAgendaWidgetContent: View {
                 .foregroundStyle(blue ? CampusStickerMark.accent : Color.primary)
                 .lineLimit(item.kind == .milestone ? 1 : 2).minimumScaleFactor(0.8)
             Text(item.title).font(.headline).lineLimit(2).minimumScaleFactor(0.85)
-            if !item.detail.isEmpty {
-                Text(item.detail).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            if family == .systemSmall, let seat = item.examSeat {
+                VStack(alignment: .leading, spacing: 2) {
+                    if !item.detail.isEmpty { Text(item.detail).lineLimit(2) }
+                    Text(seat).lineLimit(1)
+                }
+                .font(.caption.weight(.medium)).foregroundStyle(.secondary).minimumScaleFactor(0.85)
+            } else if !item.detailWithSeat.isEmpty {
+                Text(item.detailWithSeat).font(.caption.weight(.medium)).foregroundStyle(.secondary)
                     .lineLimit(2).minimumScaleFactor(0.85)
             }
         }

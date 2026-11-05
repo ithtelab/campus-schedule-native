@@ -82,7 +82,9 @@ struct SmartAgendaTests {
     @Test func examKeepsRoomAndSeat() {
         let now = at(8, 10)
         let selection = select(now: now, exams: [exam(start: at(9, 0), end: at(11, 0))])
-        #expect(selection.primary?.detail == "A302 · 17 号座")
+        #expect(selection.primary?.detail == "A302")
+        #expect(selection.primary?.examSeat == "17 号座")
+        #expect(selection.primary?.detailWithSeat == "A302 · 17 号座")
     }
 
     // MARK: 第 2 档：上课
