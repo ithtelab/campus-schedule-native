@@ -205,12 +205,33 @@ struct SmartAgendaTests {
     }
 
     @Test func countUpMilestoneSaysElapsedDays() {
+        // 累计型的日期天然在过去，必须仍然显示，否则「一起走过 365 天」永远出不来。
         let now = at(12, 0)
         let item = milestone(title: "相识", date: at(12, 0, day: -100),
                              direction: .countUp, pinned: true)
         let selection = select(now: now, milestones: [item])
+        #expect(selection.primary?.kind == .milestone)
         #expect(selection.primary?.value == "100")
-        #expect(selection.primary?.status.contains("已过去") == true)
+        #expect(selection.primary?.unit == "天")
+    }
+
+    @Test func pastCountdownMilestoneDoesNotShow() {
+        // 倒数型已经过去，按产品定义不抢占主位（有归档设置时另行判断）。
+        let now = at(12, 0)
+        let item = milestone(title: "旧事", date: at(12, 0, day: -30),
+                             direction: .countdown, pinned: true)
+        let selection = select(now: now, milestones: [item])
+        #expect(selection.primary == nil)
+    }
+
+    @Test func todayMilestoneBeatsLongRunningCountUp() {
+        // 今天的期限事项比已经持续了几百天的计数器更该被看到。
+        let now = at(12, 0)
+        let counter = milestone(id: "m-long", title: "相识", date: at(12, 0, day: -365),
+                                direction: .countUp, pinned: true)
+        let today = milestone(id: "m-today", title: "回家", date: at(0, 0), pinned: true)
+        let selection = select(now: now, milestones: [counter, today])
+        #expect(selection.primary?.title == "回家")
     }
 
     // MARK: 优先级之间

@@ -252,21 +252,27 @@ public enum SmartAgenda {
             }
         }
 
-        // 4. 选中的纪念事件就在今天或三天内。
+        // 4. 用户关注的纪念事件：今天、倒数三天内，或本身就是累计型。
+        //
+        // 累计型（「一起走过 365 天」）的日期天然在过去 —— 它计的就是已经过去的
+        // 天数，若按「三天内」筛掉，这类事件永远不会出现。
         if options.allowMilestones {
             for milestone in watchedMilestones(milestones, options: options) {
                 let reading = MilestoneCounter.read(milestone, now: now, calendar: calendar)
                 guard !reading.isHidden(expiry: milestone.expiry) else { continue }
+                let eligible: Bool
                 switch reading.state {
                 case .today:
-                    result.append(Candidate(item: milestoneItem(milestone, reading: reading, now: now, calendar: calendar),
-                                            tier: 4, moment: reading.effectiveDate))
-                case .upcoming(let days) where days <= milestoneLeadDays:
-                    result.append(Candidate(item: milestoneItem(milestone, reading: reading, now: now, calendar: calendar),
-                                            tier: 4, moment: reading.effectiveDate))
-                default:
-                    continue
+                    eligible = true
+                case .upcoming(let days):
+                    eligible = days <= milestoneLeadDays
+                case .past:
+                    eligible = milestone.direction == .countUp
                 }
+                guard eligible else { continue }
+                result.append(Candidate(
+                    item: milestoneItem(milestone, reading: reading, now: now, calendar: calendar),
+                    tier: 4, moment: milestoneMoment(milestone, reading: reading, now: now, calendar: calendar)))
             }
         }
 
@@ -279,12 +285,27 @@ public enum SmartAgenda {
         return result
     }
 
+    /// 纪念事件在档位内的排序时刻。
+    ///
+    /// 累计型的日期在过去，直接拿它排序会让「一起走过 365 天」压过「今天」的事件。
+    /// 它的显示数字只在次日的零点变化，所以用零点作为「下一次相关时刻」。
+    static func milestoneMoment(_ milestone: Milestone, reading: MilestoneReading,
+                                now: Date, calendar: Calendar) -> Date {
+        if case .past = reading.state, milestone.direction == .countUp {
+            return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+        }
+        return reading.effectiveDate
+    }
+
     static func best(in candidates: [Candidate]) -> Candidate? {
         candidates.min {
             if $0.tier != $1.tier { return $0.tier < $1.tier }
             if $0.moment != $1.moment { return $0.moment < $1.moment }
-            // 完全同一时刻时按类别固定顺序，避免每次求值顺序不同。
-            return $0.item.kind.rawValue < $1.item.kind.rawValue
+            // 同一档位同一时刻时按类别、再按标识固定顺序，保证多次求值结果一致。
+            if $0.item.kind.rawValue != $1.item.kind.rawValue {
+                return $0.item.kind.rawValue < $1.item.kind.rawValue
+            }
+            return $0.item.id < $1.item.id
         }
     }
 
@@ -369,7 +390,7 @@ public enum SmartAgenda {
             status = milestone.direction == .countUp ? "还有 \(days) 天开始" : "还有 \(days) 天"
         case .past(let days):
             value = String(days); unit = "天"
-            status = "已过去 \(days) 天"
+            status = milestone.direction == .countUp ? "第 \(days) 天" : "已过去 \(days) 天"
         }
         let detail = MilestoneFormat.dateText(reading.effectiveDate, relativeTo: now, calendar: calendar)
         return SmartAgendaItem(
