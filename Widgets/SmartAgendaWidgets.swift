@@ -30,6 +30,17 @@ struct SmartAgendaEntry: TimelineEntry {
     var options = SmartAgendaOptions()
 }
 
+/// 锁屏（accessory）只有一行，默认不该放待办。
+///
+/// `WidgetFamily` 没有 `isAccessory` 之类的便利属性，必须逐个列举；
+/// 写成独立函数也便于将来新增 family 时只改一处。
+private func isLockScreenFamily(_ family: WidgetFamily) -> Bool {
+    switch family {
+    case .accessoryCircular, .accessoryRectangular, .accessoryInline: true
+    default: false
+    }
+}
+
 struct SmartAgendaProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> SmartAgendaEntry {
         let now = Date()
@@ -38,21 +49,21 @@ struct SmartAgendaProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: SmartAgendaConfiguration, in context: Context) async -> SmartAgendaEntry {
         // 占位与快照都必须有内容，否则组件在编辑预览里显示空白表格。
-        entry(for: configuration, at: Date(), lockScreen: context.family.isAccessory)
+        entry(for: configuration, at: Date(), lockScreen: isLockScreenFamily(context.family))
     }
 
     func timeline(for configuration: SmartAgendaConfiguration, in context: Context) async -> Timeline<SmartAgendaEntry> {
         let now = Date()
         let payload = SystemSnapshot.readPayload()
-        let options = resolveOptions(configuration, lockScreen: context.family.isAccessory)
-        let first = entry(for: configuration, at: now, lockScreen: context.family.isAccessory)
+        let options = resolveOptions(configuration, lockScreen: isLockScreenFamily(context.family))
+        let first = entry(for: configuration, at: now, lockScreen: isLockScreenFamily(context.family))
         let dates = SmartAgenda.switchDates(
             courses: payload?.courses ?? [], exams: payload?.exams ?? [],
             tasks: payload?.tasks ?? [], milestones: payload?.milestones ?? [],
             now: now, leadMinutes: payload?.reminderLeadMinutes ?? 10,
             options: options, limit: 20)
         // 每次求值都用同一个配置与快照，保证切换点之间状态连续。
-        let entries = dates.map { entry(for: configuration, at: $0, lockScreen: context.family.isAccessory) }
+        let entries = dates.map { entry(for: configuration, at: $0, lockScreen: isLockScreenFamily(context.family)) }
         return Timeline(entries: entries.isEmpty ? [first] : entries, policy: .atEnd)
     }
 
