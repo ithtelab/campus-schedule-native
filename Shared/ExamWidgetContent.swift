@@ -36,9 +36,11 @@ struct ExamWidgetContent: View {
             if let session {
                 Text(session.title).font(.headline).lineLimit(1)
                 Text(when(session)).font(.caption.monospacedDigit()).lineLimit(1)
-                if !session.location.isEmpty {
-                    Text(session.location).font(.caption2).lineLimit(1).minimumScaleFactor(0.85)
+                HStack(spacing: 4) {
+                    if !session.room.isEmpty { Text(session.room) }
+                    if !session.seat.isEmpty { Text("座位 \(session.seat)").layoutPriority(1) }
                 }
+                .font(.caption2).lineLimit(1).minimumScaleFactor(0.85)
             } else {
                 Label("最近考试", systemImage: "graduationcap").font(.headline)
                 Text("暂无考试安排").font(.caption)

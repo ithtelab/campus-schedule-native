@@ -11,6 +11,7 @@ struct CourseDetailView: View {
     @State private var deleting = false
     @State private var makeup = false
     @State private var activityMessage: String?
+    @State private var editingTask: CourseTask?
     private var original: DemoCourse { store.courses.first { $0.id == (course.sourceID ?? course.id) } ?? course }
     private var nextOccurrence: CourseOccurrence? { store.occurrences.first { $0.courseID == original.id && $0.end > store.now } }
     private var canStartActivity: Bool {
@@ -33,7 +34,7 @@ struct CourseDetailView: View {
                     LabeledContent("时间", value: "\(original.startTime)–\(original.endTime)")
                     LabeledContent("周次", value: original.weeks.sorted().map(String.init).joined(separator: "、"))
                 }
-                CourseTaskSection(courseID: original.id)
+                CourseTaskSection(editing: $editingTask, courseID: original.id)
                 Section {
                     Button("编辑整门课程", systemImage: "pencil") { editing = true }
                     Button("单次停课或调课", systemImage: "calendar.badge.clock") { changing = true }
@@ -56,6 +57,13 @@ struct CourseDetailView: View {
             .sheet(isPresented: $editing) { CourseEditorView(editing: original) }
             .sheet(isPresented: $changing) { CourseExceptionView(course: original) }
             .sheet(isPresented: $makeup) { CourseEditorView(template: original) }
+            .sheet(item: $editingTask) { task in
+                let termID = store.activeTermID
+                CourseTaskEditor(task: task, now: store.now) { updated in
+                    if store.updateCourseTask(updated, termID: termID) { return nil }
+                    return store.errorMessage ?? "未能保存待办。请确认课程仍在当前学期。"
+                }
+            }
             .alert("未能完成操作", isPresented: Binding(get: { activityMessage != nil }, set: { if !$0 { activityMessage = nil } })) {
                 Button("好") { activityMessage = nil }
             } message: { Text(activityMessage ?? "") }

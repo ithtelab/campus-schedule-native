@@ -16,8 +16,7 @@ final class CourseLinkUITests: XCTestCase {
         for id in ["exam.reminder.day-before", "exam.reminder.before-start"] {
             let option = app.switches[id]
             reveal(option, in: app)
-            option.tap()
-            XCTAssertEqual(option.value as? String, "1")
+            enableSwitch(option)
         }
         capture(app, name: "exam-reminder-options")
         save.tap()
@@ -31,8 +30,10 @@ final class CourseLinkUITests: XCTestCase {
         app.open(try XCTUnwrap(URL(string: "campusschedule://exams?id=preview-exam-0&term=preview-term")))
         confirmSystemOpenIfNeeded(app)
         XCTAssertTrue(app.navigationBars["考试详情"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["A302"].exists)
-        XCTAssertTrue(app.staticTexts["17"].exists)
+        let room = app.descendants(matching: .any)["exam.detail.room"].firstMatch
+        let seat = app.descendants(matching: .any)["exam.detail.seat"].firstMatch
+        XCTAssertTrue(room.exists && (room.label + (room.value as? String ?? "")).contains("A302"))
+        XCTAssertTrue(seat.exists && (seat.label + (seat.value as? String ?? "")).contains("17"))
         XCTAssertFalse(app.buttons["保存"].exists)
         capture(app, name: "exam-read-only-details")
     }
@@ -47,11 +48,12 @@ final class CourseLinkUITests: XCTestCase {
         let add = app.buttons["course-task.add"]
         reveal(add, in: app)
         add.tap()
+        XCTAssertTrue(app.navigationBars["课程待办"].waitForExistence(timeout: 10))
         let title = app.textFields["course-task.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 8))
         title.tap()
         title.typeText("Read chapter")
-        app.switches["course-task.has-due"].tap()
+        enableSwitch(app.switches["course-task.has-due"])
         app.navigationBars["课程待办"].buttons["保存"].tap()
 
         let detail = app.navigationBars["课程详情"]
@@ -67,6 +69,12 @@ final class CourseLinkUITests: XCTestCase {
         XCTAssertEqual(toggle.label, "将Read chapter标为未完成")
         detail.buttons["完成"].tap()
         XCTAssertFalse(due.exists)
+    }
+
+    @MainActor private func enableSwitch(_ option: XCUIElement) {
+        option.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: option)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed)
     }
 
     @MainActor func testWeekConflictOpensBothCourses() {

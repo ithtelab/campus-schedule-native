@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CourseTaskSection: View {
     @Environment(PreviewStore.self) private var store
-    @State private var editing: CourseTask?
+    @Binding var editing: CourseTask?
     @State private var actionError: String?
     let courseID: String
 
@@ -15,12 +15,6 @@ struct CourseTaskSection: View {
             }
             Button("添加待办", systemImage: "plus") { editing = CourseTask(courseID: courseID) }
                 .accessibilityIdentifier("course-task.add")
-        }
-        .sheet(item: $editing) { task in
-            CourseTaskEditor(task: task, now: store.now) { updated in
-                if store.updateCourseTask(updated, termID: termID) { return nil }
-                return store.errorMessage ?? "未能保存待办。请确认课程仍在当前学期。"
-            }
         }
         .alert("未能更新待办", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
             Button("好") { actionError = nil }
@@ -49,7 +43,8 @@ struct CourseTaskSection: View {
                     Text(task.title).foregroundStyle(task.isCompleted ? .secondary : .primary)
                         .strikethrough(task.isCompleted)
                     if let due = task.due {
-                        Text(CourseTaskDueLabel.text(due, now: store.now)).font(.caption).foregroundStyle(.secondary)
+                        Text(CourseTaskDueLabel.text(due, now: store.now, completed: task.isCompleted))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -69,7 +64,7 @@ struct CourseTaskSection: View {
     }
 }
 
-private struct CourseTaskEditor: View {
+struct CourseTaskEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: CourseTask
     @State private var hasDue: Bool
@@ -114,10 +109,10 @@ private struct CourseTaskEditor: View {
 }
 
 enum CourseTaskDueLabel {
-    static func text(_ due: Date, now: Date) -> String {
+    static func text(_ due: Date, now: Date, completed: Bool = false) -> String {
         let calendar = ScheduleRules.calendar
         let day = calendar.isDate(due, inSameDayAs: now) ? "今天"
             : "\(calendar.component(.month, from: due))月\(calendar.component(.day, from: due))日"
-        return "\(due < now ? "已逾期 · " : "")\(day) \(ScheduleRules.time(due))"
+        return "\(!completed && due < now ? "已逾期 · " : "")\(day) \(ScheduleRules.time(due))"
     }
 }

@@ -236,7 +236,11 @@ struct ExamSessionView: View {
             }
             Section("考场信息") {
                 LabeledContent("考场", value: session.room.isEmpty ? "待确认" : session.room)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("exam.detail.room")
                 LabeledContent("座位", value: session.seat.isEmpty ? "待确认" : session.seat)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("exam.detail.seat")
             }
         }
         .navigationTitle("考试详情")
