@@ -2,7 +2,9 @@
 set -euo pipefail
 bundle_id="${1:?Expected app bundle identifier}"
 
-if [[ "${CAMPUS_UI_FOCUS:-full}" == exam-tasks ]]; then
+if [[ "${CAMPUS_UI_FOCUS:-full}" == smart-agenda ]]; then
+  tests=(-only-testing:CampusCourseLinkUITests/CourseLinkUITests/testSmartAgendaTaskLinkOpensCorrectTerm)
+elif [[ "${CAMPUS_UI_FOCUS:-full}" == exam-tasks ]]; then
   tests=(
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testExamReminderOptionsAndReadOnlyDetails
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testCourseTaskAppearsInTodayAndCanBeCompleted
@@ -46,7 +48,15 @@ xcodebuild -project ios/CampusSchedule.xcodeproj -scheme CampusCourseLinks -conf
   -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath ios/build \
   -resultBundlePath build/course-links.xcresult -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO "${tests[@]}" test
 
-if [[ "${CAMPUS_UI_FOCUS:-full}" == exam-tasks ]]; then
+if [[ "${CAMPUS_UI_FOCUS:-full}" == smart-agenda ]]; then
+  for appearance in light dark; do
+    xcrun simctl ui "$simulator_id" appearance "$appearance"
+    SIMCTL_CHILD_CAMPUS_WIDGET_PREVIEW=smart-agenda SIMCTL_CHILD_CAMPUS_PREVIEW_THEME=blueStickers \
+      xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id"
+    sleep 3
+    xcrun simctl io "$simulator_id" screenshot "screenshots/smart-agenda-$appearance.png"
+  done
+elif [[ "${CAMPUS_UI_FOCUS:-full}" == exam-tasks ]]; then
   SIMCTL_CHILD_CAMPUS_WIDGET_PREVIEW=exam xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id"
   sleep 3
   xcrun simctl io "$simulator_id" screenshot screenshots/exam-widget-layout.png

@@ -71,12 +71,17 @@ public enum MilestoneFormat {
         case .past(let days): elapsed = days
         }
 
-        let markers = [(100, "百日纪念"), (365, "365 天纪念"), (520, "520 天纪念"),
-                       (1000, "千日纪念"), (1314, "1314 天纪念")]
-        guard let (day, title) = markers.first(where: { $0.0 >= elapsed }) else { return nil }
+        guard let (day, title) = relationshipMarkers.first(where: { $0.0 >= elapsed }) else { return nil }
         if day == elapsed { return "今天是\(title)" }
         return "距离\(title)还有 \(day - elapsed) 天"
     }
+
+    static func isRelationshipMarker(_ item: Milestone, elapsed: Int) -> Bool {
+        item.countsRelationshipDays && relationshipMarkers.contains { $0.0 == elapsed }
+    }
+
+    private static let relationshipMarkers = [(100, "百日纪念"), (365, "365 天纪念"), (520, "520 天纪念"),
+                                              (1000, "千日纪念"), (1314, "1314 天纪念")]
 
     /// 日期文案。非今年的日期带上年份，否则「3 月 15 日」看不出是哪一年。
     public static func dateText(_ date: Date, relativeTo now: Date = Date(),

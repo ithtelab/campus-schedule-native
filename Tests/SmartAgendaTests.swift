@@ -34,14 +34,14 @@ struct SmartAgendaTests {
     }
 
     func task(id: String = "t1", title: String = "交实验报告", courseTitle: String = "物理实验",
-              due: Date) -> AgendaTask {
-        AgendaTask(id: id, courseID: "c9", courseTitle: courseTitle, title: title, due: due)
+              due: Date, termID: String? = nil) -> AgendaTask {
+        AgendaTask(id: id, courseID: "c9", courseTitle: courseTitle, title: title, due: due, termID: termID)
     }
 
     func milestone(id: String = "m1", title: String = "回家", date: Date,
                    direction: Milestone.Direction = .countdown,
-                   pinned: Bool = false) -> Milestone {
-        Milestone(id: id, title: title, date: date, direction: direction, pinned: pinned)
+                   pinned: Bool = false, category: Milestone.Category = .personal) -> Milestone {
+        Milestone(id: id, title: title, date: date, direction: direction, category: category, pinned: pinned)
     }
 
     var allOn: SmartAgendaOptions { SmartAgendaOptions(allowTasks: true, allowMilestones: true) }
@@ -111,17 +111,21 @@ struct SmartAgendaTests {
         #expect(selection.primary?.urgency == .upcoming)
     }
 
-    @Test func roomChangeIsAnnounced() {
+    @Test func roomChangeKeepsTheRoomOfTheDisplayedCourse() {
         let now = at(9, 55)
-        let selection = select(now: now, courses: [
+        let courses = [
             course(id: "c1", title: "大学英语", room: "B205", start: at(10, 0), end: at(11, 0)),
             course(id: "c2", title: "设计基础", room: "艺术楼 401", start: at(11, 10), end: at(12, 0)),
-        ], lead: 10)
-        #expect(selection.primary?.detail.contains("下节去") == true)
+        ]
+        let before = select(now: now, courses: courses, lead: 10)
+        #expect(before.primary?.title == "大学英语")
+        #expect(before.primary?.detail == "B205")
+        let during = select(now: at(10, 30), courses: courses, lead: 10)
+        #expect(during.primary?.detail.hasPrefix("B205 · 下节去") == true)
     }
 
     @Test func sameRoomDoesNotAnnounceMove() {
-        let now = at(9, 55)
+        let now = at(10, 30)
         let selection = select(now: now, courses: [
             course(id: "c1", room: "B205", start: at(10, 0), end: at(11, 0)),
             course(id: "c2", room: "B 205", start: at(11, 10), end: at(12, 0)),
@@ -154,9 +158,21 @@ struct SmartAgendaTests {
 
     @Test func tasksRespectToggle() {
         let now = at(20, 30)
-        let selection = select(now: now, tasks: [task(due: at(22, 0))],
+        let selection = select(now: now, tasks: [task(due: at(22, 0)), task(id: "overdue", due: at(20, 0))],
                               options: SmartAgendaOptions(allowTasks: false, allowMilestones: true))
         #expect(selection.primary == nil)
+        #expect(selection.overdueCount == 0)
+    }
+
+    @Test func taskChangesToOverdueAtTheExactTimelineBoundaryAndKeepsItsTerm() throws {
+        let item = task(due: at(22, 0), termID: "previous term")
+        let before = select(now: at(21, 59), tasks: [item])
+        #expect(before.primary?.target == .task(courseID: "c9", termID: "previous term"))
+        let boundary = select(now: item.due, tasks: [item])
+        #expect(boundary.primary == nil)
+        #expect(boundary.overdueCount == 1)
+        let url = try #require(CourseDeepLink.tasksURL(courseID: "c9", termID: item.termID))
+        #expect(CourseDeepLink.target(url) == .init(courseID: "c9", termID: "previous term", opensTasks: true))
     }
 
     // MARK: 第 4 档：纪念事件
@@ -204,15 +220,18 @@ struct SmartAgendaTests {
         #expect(selection.primary == nil)
     }
 
-    @Test func countUpMilestoneSaysElapsedDays() {
-        // 累计型的日期天然在过去，必须仍然显示，否则「一起走过 365 天」永远出不来。
+    @Test func ordinaryCountUpStaysSecondaryAndKeepsItsUnit() {
         let now = at(12, 0)
         let item = milestone(title: "相识", date: at(12, 0, day: -100),
-                             direction: .countUp, pinned: true)
-        let selection = select(now: now, milestones: [item])
-        #expect(selection.primary?.kind == .milestone)
-        #expect(selection.primary?.value == "100")
-        #expect(selection.primary?.unit == "天")
+                             direction: .countUp, pinned: true, category: .relationship)
+        let plainDay = milestone(title: item.title, date: at(12, 0, day: -99), direction: .countUp,
+                                 pinned: true, category: .relationship)
+        let laterCourse = course(start: at(16, 0), end: at(17, 0))
+        let selection = select(now: now, courses: [laterCourse], milestones: [plainDay])
+        #expect(selection.primary?.kind == .course)
+        #expect(selection.secondary?.statusWithQuantity == "一起走过 99 天")
+        #expect(select(now: now, milestones: [plainDay]).primary == nil)
+        #expect(select(now: now, courses: [laterCourse], milestones: [item]).primary?.statusWithQuantity == "一起走过 100 天")
     }
 
     @Test func pastCountdownMilestoneDoesNotShow() {
@@ -300,6 +319,15 @@ struct SmartAgendaTests {
         #expect(first == second)
     }
 
+    @Test func simultaneousCoursesDoNotDependOnInputOrder() {
+        let first = course(id: "a", start: at(10, 0), end: at(11, 0))
+        let second = course(id: "b", start: at(10, 0), end: at(11, 0))
+        let forward = select(now: at(10, 15), courses: [first, second])
+        let reverse = select(now: at(10, 15), courses: [second, first])
+        #expect(forward == reverse)
+        #expect(forward.primary?.id == "course:a")
+    }
+
     @Test func soonerMomentWinsWithinSameTier() {
         let now = at(8, 0)
         let selection = select(now: now, exams: [
@@ -378,13 +406,13 @@ struct SmartAgendaTests {
         let item = SmartAgendaItem(id: "x", kind: .exam, status: "09:00 开考", title: "高等数学",
                                    detail: "A302 · 17 号座", value: "09:00",
                                    urgency: .imminent, target: .exam(id: "e1", termID: "t1"))
-        #expect(item.accessibilityText == "09:00 开考，高等数学，A302 · 17 号座，09:00")
+        #expect(item.accessibilityText == "09:00 开考，高等数学，A302 · 17 号座")
     }
 
     @Test func accessibilityTextKeepsUnitWithNumber() {
-        let item = SmartAgendaItem(id: "x", kind: .milestone, status: "还有 2 天", title: "回家",
+        let item = SmartAgendaItem(id: "x", kind: .milestone, status: "还有", title: "回家",
                                    detail: "3 月 10 日", value: "2", unit: "天",
                                    urgency: .distant, target: .milestone(id: "m1"))
-        #expect(item.accessibilityText.contains("2 天"))
+        #expect(item.accessibilityText == "还有 2 天，回家，3 月 10 日")
     }
 }

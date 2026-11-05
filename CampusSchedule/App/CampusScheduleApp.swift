@@ -57,6 +57,7 @@ struct RootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var linkedCourse: DemoCourse?
     @State private var linkedOccurrenceID: String?
+    @State private var linkedTasks = false
     @State private var courseNavigationRevision = 0
     @State private var linkUnavailable = false
     /// 从组件点进来时要打开的纪念事件。nil 表示没有待处理的目标。
@@ -92,17 +93,21 @@ struct RootView: View {
     var body: some View {
         Group {
             if let linkedCourse {
-                CourseNowView(course: linkedCourse, occurrenceID: linkedOccurrenceID, onClose: closeLinkedCourse)
+                if linkedTasks {
+                    CourseDetailView(course: linkedCourse, tasksOnly: true, onClose: closeLinkedCourse)
+                } else {
+                    CourseNowView(course: linkedCourse, occurrenceID: linkedOccurrenceID, onClose: closeLinkedCourse)
+                }
             } else if linkUnavailable {
                 NavigationStack {
                     ContentUnavailableView {
-                        Label("课程安排已更新", systemImage: "calendar.badge.clock")
+                        Label(linkedTasks ? "课程待办不可用" : "课程安排已更新", systemImage: "calendar.badge.clock")
                     } description: {
                         Text("这条组件记录已不在当前课表中，请查看更新后的安排。")
                     } actions: {
                         Button("查看课表", action: closeLinkedCourse)
                     }
-                    .navigationTitle("本次课程").navigationBarTitleDisplayMode(.inline)
+                    .navigationTitle(linkedTasks ? "课程待办" : "本次课程").navigationBarTitleDisplayMode(.inline)
                 }
             } else if horizontalSizeClass == .regular {
                 splitLayout
@@ -124,7 +129,7 @@ struct RootView: View {
         .id(courseNavigationRevision)
         .onOpenURL { url in
             guard url.scheme == "campusschedule" else { return }
-            linkedCourse = nil; linkedOccurrenceID = nil; linkUnavailable = false
+            linkedCourse = nil; linkedOccurrenceID = nil; linkedTasks = false; linkUnavailable = false
             if let target = ExamDeepLink.target(url) {
                 milestoneLink = nil
                 examLink = target
@@ -143,10 +148,13 @@ struct RootView: View {
                 selectedScreen = .week
                 linkedCourse = store.resolveCourseLink(target)
                 linkUnavailable = linkedCourse == nil
-                let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences, now: store.now)
-                linkedOccurrenceID = target.occurrenceID ?? occurrence?.id
-                if let occurrence {
-                    store.selectedWeek = min(store.totalWeeks, max(1, ScheduleRules.week(on: occurrence.start, semesterStart: store.semesterStart)))
+                linkedTasks = target.opensTasks
+                if !target.opensTasks {
+                    let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences, now: store.now)
+                    linkedOccurrenceID = target.occurrenceID ?? occurrence?.id
+                    if let occurrence {
+                        store.selectedWeek = min(store.totalWeeks, max(1, ScheduleRules.week(on: occurrence.start, semesterStart: store.semesterStart)))
+                    }
                 }
             } else { selectedScreen = .today }
             courseNavigationRevision += 1
@@ -200,7 +208,7 @@ struct RootView: View {
     }
 
     private func closeLinkedCourse() {
-        linkedCourse = nil; linkedOccurrenceID = nil; linkUnavailable = false
+        linkedCourse = nil; linkedOccurrenceID = nil; linkedTasks = false; linkUnavailable = false
         selectedScreen = .week
     }
 

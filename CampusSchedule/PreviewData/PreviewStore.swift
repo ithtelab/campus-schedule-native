@@ -154,7 +154,7 @@ final class PreviewStore {
     /// 课程名在这里解析：组件进程拿不到学期容器，只拿得到快照。
     /// 没有截止时间的待办不参与挑选 —— 它们无法判断紧急程度。
     nonisolated static func agendaTasks(from terms: [String: TermContent]) -> [AgendaTask] {
-        terms.flatMap { _, content in
+        terms.flatMap { termID, content in
             let titles = Dictionary(uniqueKeysWithValues: content.courses.map { ($0.id, $0.title) })
             return content.courseTasks.compactMap { task -> AgendaTask? in
                 guard !task.isCompleted, let due = task.due,
@@ -162,7 +162,7 @@ final class PreviewStore {
                 let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !title.isEmpty else { return nil }
                 return AgendaTask(id: task.id.uuidString, courseID: task.courseID,
-                                  courseTitle: courseTitle, title: title, due: due)
+                                   courseTitle: courseTitle, title: title, due: due, termID: termID)
             }
         }
     }
@@ -446,6 +446,12 @@ final class PreviewStore {
                                               room: "实验楼 · 605")]
             }
             switch ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] {
+            case "task-link":
+                if var otherTerm = activeContent {
+                    otherTerm.name = "另一个学期"
+                    otherTerm.courseTasks = [CourseTask(courseID: "english-mon", title: "跨学期待办")]
+                    termContents["preview-other-term"] = otherTerm
+                }
             case "conflict":
                 courses.append(.init(id: "layout-conflict", title: "学术写作", room: "图书馆 · 201", teacher: "张老师", weekday: 0,
                     startPeriod: 1, endPeriod: 2, startTime: "08:00", endTime: "09:35", color: .green))
@@ -1067,7 +1073,7 @@ final class PreviewStore {
             guard termContents[term]?.courses.contains(where: { $0.id == target.courseID }) == true else { return nil }
             selectTerm(term)
             guard activeTermID == term else { return nil }
-        } else if !courses.contains(where: { $0.id == target.courseID }) {
+        } else if target.opensTasks || !courses.contains(where: { $0.id == target.courseID }) {
             let matches = termContents.filter { $0.value.courses.contains { $0.id == target.courseID } }.map(\.key)
             guard matches.count == 1 else { return nil }
             selectTerm(matches[0])

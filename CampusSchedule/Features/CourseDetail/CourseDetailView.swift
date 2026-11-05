@@ -4,6 +4,8 @@ import ActivityKit
 struct CourseDetailView: View {
     let course: DemoCourse
     var character: CampusCharacterPlayer? = nil
+    var tasksOnly = false
+    var onClose: (() -> Void)? = nil
     @Environment(PreviewStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
@@ -21,39 +23,47 @@ struct CourseDetailView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Toggle("此课程允许提醒", isOn: Binding(get: { original.remindersEnabled }, set: { value in
-                        if let index = store.courses.firstIndex(where: { $0.id == original.id }) { store.courses[index].remindersEnabled = value }
-                    })).tint(DesignSystem.switchTint)
-                    HStack(spacing: 16) {
-                        Text(original.title).font(.title.weight(.semibold))
-                        if let character { CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176) }
+                if tasksOnly {
+                    Text(original.title).font(.title2.weight(.bold)).accessibilityAddTraits(.isHeader)
+                } else {
+                    Section {
+                        Toggle("此课程允许提醒", isOn: Binding(get: { original.remindersEnabled }, set: { value in
+                            if let index = store.courses.firstIndex(where: { $0.id == original.id }) { store.courses[index].remindersEnabled = value }
+                        })).tint(DesignSystem.switchTint)
+                        HStack(spacing: 16) {
+                            Text(original.title).font(.title.weight(.semibold))
+                            if let character { CampusCharacter(player: character, contextDriven: true).frame(width: 88, height: 176) }
+                        }
+                        LabeledContent("教师", value: original.teacher)
+                        LabeledContent("地点", value: original.room)
+                        LabeledContent("时间", value: "\(original.startTime)–\(original.endTime)")
+                        LabeledContent("周次", value: original.weeks.sorted().map(String.init).joined(separator: "、"))
                     }
-                    LabeledContent("教师", value: original.teacher)
-                    LabeledContent("地点", value: original.room)
-                    LabeledContent("时间", value: "\(original.startTime)–\(original.endTime)")
-                    LabeledContent("周次", value: original.weeks.sorted().map(String.init).joined(separator: "、"))
                 }
                 CourseTaskSection(editing: $editingTask, courseID: original.id)
-                Section {
-                    Button("编辑整门课程", systemImage: "pencil") { editing = true }
-                    Button("单次停课或调课", systemImage: "calendar.badge.clock") { changing = true }
-                    Button("添加一次补课", systemImage: "calendar.badge.plus") { makeup = true }
-                    Button("开始本次实时活动", systemImage: "waveform") {
-                        guard let item = nextOccurrence else { return }
-                        do { try CourseLiveActivities.shared.start(item, lead: store.reminderMinutes, termID: store.activeTermID); store.liveEnabled = true }
-                        catch { activityMessage = error.localizedDescription }
+                if !tasksOnly {
+                    Section {
+                        Button("编辑整门课程", systemImage: "pencil") { editing = true }
+                        Button("单次停课或调课", systemImage: "calendar.badge.clock") { changing = true }
+                        Button("添加一次补课", systemImage: "calendar.badge.plus") { makeup = true }
+                        Button("开始本次实时活动", systemImage: "waveform") {
+                            guard let item = nextOccurrence else { return }
+                            do { try CourseLiveActivities.shared.start(item, lead: store.reminderMinutes, termID: store.activeTermID); store.liveEnabled = true }
+                            catch { activityMessage = error.localizedDescription }
+                        }
+                        .disabled(store.isPreview || !canStartActivity)
+                        Text("在课前 \(store.reminderMinutes) 分钟内或上课中可开启实时活动。")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
-                    .disabled(store.isPreview || !canStartActivity)
-                    Text("在课前 \(store.reminderMinutes) 分钟内或上课中可开启实时活动。")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Section {
-                    Button("删除整门课程", role: .destructive) { deleting = true }
+                    Section {
+                        Button("删除整门课程", role: .destructive) { deleting = true }
+                    }
                 }
             }
-            .navigationTitle("课程详情").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+            .navigationTitle(tasksOnly ? "课程待办" : "课程详情").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") {
+                if let onClose { onClose() } else { dismiss() }
+            } } }
             .sheet(isPresented: $editing) { CourseEditorView(editing: original) }
             .sheet(isPresented: $changing) { CourseExceptionView(course: original) }
             .sheet(isPresented: $makeup) { CourseEditorView(template: original) }

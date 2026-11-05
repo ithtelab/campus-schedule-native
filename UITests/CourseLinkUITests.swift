@@ -2,6 +2,19 @@ import XCTest
 import UIKit
 
 final class CourseLinkUITests: XCTestCase {
+    @MainActor func testSmartAgendaTaskLinkOpensCorrectTerm() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "week", "CAMPUS_PREVIEW_LAYOUT": "task-link"]
+        app.launch()
+        app.open(try XCTUnwrap(URL(string: "campusschedule://course-tasks?id=english-mon&term=preview-other-term")))
+        confirmSystemOpenIfNeeded(app)
+        XCTAssertTrue(app.navigationBars["课程待办"].waitForExistence(timeout: 12))
+        XCTAssertTrue(app.buttons["course-task.toggle.跨学期待办"].exists)
+        XCTAssertFalse(app.navigationBars["本次课程"].exists)
+        capture(app, name: "smart-agenda-task-destination")
+    }
+
     @MainActor func testExamReminderOptionsAndReadOnlyDetails() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

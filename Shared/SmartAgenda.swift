@@ -35,7 +35,7 @@ public struct SmartAgendaItem: Equatable, Sendable, Identifiable {
     public var detail: String
     /// 右侧主数值：时刻或天数。
     public var value: String
-    /// 数值单位。纪念事件需要和数字分开排版，其他类型为空。
+    /// 数值单位。纪念事件的天数与单位一起显示，其他类型为空。
     public var unit: String
     public var urgency: Urgency
     public var target: Target
@@ -59,10 +59,13 @@ public struct SmartAgendaItem: Equatable, Sendable, Identifiable {
 
     /// 一行无障碍朗读文本，避免把四段文字拆成四个元素。
     public var accessibilityText: String {
-        [status, title, detail, unit.isEmpty ? value : "\(value) \(unit)"]
+        [statusWithQuantity, title, detail]
             .filter { !$0.isEmpty }
             .joined(separator: "，")
     }
+
+    var quantity: String { unit.isEmpty ? value : "\(value) \(unit)" }
+    var statusWithQuantity: String { unit.isEmpty ? status : "\(status) \(quantity)" }
 }
 
 /// 用户在长按编辑里对「智能课间」的选择。
@@ -97,20 +100,22 @@ public struct AgendaTask: Codable, Equatable, Sendable, Identifiable {
     public var courseTitle: String
     public var title: String
     public var due: Date
+    public var termID: String?
 
-    public init(id: String, courseID: String, courseTitle: String, title: String, due: Date) {
+    public init(id: String, courseID: String, courseTitle: String, title: String, due: Date, termID: String? = nil) {
         self.id = id
         self.courseID = courseID
         self.courseTitle = courseTitle
         self.title = title
         self.due = due
+        self.termID = termID
     }
 }
 
 /// 一次选择的结果。
 public struct SmartAgendaSelection: Equatable, Sendable {
     public var primary: SmartAgendaItem?
-    /// 中号组件底部补充的第二条，类别一定与主信息不同。
+    /// 中号组件底部的补充。主信息存在时，两条属于不同类别。
     public var secondary: SmartAgendaItem?
     /// 已逾期但未完成的待办数量。中号组件在底部提示，不占主位。
     public var overdueCount: Int
@@ -144,26 +149,26 @@ public enum SmartAgenda {
                        tasks: [AgendaTask], milestones: [Milestone],
                        now: Date, leadMinutes: Int,
                        options: SmartAgendaOptions,
-                       calendar: Calendar = ScheduleRules.calendar) -> SmartAgendaSelection {
+                       calendar: Calendar = ScheduleRules.calendar, courseTermID: String? = nil) -> SmartAgendaSelection {
         let candidates = buildCandidates(courses: courses, exams: exams, tasks: tasks,
                                          milestones: milestones, now: now,
                                          leadMinutes: leadMinutes, options: options,
-                                         calendar: calendar)
-        let overdue = tasks.filter { $0.due < now }.count
+                                         calendar: calendar, courseTermID: courseTermID)
+        let overdue = options.allowTasks ? tasks.count(where: { $0.due <= now }) : 0
 
-        guard let primary = best(in: candidates) else {
-            return SmartAgendaSelection(primary: nil, secondary: nil, overdueCount: overdue)
+        guard let primary = best(in: candidates.filter { !$0.secondaryOnly }) else {
+            return SmartAgendaSelection(primary: nil, secondary: best(in: candidates)?.item, overdueCount: overdue)
         }
         // 第二条必须换一个类别：同一类两行只会挤占信息量。
         let secondary = best(in: candidates.filter {
-            $0.item.kind != primary.item.kind && $0.item.id != primary.item.id
+            $0.item.kind != primary.item.kind
         })?.item
         return SmartAgendaSelection(primary: primary.item, secondary: secondary, overdueCount: overdue)
     }
 
     /// 组件需要重新求值的时间点。
     ///
-    /// 覆盖：所有课程与考试的起止、开考前十分钟内的提醒阈值、待办的截止与
+    /// 覆盖：所有课程与考试的起止、开考前一小时的提醒阈值、待办的截止与
     /// 两小时阈值、纪念事件的日期切换、以及下一个零点。只保留未来且落在观察
     /// 窗口内的点，避免塞给系统几百个无意义的条目。
     static func switchDates(courses: [CourseOccurrence], exams: [ExamSession],
@@ -201,7 +206,8 @@ public enum SmartAgenda {
            midnight > now, midnight < horizon {
             dates.insert(midnight)
         }
-        return Array(dates.sorted().prefix(limit))    }
+        return Array(dates.sorted().prefix(limit))
+    }
 
     // MARK: - 候选
 
@@ -210,12 +216,13 @@ public enum SmartAgenda {
         /// 档位越小越优先。档位相同时按 `moment` 由近到远。
         var tier: Int
         var moment: Date
+        var secondaryOnly = false
     }
 
     static func buildCandidates(courses: [CourseOccurrence], exams: [ExamSession],
                                 tasks: [AgendaTask], milestones: [Milestone],
                                 now: Date, leadMinutes: Int, options: SmartAgendaOptions,
-                                calendar: Calendar) -> [Candidate] {
+                                calendar: Calendar, courseTermID: String?) -> [Candidate] {
         var result: [Candidate] = []
 
         // 1. 考试进行中或一小时内开考。
@@ -230,71 +237,60 @@ public enum SmartAgenda {
         }
 
         // 2. 正在上课，或下一节进入课前提醒时段。
-        let sorted = courses.sorted { $0.start < $1.start }
+        let sorted = courses.sorted { $0.start == $1.start ? $0.id < $1.id : $0.start < $1.start }
+        let upcoming = sorted.first { $0.start > now }
         if let current = sorted.first(where: { $0.start <= now && $0.end > now }) {
+            let following = sorted.first { $0.start >= current.end && calendar.isDate($0.start, inSameDayAs: current.start) }
             result.append(Candidate(item: courseItem(current, now: now, inProgress: true,
-                                                     next: following(current, in: sorted), calendar: calendar),
+                                                     next: following, calendar: calendar, termID: courseTermID),
                                     tier: 2, moment: current.start))
-        } else if let next = sorted.first(where: { $0.start > now }) {
+        } else if let next = upcoming {
             // 只有进入提醒时段才占第 2 档；更远的课留到第 5 档兜底。
             if next.start.timeIntervalSince(now) <= leadSeconds {
                 result.append(Candidate(item: courseItem(next, now: now, inProgress: false,
-                                                         next: following(next, in: sorted), calendar: calendar),
+                                                         calendar: calendar, termID: courseTermID),
                                         tier: 2, moment: next.start))
             }
         }
 
         // 3. 两小时内有待办截止。已逾期的由底部提示承担，不抢主位。
         if options.allowTasks {
-            for task in tasks where task.due >= now && task.due.timeIntervalSince(now) <= taskLead {
-                result.append(Candidate(item: taskItem(task, now: now, calendar: calendar),
+            for task in tasks where task.due > now && task.due.timeIntervalSince(now) <= taskLead {
+                result.append(Candidate(item: taskItem(task),
                                         tier: 3, moment: task.due))
             }
         }
 
-        // 4. 用户关注的纪念事件：今天、倒数三天内，或本身就是累计型。
-        //
-        // 累计型（「一起走过 365 天」）的日期天然在过去 —— 它计的就是已经过去的
-        // 天数，若按「三天内」筛掉，这类事件永远不会出现。
+        // 4. 关注的事件临近或到日时占主位。普通累计日作为中号补充。
         if options.allowMilestones {
             for milestone in watchedMilestones(milestones, options: options) {
                 let reading = MilestoneCounter.read(milestone, now: now, calendar: calendar)
                 guard !reading.isHidden(expiry: milestone.expiry) else { continue }
-                let eligible: Bool
+                let secondaryOnly: Bool
                 switch reading.state {
                 case .today:
-                    eligible = true
+                    secondaryOnly = false
                 case .upcoming(let days):
-                    eligible = days <= milestoneLeadDays
-                case .past:
-                    eligible = milestone.direction == .countUp
+                    guard days <= milestoneLeadDays else { continue }
+                    secondaryOnly = false
+                case .past(let days):
+                    guard milestone.direction == .countUp else { continue }
+                    secondaryOnly = !MilestoneFormat.isRelationshipMarker(milestone, elapsed: days)
                 }
-                guard eligible else { continue }
+                let moment = max(calendar.startOfDay(for: now), calendar.startOfDay(for: reading.effectiveDate))
                 result.append(Candidate(
                     item: milestoneItem(milestone, reading: reading, now: now, calendar: calendar),
-                    tier: 4, moment: milestoneMoment(milestone, reading: reading, now: now, calendar: calendar)))
+                     tier: secondaryOnly ? 6 : 4, moment: moment, secondaryOnly: secondaryOnly))
             }
         }
 
         // 5. 兜底：下一节课。没有任何紧急事项时，用户最想知道的还是下节课在哪。
-        if let next = sorted.first(where: { $0.start > now }) {
+        if let next = upcoming {
             result.append(Candidate(item: courseItem(next, now: now, inProgress: false,
-                                                     next: following(next, in: sorted), calendar: calendar),
+                                                     calendar: calendar, termID: courseTermID),
                                     tier: 5, moment: next.start))
         }
         return result
-    }
-
-    /// 纪念事件在档位内的排序时刻。
-    ///
-    /// 累计型的日期在过去，直接拿它排序会让「一起走过 365 天」压过「今天」的事件。
-    /// 它的显示数字只在次日的零点变化，所以用零点作为「下一次相关时刻」。
-    static func milestoneMoment(_ milestone: Milestone, reading: MilestoneReading,
-                                now: Date, calendar: Calendar) -> Date {
-        if case .past = reading.state, milestone.direction == .countUp {
-            return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
-        }
-        return reading.effectiveDate
     }
 
     static func best(in candidates: [Candidate]) -> Candidate? {
@@ -318,36 +314,29 @@ public enum SmartAgenda {
         return milestones.filter(\.pinned)
     }
 
-    static func following(_ course: CourseOccurrence, in sorted: [CourseOccurrence]) -> CourseOccurrence? {
-        guard let index = sorted.firstIndex(where: { $0.id == course.id }), index + 1 < sorted.count else { return nil }
-        return sorted[index + 1]
-    }
-
     // MARK: - 文案
 
     static func examItem(_ exam: ExamSession, now: Date, inProgress: Bool) -> SmartAgendaItem {
         let detail = [exam.room, exam.seat.isEmpty ? "" : "\(exam.seat) 号座"]
             .filter { !$0.isEmpty }.joined(separator: " · ")
         return SmartAgendaItem(
-            id: "exam:" + exam.id,
+            id: "exam:\(exam.termID.utf8.count):\(exam.termID).\(exam.id)",
             kind: .exam,
             status: inProgress ? "考试中 · \(ScheduleRules.time(exam.end)) 结束"
                                : "\(ScheduleRules.time(exam.start)) 开考",
             title: exam.title,
             detail: detail,
-            value: ScheduleRules.time(exam.start),
+            value: ScheduleRules.time(inProgress ? exam.end : exam.start),
             urgency: inProgress ? .happening : .imminent,
             target: .exam(id: exam.id, termID: exam.termID),
             changesAt: inProgress ? exam.end : exam.start)
     }
 
     static func courseItem(_ course: CourseOccurrence, now: Date, inProgress: Bool,
-                           next: CourseOccurrence?, calendar: Calendar) -> SmartAgendaItem {
-        // 需要换教室时把下一节地点写进次要信息，学生一眼就知道要走。
-        var detail = NowStatus.shorten(course.room)
-        if !inProgress, let next, ScheduleRules.needsMove(from: course.room, to: next.room) == true {
-            detail = "下节去 \(NowStatus.shorten(next.room))"
-        } else if inProgress, let next, ScheduleRules.needsMove(from: course.room, to: next.room) == true {
+                            next: CourseOccurrence? = nil, calendar: Calendar, termID: String?) -> SmartAgendaItem {
+        let room = NowStatus.shorten(course.room)
+        var detail = room.isEmpty ? "地点待确认" : room
+        if inProgress, let next, ScheduleRules.needsMove(from: course.room, to: next.room) == true {
             detail += " · 下节去 \(NowStatus.shorten(next.room))"
         }
         return SmartAgendaItem(
@@ -359,11 +348,11 @@ public enum SmartAgenda {
             detail: detail,
             value: ScheduleRules.time(inProgress ? course.end : course.start),
             urgency: inProgress ? .happening : .upcoming,
-            target: .course(courseID: course.courseID, termID: nil, occurrenceID: course.id),
+            target: .course(courseID: course.courseID, termID: termID, occurrenceID: course.id),
             changesAt: inProgress ? course.end : course.start)
     }
 
-    static func taskItem(_ task: AgendaTask, now: Date, calendar: Calendar) -> SmartAgendaItem {
+    static func taskItem(_ task: AgendaTask) -> SmartAgendaItem {
         SmartAgendaItem(
             id: "task:" + task.id,
             kind: .task,
@@ -372,7 +361,7 @@ public enum SmartAgenda {
             detail: task.courseTitle,
             value: ScheduleRules.time(task.due),
             urgency: .imminent,
-            target: .task(courseID: task.courseID, termID: nil),
+            target: .task(courseID: task.courseID, termID: task.termID),
             changesAt: task.due)
     }
 
@@ -381,17 +370,13 @@ public enum SmartAgenda {
         let title = milestone.title.isEmpty ? "纪念事件" : milestone.title
         let value: String
         let unit: String
-        let status: String
         switch reading.state {
         case .today:
-            value = ""; unit = ""; status = "就是今天"
-        case .upcoming(let days):
+            value = "今天"; unit = ""
+        case .upcoming(let days), .past(let days):
             value = String(days); unit = "天"
-            status = milestone.direction == .countUp ? "还有 \(days) 天开始" : "还有 \(days) 天"
-        case .past(let days):
-            value = String(days); unit = "天"
-            status = milestone.direction == .countUp ? "第 \(days) 天" : "已过去 \(days) 天"
         }
+        let status = reading.state == .today ? "就是今天" : (MilestoneFormat.counterCaption(milestone, reading: reading) ?? "")
         let detail = MilestoneFormat.dateText(reading.effectiveDate, relativeTo: now, calendar: calendar)
         return SmartAgendaItem(
             id: "milestone:" + milestone.id,
