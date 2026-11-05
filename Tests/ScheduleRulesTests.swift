@@ -3,6 +3,13 @@ import Testing
 @testable import ScheduleCore
 
 struct ScheduleRulesTests {
+    @Test func overlapGroupsKeepBackToBackLessonsSeparate() {
+        let times = [(start: "09:00", end: "09:45"), (start: "08:00", end: "08:45"),
+                     (start: "08:30", end: "09:00"), (start: "08:50", end: "08:55")]
+        #expect(ScheduleRules.overlapGroups(times) == [[1, 2, 3], [0]])
+        #expect(ScheduleRules.overlapGroups([]).isEmpty)
+    }
+
     let start = ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))!
     @Test func weekBoundaries() {
         #expect(ScheduleRules.week(on: start, semesterStart: start) == 1)

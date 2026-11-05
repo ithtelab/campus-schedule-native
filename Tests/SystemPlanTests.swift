@@ -3,6 +3,18 @@ import Testing
 @testable import ScheduleCore
 
 struct SystemPlanTests {
+    @Test func reminderDiffKeepsUnchangedRequestsAndReplacesOnlyEditedOnes() {
+        let unchanged = CourseReminder(date: now, id: "course.a", title: "课", body: "A101")
+        let original = CourseReminder(date: now, id: "course.b", title: "课", body: "B101")
+        var changed = original
+        changed.body = "B102"
+        let deleted = CourseReminder(date: now, id: "milestone.c", title: "提醒", body: "今天")
+        let diff = ReminderChanges(pending: [unchanged.id: unchanged, original.id: original, deleted.id: deleted],
+                                   desired: [unchanged, changed])
+        #expect(diff.obsolete == [deleted.id])
+        #expect(diff.additions == [changed])
+    }
+
     let now = Date(timeIntervalSince1970: 1788739200)
     var course: CourseOccurrence {
         .init(id: "instance", courseID: "course", title: "英语", room: "A302",

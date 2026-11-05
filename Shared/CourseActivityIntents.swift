@@ -7,9 +7,10 @@ struct RespondToCampusCharacterIntent: AppIntent {
     static var openAppWhenRun: Bool { false }
     func perform() async throws -> some IntentResult {
         let payload = SystemSnapshot.readPayload()
+        guard let payload, payload.appearance.allowsCharacterInteraction else { return .result() }
         let now = Date()
-        let context = CampusScheduleContext.make(items: payload?.courses ?? [], now: now,
-                                                leadMinutes: payload?.reminderLeadMinutes ?? 10)
+        let context = CampusScheduleContext.make(items: payload.courses, now: now,
+                                                leadMinutes: payload.reminderLeadMinutes ?? 10)
         let next = CampusWidgetCharacterPlan.toggled(context: context, now: now,
                                                     previous: CampusWidgetInteractionStore.read())
         try CampusWidgetInteractionStore.write(next)

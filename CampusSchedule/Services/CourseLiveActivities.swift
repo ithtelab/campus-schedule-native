@@ -1,19 +1,37 @@
 @preconcurrency import ActivityKit
-import Foundation
+import UIKit
 
 @MainActor final class CourseLiveActivities {
     static let shared = CourseLiveActivities()
-    private var endTask: Task<Void, Never>?
+    private typealias CourseActivity = Activity<CourseActivityAttributes>
+
+    private var boundaryTask: Task<Void, Never>?
     private var watchTasks: [String: Task<Void, Never>] = [:]
+    private var pending: [String: CourseActivity] = [:]
+    private var revision = 0
+    private(set) var cleanupDeadline: Date?
+
     private var defaults: UserDefaults { UserDefaults(suiteName: SystemSnapshot.group) ?? .standard }
     private var suppressed: Set<String> {
         get { Set(defaults.stringArray(forKey: "endedOccurrences") ?? []) }
         set { defaults.set(Array(newValue), forKey: "endedOccurrences") }
     }
+
+    private var activities: [CourseActivity] {
+        let current = CourseActivity.activities
+        let ids = Set(current.map(\.id))
+        return (current + pending.values.filter { !ids.contains($0.id) }).filter {
+            $0.activityState != .ended && $0.activityState != .dismissed
+        }
+    }
+
     func finish(_ activity: Activity<CourseActivityAttributes>, suppress: Bool) async {
         if suppress { suppressed.insert(activity.attributes.occurrenceID) }
+        watchTasks.removeValue(forKey: activity.id)?.cancel()
+        pending.removeValue(forKey: activity.id)
         await activity.end(nil, dismissalPolicy: .immediate)
     }
+
     enum StartError: LocalizedError {
         case outsideWindow, notAllowed, dismissed
         var errorDescription: String? {
@@ -24,112 +42,133 @@ import Foundation
             }
         }
     }
-    func start(_ item: CourseOccurrence, scheduledAt: Date? = nil, lead: Int = 10, termID: String? = nil) throws {
-        guard item.end > Date() else { throw StartError.outsideWindow }
-        if scheduledAt == nil && !CourseLivePlan.canStartManually(item, now: Date(), lead: lead) { throw StartError.outsideWindow }
+
+    func start(_ item: CourseOccurrence, scheduledAt: Date? = nil, lead: Int = 10, termID: String? = nil,
+               appearance: AppearancePreferences? = nil) throws {
+        let now = Date()
+        guard item.end > now else { throw StartError.outsideWindow }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { throw StartError.notAllowed }
         guard !suppressed.contains(item.id) else { throw StartError.dismissed }
+        if activities.contains(where: { $0.attributes.occurrenceID == item.id }) { return }
         let attributes = CourseActivityAttributes(occurrenceID: item.id, title: item.title, room: item.room, start: item.start,
                                                   teacher: item.teacher, courseID: item.courseID, termID: termID)
-        let content = activityContent(for: item, appearance: SystemSnapshot.readPayload()?.appearance)
-        let activity: Activity<CourseActivityAttributes>
-        if let scheduledAt, scheduledAt > Date(), #available(iOS 26.0, *) {
-            activity = try Activity.request(attributes: attributes, content: content, pushType: nil, style: .standard,
+        let appearance = appearance ?? SystemSnapshot.readPayload()?.appearance
+        let activity: CourseActivity
+        if let scheduledAt, scheduledAt > now, #available(iOS 26.0, *) {
+            let content = activityContent(for: item, appearance: appearance, scheduledAt: scheduledAt)
+            activity = try CourseActivity.request(attributes: attributes, content: content, pushType: nil, style: .standard,
                 alertConfiguration: AlertConfiguration(title: "即将上课", body: "请查看课程安排", sound: .default), start: scheduledAt)
+            pending[activity.id] = activity
         } else {
-            // Before iOS 26 the starting date cannot be handed to the system, so the activity
-            // starts immediately and the local notification still carries the class reminder.
-            activity = try Activity.request(attributes: attributes, content: content, pushType: nil)
+            guard scheduledAt.map({ $0 <= now }) ?? true,
+                  CourseLivePlan.canStartManually(item, now: now, lead: lead) else { throw StartError.outsideWindow }
+            activity = try CourseActivity.request(attributes: attributes, content: activityContent(for: item, appearance: appearance),
+                                                   pushType: nil)
         }
         observe(activity)
+        updateCleanupSchedule()
     }
 
-    private func activityContent(for item: CourseOccurrence, appearance: AppearancePreferences?) -> ActivityContent<CourseActivityAttributes.ContentState> {
+    private func activityContent(for item: CourseOccurrence, appearance: AppearancePreferences?,
+                                 scheduledAt: Date? = nil) -> ActivityContent<CourseActivityAttributes.ContentState> {
         ActivityContent(state: .init(end: item.end, nextTitle: item.nextTitle, nextRoom: item.nextRoom,
-                                     beforeClass: Date() < item.start, blueStickers: appearance.map { $0.theme == .blueStickers },
-                                     decorationDensity: appearance?.density),
-                        staleDate: item.end)
+                                     blueStickers: appearance.map { $0.theme == .blueStickers },
+                                     decorationDensity: appearance?.density, persona: appearance?.persona,
+                                     scheduledStart: scheduledAt), staleDate: item.end)
     }
 
-    private func observe(_ activity: Activity<CourseActivityAttributes>) {
+    private func observe(_ activity: CourseActivity) {
         guard watchTasks[activity.id] == nil else { return }
         watchTasks[activity.id] = Task { @MainActor in
-            defer { watchTasks[activity.id] = nil }
+            defer {
+                watchTasks[activity.id] = nil
+                pending.removeValue(forKey: activity.id)
+                updateCleanupSchedule()
+            }
             for await state in activity.activityStateUpdates {
+                if Task.isCancelled { break }
                 if state == .dismissed { suppressed.insert(activity.attributes.occurrenceID); break }
                 if state == .ended { break }
             }
         }
     }
-    /// 记录已经请求过、但还没真正开始的活动。
-    ///
-    /// 定时启动的活动在开始前不出现在 `Activity.activities` 里，所以只靠那里做
-    /// 幂等判断会每次都重新请求一次，最终在到点时同时冒出多条一模一样的活动。
-    private var scheduled: Set<String> {
-        get { Set(defaults.stringArray(forKey: "scheduledOccurrences") ?? []) }
-        set { defaults.set(Array(newValue), forKey: "scheduledOccurrences") }
+
+    private func updateCleanupSchedule(force: Bool = false) {
+        let deadline = activities.map(\.content.state.end).min()
+        guard force || deadline != cleanupDeadline else { return }
+        cleanupDeadline = deadline
+        let refresh = AcademicRefreshService.shared
+        refresh.restore()
+        refresh.scheduleNext()
     }
 
-    /// 同一次课程只保留最新的一条活动，其余立即结束。
-    ///
-    /// 历史版本可能已经累积了多条重复活动，这里在每次协调时清理，
-    /// 用户不必逐条手动移除。
-    private func deduplicateActivities() async {
-        var seen: [String: String] = [:]   // occurrenceID -> 保留的活动 id
-        for activity in Activity<CourseActivityAttributes>.activities {
-            let key = activity.attributes.occurrenceID
-            if let kept = seen[key] {
-                // 保留先出现的那条，后来的都结束。
-                _ = kept
-                await finish(activity, suppress: false)
-            } else {
-                seen[key] = activity.id
-            }
+    func cleanUpAfterBackgroundWake() async {
+        for activity in activities where activity.content.state.end <= Date() {
+            guard !Task.isCancelled else { return }
+            await finish(activity, suppress: false)
         }
+        updateCleanupSchedule(force: true)
     }
 
-    func reconcile(items: [CourseOccurrence], enabled: Bool, lead: Int, termID: String? = nil) async {
-        endTask?.cancel()
-        let appearance = SystemSnapshot.readPayload()?.appearance
-        await deduplicateActivities()
-        for activity in Activity<CourseActivityAttributes>.activities {
+    func reconcile(items: [CourseOccurrence], enabled: Bool, lead: Int, termID: String? = nil,
+                   appearance: AppearancePreferences? = nil) async {
+        guard !Task.isCancelled else { return }
+        revision += 1
+        let currentRevision = revision
+        boundaryTask?.cancel()
+        let appearance = appearance ?? SystemSnapshot.readPayload()?.appearance
+        let allowed = enabled && ActivityAuthorizationInfo().areActivitiesEnabled
+        let excluded = suppressed
+        let planningTime = Date()
+        let plan = allowed ? CourseLivePlan.schedule(items: items.filter { !excluded.contains($0.id) }, now: planningTime, lead: lead) : []
+        var seen: Set<String> = []
+        for activity in activities {
+            guard revision == currentRevision, !Task.isCancelled else { return }
+            let attributes = activity.attributes
+            let state = activity.content.state
+            guard allowed, let item = items.first(where: { $0.id == attributes.occurrenceID }), item.end > Date(),
+                  !excluded.contains(item.id), attributes.title == item.title, attributes.room == item.room,
+                  attributes.start == item.start, attributes.teacher == item.teacher,
+                  attributes.termID == termID else {
+                await finish(activity, suppress: false)
+                continue
+            }
+            if #available(iOS 26.0, *), activity.activityState == .pending,
+               !plan.contains(where: { entry in
+                   guard entry.course.id == item.id, let scheduledStart = state.scheduledStart else { return false }
+                   return entry.start == scheduledStart || max(entry.start, scheduledStart) <= planningTime
+               }) {
+                await finish(activity, suppress: false)
+                continue
+            }
+            guard seen.insert(item.id).inserted else {
+                await finish(activity, suppress: false)
+                continue
+            }
             observe(activity)
-            guard enabled, let item = items.first(where: { $0.id == activity.attributes.occurrenceID }), item.end > Date(), !suppressed.contains(item.id) else {
-                await finish(activity, suppress: false); continue
-            }
-            if activity.attributes.room != item.room || activity.attributes.start != item.start || activity.attributes.title != item.title {
-                await finish(activity, suppress: false)
-            } else {
-                await activity.update(activityContent(for: item, appearance: appearance))
+            let content = activityContent(for: item, appearance: appearance, scheduledAt: state.scheduledStart)
+            if content.state != state || activity.content.staleDate != content.staleDate {
+                await activity.update(content)
             }
         }
-        guard enabled else { return }
-        // 只计划最近一次。系统活动数量和后台执行均受限制。
-        guard let next = ScheduleRules.next(in: items.filter { !suppressed.contains($0.id) }, now: Date()) else { return }
-        let alreadyRunning = Activity<CourseActivityAttributes>.activities.contains { $0.attributes.occurrenceID == next.id }
-        // 已安排但尚未开始的活动不在 activities 里，必须另外记住，否则每次协调都会再请求一次。
-        let alreadyScheduled = scheduled.contains(next.id)
-        if !alreadyRunning && !alreadyScheduled {
-            do {
-                try start(next, scheduledAt: CourseLivePlan.earliestStart(for: next, lead: lead), lead: lead, termID: termID)
-                scheduled.insert(next.id)
+        guard revision == currentRevision, !Task.isCancelled else { return }
+        let active = UIApplication.shared.applicationState == .active
+        if active {
+            for entry in plan where !seen.contains(entry.course.id) {
+                try? start(entry.course, scheduledAt: entry.start, lead: lead, termID: termID, appearance: appearance)
             }
-            catch { return } // 主界面提供权限和手动启动提示；不影响本地通知。
         }
-        // 只保留仍然在未来会开始的记录，避免集合无限增长。
-        let futureIDs = Set(items.filter { $0.start > Date() }.map(\.id))
-        scheduled = scheduled.intersection(futureIDs.union([next.id]))
-        endTask = Task { @MainActor in
+        updateCleanupSchedule()
+        let now = Date()
+        let nextBoundary = (plan.map(\.start) + activities.map(\.content.state.end)).filter { $0 > now }.min()
+        guard active, let nextBoundary else { return }
+        boundaryTask = Task { @MainActor in
             do {
-                try await Task.sleep(for: .seconds(max(0, next.end.timeIntervalSinceNow)))
+                try await Task.sleep(for: .seconds(max(0, nextBoundary.timeIntervalSinceNow)))
                 try Task.checkCancellation()
-                for activity in Activity<CourseActivityAttributes>.activities where activity.attributes.occurrenceID == next.id {
-                    await finish(activity, suppress: false)
-                }
-                await reconcile(items: items, enabled: enabled, lead: lead, termID: termID)
+                boundaryTask = nil
+                await reconcile(items: items, enabled: enabled, lead: lead, termID: termID, appearance: appearance)
             } catch {}
         }
-        // 此计时任务仅在进程能执行时结束活动，不能保证锁屏/杀进程后准时运行。
-        // 完整后台结束仍为真机验收门槛，不能把 staleDate 当作自动结束。
     }
 }

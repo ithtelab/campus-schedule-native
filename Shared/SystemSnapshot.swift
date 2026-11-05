@@ -76,9 +76,10 @@ struct CourseActivityAttributes: ActivityAttributes {
         var end: Date
         var nextTitle: String?
         var nextRoom: String?
-        var beforeClass: Bool
         var blueStickers: Bool? = nil
         var decorationDensity: DecorationDensity? = nil
+        var persona: CampusPersona? = nil
+        var scheduledStart: Date? = nil
     }
     var occurrenceID: String
     var title: String

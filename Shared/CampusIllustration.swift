@@ -55,22 +55,30 @@ import UIKit
         return frame(sheet: sheet, index: 0, girl: true, padded: false)
     }()
 
-    static func widgetFrame(_ index: Int) -> UIImage? {
+    private static let boyReading: UIImage? = {
+        guard let sheet = UIImage(named: "CampusBoyActions")?.cgImage else { return nil }
+        return frame(sheet: sheet, index: 0, girl: false, padded: false)
+    }()
+
+    static func widgetFrame(_ index: Int, persona: CampusPersona) -> UIImage? {
+        let girl = persona != .boy
+        let reading = girl ? Self.reading : (boyReading ?? Self.reading)
         if index == 0 { return reading }
-        let name = index == 15 ? "CampusGirlStretchCorrection" : "CampusGirlActions"
+        let name = girl ? (index == 15 ? "CampusGirlStretchCorrection" : "CampusGirlActions") : "CampusBoyActions"
         guard let sheet = UIImage(named: name)?.cgImage else { return reading }
-        return frame(sheet: sheet, index: index, girl: true, padded: false)
+        return frame(sheet: sheet, index: index, girl: girl, padded: false) ?? reading
     }
 }
 
 struct CampusWidgetFigure: View {
     var frame: Int = 0
-    var stickerPersona: CampusPersona? = nil
+    var persona: CampusPersona = .fallback
+    var usesStickers = false
 
     var body: some View {
-        if let stickerPersona {
-            CampusStickerStudent(frame: frame, wearsCap: stickerPersona != .boy)
-        } else if let image = CampusSpriteImage.widgetFrame(frame) {
+        if usesStickers {
+            CampusStickerStudent(frame: frame, wearsCap: persona != .boy)
+        } else if let image = CampusSpriteImage.widgetFrame(frame, persona: persona) {
             Image(uiImage: image).renderingMode(.original).resizable().scaledToFit().accessibilityHidden(true)
         }
     }

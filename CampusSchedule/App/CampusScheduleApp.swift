@@ -10,6 +10,7 @@ struct CampusScheduleApp: App {
         // iPad 允许任意尺寸窗口，才能在分屏与台前调度里按需调整。
         .windowResizability(.contentMinSize)
         .backgroundTask(.appRefresh(AcademicRefreshService.taskID)) {
+            await CourseLiveActivities.shared.cleanUpAfterBackgroundWake()
             await AcademicRefreshService.shared.check()
         }
     }
@@ -294,7 +295,10 @@ struct RootView: View {
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(30)); store.clockDate = Date()
-                    if !store.isPreview { await CourseLiveActivities.shared.reconcile(items: store.occurrences, enabled: store.liveEnabled, lead: store.reminderMinutes, termID: store.activeTermID) }
+                    if !store.isPreview {
+                        await CourseLiveActivities.shared.reconcile(items: store.occurrences, enabled: store.liveEnabled,
+                            lead: store.reminderMinutes, termID: store.activeTermID, appearance: store.appearance)
+                    }
                 }
                 catch { break }
             }

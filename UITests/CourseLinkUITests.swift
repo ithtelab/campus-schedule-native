@@ -2,6 +2,24 @@ import XCTest
 import UIKit
 
 final class CourseLinkUITests: XCTestCase {
+    @MainActor func testWeekConflictOpensBothCourses() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "week", "CAMPUS_PREVIEW_LAYOUT": "conflict"]
+        app.launch()
+
+        let conflict = app.buttons["schedule.conflict"].firstMatch
+        XCTAssertTrue(conflict.waitForExistence(timeout: 12))
+        capture(app, name: "week-course-conflict")
+        conflict.tap()
+        XCTAssertTrue(app.navigationBars["冲突课程"].waitForExistence(timeout: 8))
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "schedule.conflict.course.")).count, 2)
+        capture(app, name: "week-course-conflict-list")
+        app.buttons["schedule.conflict.course.layout-conflict"].tap()
+        XCTAssertTrue(app.navigationBars["课程详情"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["学术写作"].exists)
+    }
+
     @MainActor func testAppearanceSwitchesAndDarkImport() {
         continueAfterFailure = false
         let app = XCUIApplication()

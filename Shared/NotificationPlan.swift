@@ -7,6 +7,17 @@ struct CourseReminder: Equatable, Sendable {
     var body: String
 }
 
+struct ReminderChanges {
+    let obsolete: [String]
+    let additions: [CourseReminder]
+
+    init(pending: [String: CourseReminder], desired: [CourseReminder]) {
+        let ids = Set(desired.map(\.id))
+        obsolete = pending.keys.filter { !ids.contains($0) }
+        additions = desired.filter { pending[$0.id] != $0 }
+    }
+}
+
 enum NotificationPlan {
     static func make(courses: [CourseOccurrence], now: Date, enabled: Bool, lead: Int,
                      endEnabled: Bool, endLead: Int, limit: Int = 60) -> [CourseReminder] {

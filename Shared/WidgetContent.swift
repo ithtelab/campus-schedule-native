@@ -21,7 +21,8 @@ struct ScheduleWidgetContent: View {
         CampusScheduleContext.make(items: entry.courses, now: entry.date, leadMinutes: entry.leadMinutes)
     }
     private var characterFrame: Int {
-        CampusWidgetCharacterPlan.frame(context: characterContext, now: entry.date, interaction: entry.interaction)
+        guard entry.appearance.allowsCharacterInteraction else { return 0 }
+        return CampusWidgetCharacterPlan.frame(context: characterContext, now: entry.date, interaction: entry.interaction)
     }
     private func dayLabel(_ date: Date) -> String {
         let c = ScheduleRules.calendar
@@ -116,7 +117,7 @@ struct ScheduleWidgetContent: View {
                         CampusStickerMark(size: 16, fullColor: false)
                     }
                 } else {
-                    CampusWidgetFigure(frame: characterFrame)
+                    CampusWidgetFigure(frame: characterFrame, persona: entry.appearance.persona)
                         .overlay(alignment: .topTrailing) {
                             if entry.appearance.density.showsExtras {
                                 CampusProp(kind: .libraryTicket).frame(width: 11, height: 12)
@@ -129,15 +130,23 @@ struct ScheduleWidgetContent: View {
     }
 
     @ViewBuilder private func interactiveFigure(width: CGFloat, height: CGFloat) -> some View {
-        if entry.appearance.density.showsCharacter {
-            figureButton(width: width, height: height)
+        if entry.appearance.allowsCharacterInteraction {
+            Button(intent: RespondToCampusCharacterIntent()) {
+                figure(width: width, height: height)
+            }
+            .buttonStyle(.plain)
+            .invalidatableContent()
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: characterFrame)
+            .accessibilityLabel("校园人物，\(characterContext.interactionTitle)")
+            .accessibilityHint("轻点回应，不会修改课程")
+        } else if entry.appearance.density.showsCharacter {
+            figure(width: width, height: height)
         }
     }
 
-    private func figureButton(width: CGFloat, height: CGFloat) -> some View {
-        Button(intent: RespondToCampusCharacterIntent()) {
-            CampusWidgetFigure(frame: characterFrame,
-                               stickerPersona: entry.appearance.showsBlueStickers ? entry.appearance.persona : nil)
+    private func figure(width: CGFloat, height: CGFloat) -> some View {
+        CampusWidgetFigure(frame: characterFrame, persona: entry.appearance.persona,
+                           usesStickers: entry.appearance.showsBlueStickers)
                 .id(characterFrame)
                 .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
                 .frame(width: width, height: height, alignment: .bottom)
@@ -173,11 +182,5 @@ struct ScheduleWidgetContent: View {
                     }
                 }
                 .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .invalidatableContent()
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: characterFrame)
-        .accessibilityLabel("校园人物，\(characterContext.interactionTitle)")
-        .accessibilityHint("轻点回应，不会修改课程")
     }
 }

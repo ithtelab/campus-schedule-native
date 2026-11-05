@@ -16,7 +16,10 @@ elif [[ "${CAMPUS_UI_FOCUS:-full}" == campus-style ]]; then
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testMilestonePreviewAndPin
   )
 else
-  tests=(-only-testing:CampusCourseLinkUITests/CourseLinkUITests/testSystemCourseLinksShowReadOnlySession)
+  tests=(
+    -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testSystemCourseLinksShowReadOnlySession
+    -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testWeekConflictOpensBothCourses
+  )
   SIMCTL_CHILD_CAMPUS_SMOKE_TEST=data-reliability xcrun simctl launch --terminate-running-process booted "$bundle_id"
   sleep 3
   data_path=$(xcrun simctl get_app_container booted "$bundle_id" data)

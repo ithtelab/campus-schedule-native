@@ -72,6 +72,25 @@ enum ScheduleRules {
         guard pieces.count == 2, (0...23).contains(pieces[0]), (0...59).contains(pieces[1]) else { return nil }
         return calendar.date(bySettingHour: pieces[0], minute: pieces[1], second: 0, of: day)
     }
+    /// Groups indices of intersecting lessons. The clock strings are normalized to HH:mm.
+    static func overlapGroups(_ times: [(start: String, end: String)]) -> [[Int]] {
+        let sorted = times.indices.sorted { a, b in
+            times[a].start == times[b].start ? a < b : times[a].start < times[b].start
+        }
+        var groups: [[Int]] = []
+        var latestEnd = ""
+        for index in sorted {
+            let time = times[index]
+            if let last = groups.indices.last, time.start < latestEnd {
+                groups[last].append(index)
+                latestEnd = max(latestEnd, time.end)
+            } else {
+                groups.append([index])
+                latestEnd = time.end
+            }
+        }
+        return groups
+    }
     static func next(in items: [CourseOccurrence], now: Date) -> CourseOccurrence? {
         items.sorted { $0.start < $1.start }.first { $0.end > now }
     }

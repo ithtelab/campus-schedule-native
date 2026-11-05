@@ -115,7 +115,7 @@ final class AcademicRefreshService {
             revision = UUID()
             connection = nil
             message = nil
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskID)
+            scheduleNext()
         } catch { message = error.localizedDescription }
     }
 
@@ -124,16 +124,21 @@ final class AcademicRefreshService {
         connection = active
     }
 
-    private func scheduleNext() {
-        guard let active = connection, !active.needsLogin else {
+    func scheduleNext() {
+        let now = Date()
+        let academicDate = connection.flatMap { active in
+            active.needsLogin ? nil : max(now.addingTimeInterval(60), active.attemptedAt.addingTimeInterval(Self.interval))
+        }
+        let cleanupDate = CourseLiveActivities.shared.cleanupDeadline
+        guard let nextDate = [academicDate, cleanupDate].compactMap({ $0 }).min() else {
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskID)
             return
         }
         let request = BGAppRefreshTaskRequest(identifier: Self.taskID)
-        request.earliestBeginDate = max(Date().addingTimeInterval(60), active.attemptedAt.addingTimeInterval(Self.interval))
+        request.earliestBeginDate = nextDate
         do { try BGTaskScheduler.shared.submit(request) }
         catch {
-            if message == nil { message = "后台刷新暂不可用。打开 App 时仍会检查。" }
+            if academicDate != nil && message == nil { message = "后台刷新暂不可用。打开 App 时仍会检查。" }
         }
     }
 

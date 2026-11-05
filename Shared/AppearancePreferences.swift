@@ -100,8 +100,16 @@ public struct AppearancePreferences: Codable, Equatable, Sendable {
     public var theme: CampusTheme
     public var density: DecorationDensity
     public var effects: InteractionEffects
+    private var monochromeTexture: CampusTheme
 
     var showsBlueStickers: Bool { theme == .blueStickers && density != .off }
+    var allowsCharacterInteraction: Bool { density.showsCharacter && effects == .followSchedule }
+
+    mutating func selectTheme(_ selection: CampusTheme, isFamily: Bool) {
+        if theme.family == .paper { monochromeTexture = theme }
+        theme = isFamily && selection == .paper ? monochromeTexture : selection
+        if theme.family == .paper { monochromeTexture = theme }
+    }
 
     #if targetEnvironment(simulator)
     static var simulatorPreview: Self {
@@ -119,6 +127,7 @@ public struct AppearancePreferences: Codable, Equatable, Sendable {
         self.theme = theme
         self.density = density
         self.effects = effects
+        monochromeTexture = theme.family == .paper ? theme : .paper
     }
 
     /// 逐字段容错解码：新增字段或未来枚举值不会让整套外观偏好失效，
@@ -129,6 +138,8 @@ public struct AppearancePreferences: Codable, Equatable, Sendable {
         theme = (try? container.decode(CampusTheme.self, forKey: .theme)) ?? .fallback
         density = (try? container.decode(DecorationDensity.self, forKey: .density)) ?? .light
         effects = (try? container.decode(InteractionEffects.self, forKey: .effects)) ?? .followSchedule
+        let savedTexture = (try? container.decode(CampusTheme.self, forKey: .monochromeTexture)) ?? .paper
+        monochromeTexture = theme.family == .paper ? theme : (savedTexture.family == .paper ? savedTexture : .paper)
         // 制作中的形象即使被写进文件也退回可用项。
         if !persona.isAvailable { persona = .fallback }
     }

@@ -398,6 +398,9 @@ final class PreviewStore {
                                               room: "实验楼 · 605")]
             }
             switch ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_LAYOUT"] {
+            case "conflict":
+                courses.append(.init(id: "layout-conflict", title: "学术写作", room: "图书馆 · 201", teacher: "张老师", weekday: 0,
+                    startPeriod: 1, endPeriod: 2, startTime: "08:00", endTime: "09:35", color: .green))
             case "dense":
                 courses.append(.init(id: "layout-afternoon", title: "线性代数", room: "教学楼 A · 206", teacher: "李老师", weekday: 0,
                     startPeriod: 5, endPeriod: 6, startTime: "14:00", endTime: "15:35", color: .blue))
@@ -786,17 +789,29 @@ final class PreviewStore {
         let snapshotLead = reminderMinutes
         let snapshotMilestones = milestones
         let snapshotAppearance = appearance
+        let courseRemindersEnabled = reminderPreview
+        let endRemindersEnabled = endReminder
+        let endReminderLead = endLead
+        let activitiesEnabled = liveEnabled
         syncTask = Task { @MainActor in
             do {
                 try await Task.sleep(for: .milliseconds(250))
                 try Task.checkCancellation()
+            } catch { return }
+            do {
                 try SystemSnapshot.write(items, leadMinutes: snapshotLead, termID: snapshotTerm,
                                          milestones: snapshotMilestones, appearance: snapshotAppearance)
                 WidgetCenter.shared.reloadAllTimelines()
-                try await CourseNotifications.shared.replace(courses: items, enabled: reminderPreview, lead: reminderMinutes, endEnabled: endReminder, endLead: endLead)
-                try await CourseNotifications.shared.replaceMilestones(snapshotMilestones)
-                await CourseLiveActivities.shared.reconcile(items: items, enabled: liveEnabled, lead: reminderMinutes, termID: snapshotTerm)
-            } catch is CancellationError {} catch { errorMessage = error.localizedDescription }
+            } catch { errorMessage = error.localizedDescription }
+            async let activities: Void = CourseLiveActivities.shared.reconcile(items: items, enabled: activitiesEnabled,
+                lead: snapshotLead, termID: snapshotTerm, appearance: snapshotAppearance)
+            do {
+                try await CourseNotifications.shared.synchronize(courses: items, enabled: courseRemindersEnabled,
+                    lead: snapshotLead, endEnabled: endRemindersEnabled, endLead: endReminderLead, milestones: snapshotMilestones)
+            } catch is CancellationError {} catch {
+                if !Task.isCancelled { errorMessage = error.localizedDescription }
+            }
+            await activities
         }
     }
 

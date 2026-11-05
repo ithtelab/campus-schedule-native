@@ -6,6 +6,8 @@ struct WeekScheduleView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
     @State private var selectedCourse: DemoCourse?
+    @State private var selectedConflict: CourseConflict?
+    @State private var conflictCourse: DemoCourse?
     @State private var showingWeeks = false
     @State private var showingEditor = false
     @State private var showingImport = false
@@ -73,6 +75,7 @@ struct WeekScheduleView: View {
                 }
             }
             .sheet(item: $selectedCourse) { CourseDetailView(course: $0) }
+            .sheet(item: $selectedConflict) { conflictList($0) }
             .sheet(isPresented: $showingEditor) { CourseEditorView() }
             .sheet(isPresented: $showingWeeks) { weekPicker }
             .sheet(isPresented: $showingImport) { ImportView() }
@@ -301,78 +304,37 @@ struct WeekScheduleView: View {
             ForEach(store.periods.map(\.id), id: \.self) { period in
                 Rectangle().fill(Color.primary.opacity(0.045)).frame(height: 0.5).offset(y: offset(period))
             }
-            ForEach(courses.filter { $0.weekday == day }) { course in
-                let height = max(32, position(course.endTime) - position(course.startTime) - 4)
-                let date = store.date(week: week, day: day)
-                let ended = (ScheduleRules.date(day: date, time: course.endTime) ?? .distantFuture) <= store.now
-                let ongoing = (ScheduleRules.date(day: date, time: course.startTime) ?? .distantFuture) <= store.now && !ended
-                let ink = ongoing ? selectedInk : Color.primary
-                // 颜色只作识别辅助：进行中用色条实色，已结束压淡，其余用低饱和底色。
-                let activeFill = blueTheme ? CampusStickerMark.blue : course.color.accentColor
-                let cardFill = ongoing ? activeFill
-                    : ended ? course.color.endedFill(for: scheme) : course.color.fill(for: scheme)
-                let borderColor = ongoing ? activeFill : course.color.border(for: scheme)
-                Button { selectedCourse = course } label: {
-                    HStack(spacing: 0) {
-                        // 左侧窄色条：即使卡片很矮也能靠颜色分辨课程。
-                        RoundedRectangle(cornerRadius: 1.5)
-                            .fill(ongoing ? selectedInk.opacity(0.85) : course.color.accentColor)
-                            .frame(width: 3)
-                            .padding(.vertical, height < 65 ? 3 : 6)
-                            .padding(.leading, store.showsWeekend ? 4 : 5)
-                        VStack(alignment: .leading, spacing: height < 65 ? 2 : 4) {
-                            HStack(alignment: .top, spacing: 3) {
-                                Text(course.title).font(.system(size: store.showsWeekend ? 12 : 14, weight: .bold)).lineLimit(height < 65 ? 2 : 4)
-                                // 单双周角标：学生按周次决定今天要不要来上课。
-                                if let badge = course.weekPattern.badge, height >= 52 {
-                                    Text(badge)
-                                        .font(.system(size: 8, weight: .heavy))
-                                        .padding(.horizontal, 3).padding(.vertical, 1)
-                                        .background(ongoing ? selectedInk.opacity(0.25) : course.color.accentColor.opacity(0.28),
-                                                    in: RoundedRectangle(cornerRadius: 3))
-                                        .lineLimit(1)
-                                }
-                            }
-                            Text(roomText(course)).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2)
-                                .foregroundStyle(ongoing ? selectedInk.opacity(0.8) : Color.secondary)
-                            if course.wasRescheduled && height >= 80 {
-                                // 明确标出「调课」，否则学生按原教室跑一趟才发现换了地方。
-                                Text("调课")
-                                    .font(.system(size: 8, weight: .semibold))
-                                    .foregroundStyle(ongoing ? selectedInk.opacity(0.85) : course.color.accentColor)
-                                    .lineLimit(1)
-                            }
-                            Spacer(minLength: 0)
-                            if height >= 80 && !store.showsWeekend {
-                                // 一行放不下起止时间会被省略号截断，改成分两行：
-                                // 学生要知道几点下课，截断等于没给。
-                                VStack(alignment: .leading, spacing: 0) {
-                                    Text(course.startTime)
-                                    Text(course.endTime)
-                                }
-                                .font(.system(size: 8.5).monospacedDigit())
-                                .foregroundStyle(ongoing ? selectedInk.opacity(0.8) : Color.secondary)
-                                .lineLimit(1)
-                            } else if height >= 52 && store.showsWeekend {
-                                // 七天视图列窄，只补结束时间也要能挤下。
-                                Text(course.endTime).font(.system(size: 8.5).monospacedDigit())
-                                    .foregroundStyle(ongoing ? selectedInk.opacity(0.75) : Color.secondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                        .padding(.leading, store.showsWeekend ? 4 : 6)
-                        .padding(.trailing, store.showsWeekend ? 3 : 5)
-                        .padding(.vertical, height < 65 ? 2 : 7)
+            let daily = courses.filter { $0.weekday == day }
+            ForEach(ScheduleRules.overlapGroups(daily.map { (start: $0.startTime, end: $0.endTime) }), id: \.self) { indices in
+                let group = indices.map { daily[$0] }
+                if group.count == 1, let course = group.first {
+                    courseCard(course, day: day, week: week)
+                } else if group.count == 2 && width >= 126 {
+                    HStack(alignment: .top, spacing: 3) {
+                        ForEach(group) { course in courseCard(course, day: day, week: week) }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: height)
-                    .foregroundStyle(ink)
-                    .background(cardFill, in: RoundedRectangle(cornerRadius: 9))
-                    .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(borderColor, lineWidth: 0.8) }
+                } else if let first = group.first, let end = group.map(\.endTime).max() {
+                    let top = min(totalHeight - 32, position(first.startTime))
+                    Button {
+                        selectedConflict = CourseConflict(courses: group)
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: "rectangle.on.rectangle")
+                            Text("\(group.count) 门冲突").lineLimit(1).minimumScaleFactor(0.75)
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(DesignSystem.surface, in: .rect(cornerRadius: 9))
+                        .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(DesignSystem.rule) }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(days[day])，\(group.count) 门课程冲突")
+                    .accessibilityHint("查看重叠的课程")
+                    .accessibilityIdentifier("schedule.conflict")
+                    .frame(height: max(32, position(end) - top - 4))
+                    .offset(y: top)
                 }
-                .buttonStyle(.plain).foregroundStyle(.primary)
-                .accessibilityLabel("\(days[day])，\(course.title)，\(course.startTime)至\(course.endTime)，\(course.room)")
-                .offset(y: min(totalHeight - 32, position(course.startTime)))
             }
         }
         .frame(width: width, height: totalHeight, alignment: .top)
@@ -382,9 +344,114 @@ struct WeekScheduleView: View {
                     Circle().fill(.primary).frame(width: 5, height: 5)
                     Rectangle().fill(.primary).frame(height: 1)
                 }
-                .offset(y: previewLineOffset - 2).accessibilityHidden(true)
+                .offset(y: previewLineOffset - 2).allowsHitTesting(false).accessibilityHidden(true)
             }
         }
+    }
+
+    private struct CourseConflict: Identifiable {
+        let courses: [DemoCourse]
+        var id: String { courses[0].id }
+    }
+
+    private func conflictList(_ conflict: CourseConflict) -> some View {
+        NavigationStack {
+            List(conflict.courses) { course in
+                Button {
+                    conflictCourse = course
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(course.title).font(.headline)
+                        Text("\(course.startTime)–\(course.endTime) · \(course.room)")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("schedule.conflict.course.\(course.sourceID ?? course.id)")
+            }
+            .navigationTitle("冲突课程")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { selectedConflict = nil } }
+            }
+            .sheet(item: $conflictCourse) { CourseDetailView(course: $0) }
+        }
+    }
+
+    private func courseCard(_ course: DemoCourse, day: Int, week: Int) -> some View {
+        let height = max(32, position(course.endTime) - position(course.startTime) - 4)
+        let date = store.date(week: week, day: day)
+        let ended = (ScheduleRules.date(day: date, time: course.endTime) ?? .distantFuture) <= store.now
+        let ongoing = (ScheduleRules.date(day: date, time: course.startTime) ?? .distantFuture) <= store.now && !ended
+        let ink = ongoing ? selectedInk : Color.primary
+        // 颜色只作识别辅助：进行中用色条实色，已结束压淡，其余用低饱和底色。
+        let activeFill = blueTheme ? CampusStickerMark.blue : course.color.accentColor
+        let cardFill = ongoing ? activeFill
+            : ended ? course.color.endedFill(for: scheme) : course.color.fill(for: scheme)
+        let borderColor = ongoing ? activeFill : course.color.border(for: scheme)
+        return Button { selectedCourse = course } label: {
+            HStack(spacing: 0) {
+                // 左侧窄色条：即使卡片很矮也能靠颜色分辨课程。
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(ongoing ? selectedInk.opacity(0.85) : course.color.accentColor)
+                    .frame(width: 3)
+                    .padding(.vertical, height < 65 ? 3 : 6)
+                    .padding(.leading, store.showsWeekend ? 4 : 5)
+                VStack(alignment: .leading, spacing: height < 65 ? 2 : 4) {
+                    HStack(alignment: .top, spacing: 3) {
+                        Text(course.title).font(.system(size: store.showsWeekend ? 12 : 14, weight: .bold)).lineLimit(height < 65 ? 2 : 4)
+                        // 单双周角标：学生按周次决定今天要不要来上课。
+                        if let badge = course.weekPattern.badge, height >= 52 {
+                            Text(badge)
+                                .font(.system(size: 8, weight: .heavy))
+                                .padding(.horizontal, 3).padding(.vertical, 1)
+                                .background(ongoing ? selectedInk.opacity(0.25) : course.color.accentColor.opacity(0.28),
+                                            in: RoundedRectangle(cornerRadius: 3))
+                                .lineLimit(1)
+                        }
+                    }
+                    Text(roomText(course)).font(.system(size: store.showsWeekend ? 9 : 10)).lineLimit(height < 65 ? 1 : 2)
+                        .foregroundStyle(ongoing ? selectedInk.opacity(0.8) : Color.secondary)
+                    if course.wasRescheduled && height >= 80 {
+                        // 明确标出「调课」，否则学生按原教室跑一趟才发现换了地方。
+                        Text("调课")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(ongoing ? selectedInk.opacity(0.85) : course.color.accentColor)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    if height >= 80 && !store.showsWeekend {
+                        // 一行放不下起止时间会被省略号截断，改成分两行：
+                        // 学生要知道几点下课，截断等于没给。
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(course.startTime)
+                            Text(course.endTime)
+                        }
+                        .font(.system(size: 8.5).monospacedDigit())
+                        .foregroundStyle(ongoing ? selectedInk.opacity(0.8) : Color.secondary)
+                        .lineLimit(1)
+                    } else if height >= 52 && store.showsWeekend {
+                        // 七天视图列窄，只补结束时间也要能挤下。
+                        Text(course.endTime).font(.system(size: 8.5).monospacedDigit())
+                            .foregroundStyle(ongoing ? selectedInk.opacity(0.75) : Color.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.leading, store.showsWeekend ? 4 : 6)
+                .padding(.trailing, store.showsWeekend ? 3 : 5)
+                .padding(.vertical, height < 65 ? 2 : 7)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: height)
+            .foregroundStyle(ink)
+            .background(cardFill, in: RoundedRectangle(cornerRadius: 9))
+            .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(borderColor, lineWidth: 0.8) }
+        }
+        .buttonStyle(.plain).foregroundStyle(.primary)
+        .accessibilityLabel("\(days[day])，\(course.title)，\(course.startTime)至\(course.endTime)，\(course.room)")
+        .offset(y: min(totalHeight - 32, position(course.startTime)))
     }
 
     private var previewLineOffset: CGFloat {

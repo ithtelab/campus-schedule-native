@@ -76,7 +76,7 @@ struct AppearanceSettingsView: View {
             Section("主题") {
                 ForEach([CampusTheme.paper, .blueStickers]) { theme in
                     themeRow(theme, title: theme.title, selected: store.appearance.theme.family == theme,
-                             id: "appearance.theme.\(theme.rawValue)", showsThemeArtwork: theme == .paper)
+                             id: "appearance.theme.\(theme.rawValue)", showsThemeArtwork: theme == .paper, isFamily: true)
                 }
             }
 
@@ -179,9 +179,9 @@ struct AppearanceSettingsView: View {
     }
 
     private func themeRow(_ theme: CampusTheme, title: String, selected: Bool, id: String,
-                          showsThemeArtwork: Bool = false) -> some View {
+                          showsThemeArtwork: Bool = false, isFamily: Bool = false) -> some View {
         Button {
-            if !selected { store.appearance.theme = theme }
+            if !selected { store.appearance.selectTheme(theme, isFamily: isFamily) }
         } label: {
             HStack(spacing: 12) {
                 CampusThemeSurface(theme: theme, isSwatch: true)

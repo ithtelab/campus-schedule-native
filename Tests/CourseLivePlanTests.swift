@@ -18,6 +18,14 @@ import Testing
     @Test func compactClockHasBoundedWidth() {
         #expect(CourseLivePlan.compactTime(end: course().end).count == 5)
     }
+    @Test func nextRoomHandoffWaitsForCurrentLessonToEnd() {
+        let current = course()
+        let next = CourseOccurrence(id: "b", courseID: "b", title: "实验", room: "B205",
+                                    start: current.end.addingTimeInterval(120), end: current.end.addingTimeInterval(2820))
+        let plan = CourseLivePlan.schedule(items: [next, current], now: current.start, lead: 10)
+        #expect(plan.map { $0.course.id } == ["a", "b"])
+        #expect(plan.last?.start == current.end)
+    }
     @Test func spriteRowsDoNotIncludeNextRowsHands() {
         let rect = CampusSpriteLayout.rect(index: 11, girl: true, width: 887, height: 1774)!
         #expect(rect.maxY <= 1288)

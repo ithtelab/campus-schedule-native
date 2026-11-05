@@ -3,6 +3,20 @@ import Testing
 @testable import ScheduleCore
 
 struct AppearancePreferencesTests {
+    @Test func remembersMonochromeTextureAfterSwitchingThemesAndRelaunching() throws {
+        var preferences = AppearancePreferences(theme: .chalkboard, effects: .staticOnly)
+        preferences.selectTheme(.blueStickers, isFamily: true)
+        let data = try JSONEncoder().encode(preferences)
+        var restored = try JSONDecoder().decode(AppearancePreferences.self, from: data)
+        restored.selectTheme(.paper, isFamily: true)
+        #expect(restored.theme == .chalkboard)
+        #expect(!restored.allowsCharacterInteraction)
+        restored.effects = .followSchedule
+        #expect(restored.allowsCharacterInteraction)
+        restored.density = .off
+        #expect(!restored.allowsCharacterInteraction)
+    }
+
     @Test func defaultsToStudentAndPaper() {
         let preferences = AppearancePreferences()
         #expect(preferences.theme == .paper)

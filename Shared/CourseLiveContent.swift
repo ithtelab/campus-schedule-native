@@ -40,7 +40,7 @@ struct CourseLiveCard: View {
                         CampusStickerStudent(frame: stale ? 3 : 0, wearsCap: stickerPersona != .boy)
                             .frame(width: 49, height: 76)
                     } else {
-                        CampusWidgetFigure()
+                        CampusWidgetFigure(persona: stickerPersona)
                     }
                 }
                 .frame(width: 52, height: 90)
@@ -103,7 +103,7 @@ struct CourseIslandExpanded: View {
                     if blueStickers {
                         CampusStickerStudent(frame: 0, wearsCap: stickerPersona != .boy)
                     } else {
-                        CampusWidgetFigure()
+                        CampusWidgetFigure(persona: stickerPersona)
                     }
                 }
                 .frame(width: 40, height: 66)
