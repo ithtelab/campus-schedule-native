@@ -3,6 +3,11 @@ import Testing
 @testable import ScheduleCore
 
 struct SystemPlanTests {
+    @Test func examRemindersAreRetainedWhenCourseQueueFills() {
+        let course = CourseReminder(date: now, id: "course.a", title: "课程", body: "")
+        let exam = CourseReminder(date: now.addingTimeInterval(86_400), id: "exam.a", title: "考试", body: "")
+        #expect(ReminderChanges.prioritized([course, exam], limit: 1) == [exam])
+    }
     @Test func reminderDiffKeepsUnchangedRequestsAndReplacesOnlyEditedOnes() {
         let unchanged = CourseReminder(date: now, id: "course.a", title: "课", body: "A101")
         let original = CourseReminder(date: now, id: "course.b", title: "课", body: "B101")

@@ -60,11 +60,12 @@ final class PreviewStore {
         var courses: [DemoCourse]
         var exceptions: [CourseException] = []
         var exams: [Exam] = []
+        var courseTasks: [CourseTask] = []
 
-        enum CodingKeys: String, CodingKey { case name, startDate, totalWeeks, periods, courses, exceptions, exams }
+        enum CodingKeys: String, CodingKey { case name, startDate, totalWeeks, periods, courses, exceptions, exams, courseTasks }
 
         init(name: String, startDate: Date, totalWeeks: Int, periods: [DemoPeriod],
-             courses: [DemoCourse], exceptions: [CourseException] = [], exams: [Exam] = []) {
+             courses: [DemoCourse], exceptions: [CourseException] = [], exams: [Exam] = [], courseTasks: [CourseTask] = []) {
             self.name = name
             self.startDate = startDate
             self.totalWeeks = totalWeeks
@@ -72,6 +73,7 @@ final class PreviewStore {
             self.courses = courses
             self.exceptions = exceptions
             self.exams = exams
+            self.courseTasks = courseTasks
         }
 
         // 考试字段是后加的，旧数据没有它，缺省为空以避免迁移失败。
@@ -84,6 +86,7 @@ final class PreviewStore {
             courses = try container.decode([DemoCourse].self, forKey: .courses)
             exceptions = try container.decodeIfPresent([CourseException].self, forKey: .exceptions) ?? []
             exams = try container.decodeIfPresent([Exam].self, forKey: .exams) ?? []
+            courseTasks = try container.decodeIfPresent([CourseTask].self, forKey: .courseTasks) ?? []
         }
     }
 
@@ -106,6 +109,10 @@ final class PreviewStore {
         guard !storageReadOnly else { errorMessage = storageIssue; return }
         guard var content = termContents[activeTermID] else { return }
         change(&content)
+        if !content.courseTasks.isEmpty {
+            let courseIDs = Set(content.courses.map(\.id))
+            content.courseTasks.removeAll { !courseIDs.contains($0.courseID) }
+        }
         termContents[activeTermID] = content
     }
 
@@ -138,6 +145,29 @@ final class PreviewStore {
     var exams: [Exam] {
         get { activeContent?.exams ?? [] }
         set { mutateActive { $0.exams = newValue } }
+    }
+
+    var courseTasks: [CourseTask] { activeContent?.courseTasks ?? [] }
+
+    func updateCourseTask(_ task: CourseTask, termID: String, deleting: Bool = false) -> Bool {
+        guard !storageReadOnly, termID == activeTermID, var content = activeContent,
+              content.courses.contains(where: { $0.id == task.courseID }), task.isValid else { return false }
+        content.courseTasks.removeAll { $0.id == task.id }
+        if !deleting { content.courseTasks.append(task) }
+        return commitBatch { termContents[termID] = content }
+    }
+
+    func updateExam(_ exam: Exam, termID: String, deleting: Bool = false) -> Bool {
+        guard !storageReadOnly, termID == activeTermID, var content = activeContent else { return false }
+        content.exams.removeAll { $0.id == exam.id }
+        if !deleting { content.exams.append(exam) }
+        return commitBatch { termContents[termID] = content }
+    }
+
+    func examSession(for target: ExamDeepLink.Target) -> ExamSession? {
+        let termID = target.termID ?? activeTermID
+        guard let exam = termContents[termID]?.exams.first(where: { $0.id == target.examID }) else { return nil }
+        return ExamSession(exam: exam, termID: termID)
     }
 
     /// 当前学期即将到来的考试。
@@ -361,7 +391,7 @@ final class PreviewStore {
             for (index, offset) in offsets.enumerated() {
                 let sample = samples[index]
                 let day = calendar.date(byAdding: .day, value: offset, to: base) ?? base
-                seeded.append(Exam(courseTitle: sample.0, date: day, startTime: sample.1,
+                seeded.append(Exam(id: "preview-exam-\(index)", courseTitle: sample.0, date: day, startTime: sample.1,
                                    endTime: sample.2, room: sample.3, seatNumber: sample.4))
             }
             exams = seeded
@@ -511,6 +541,7 @@ final class PreviewStore {
         return content.exceptions.allSatisfy { courseIDs.contains($0.courseID) }
             && Set(content.exams.map(\.id)).count == content.exams.count
             && content.exams.allSatisfy { ExamPlan.validate($0) == .valid }
+            && CourseTask.isValid(content.courseTasks, courseIDs: courseIDs)
     }
 
     func academicChangesRemovingCourses(periodCount: Int, weeks: Int) -> [String] {
@@ -539,6 +570,7 @@ final class PreviewStore {
         }
         let kept = Set(content.courses.map(\.id))
         content.exceptions = content.exceptions.filter { kept.contains($0.courseID) }.map { ArchiveMapping.shifted($0, days: offset) }
+        content.courseTasks.removeAll { !kept.contains($0.courseID) }
         guard !content.name.isEmpty, Self.isValid(content) else { errorMessage = "学期或作息数据不合法，未保存。"; return false }
         do { try backupBeforeReplacing() }
         catch { errorMessage = "无法保留修改前的副本，未保存：\(error.localizedDescription)"; return false }
@@ -788,6 +820,7 @@ final class PreviewStore {
         let snapshotTerm = activeTermID
         let snapshotLead = reminderMinutes
         let snapshotMilestones = milestones
+        let examsByTerm = termContents.mapValues(\.exams)
         let snapshotAppearance = appearance
         let courseRemindersEnabled = reminderPreview
         let endRemindersEnabled = endReminder
@@ -799,15 +832,20 @@ final class PreviewStore {
                 try Task.checkCancellation()
             } catch { return }
             do {
+                let now = Date()
+                let examSessions = examsByTerm.flatMap { termID, exams in
+                    exams.compactMap { ExamSession(exam: $0, termID: termID) }.filter { $0.end > now }
+                }
                 try SystemSnapshot.write(items, leadMinutes: snapshotLead, termID: snapshotTerm,
-                                         milestones: snapshotMilestones, appearance: snapshotAppearance)
+                                         milestones: snapshotMilestones, exams: examSessions, appearance: snapshotAppearance)
                 WidgetCenter.shared.reloadAllTimelines()
             } catch { errorMessage = error.localizedDescription }
             async let activities: Void = CourseLiveActivities.shared.reconcile(items: items, enabled: activitiesEnabled,
                 lead: snapshotLead, termID: snapshotTerm, appearance: snapshotAppearance)
             do {
                 try await CourseNotifications.shared.synchronize(courses: items, enabled: courseRemindersEnabled,
-                    lead: snapshotLead, endEnabled: endRemindersEnabled, endLead: endReminderLead, milestones: snapshotMilestones)
+                    lead: snapshotLead, endEnabled: endRemindersEnabled, endLead: endReminderLead,
+                    milestones: snapshotMilestones, examsByTerm: examsByTerm)
             } catch is CancellationError {} catch {
                 if !Task.isCancelled { errorMessage = error.localizedDescription }
             }
@@ -909,11 +947,13 @@ final class PreviewStore {
                     ArchivedException(id: change.id.uuidString, courseID: change.courseID, day: change.day,
                                       cancelled: change.cancelled, start: change.start, end: change.end, room: change.room)
                 },
-                exams: content.exams
+                exams: content.exams, courseTasks: content.courseTasks
             )
         }
-        return try ScheduleArchive(exportedAt: exportedAt, appVersion: Self.appVersion,
-                                   semesters: semesters, milestones: milestones).validated()
+        var archive = ScheduleArchive(exportedAt: exportedAt, appVersion: Self.appVersion,
+                                      semesters: semesters, milestones: milestones)
+        archive.schema = archive.requiredSchema
+        return try archive.validated()
     }
 
     static var appVersion: String? {
@@ -964,7 +1004,7 @@ final class PreviewStore {
                                     day: change.day, cancelled: change.cancelled,
                                     start: change.start, end: change.end, room: change.room)
                 },
-                exams: term.exams
+                exams: term.exams, courseTasks: term.courseTasks
             )
         }
 

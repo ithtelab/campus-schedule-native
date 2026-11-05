@@ -13,6 +13,26 @@ struct ExamPlanTests {
 
     // MARK: 时间
 
+    @Test func examRemindersUseTheScheduleClockAndSkipElapsedTimes() {
+        var exam = exam("高数", date(2026, 12, 20), "09:00", "11:00")
+        #expect(ExamPlan.reminders(for: exam, termID: "t", now: date(2026, 12, 18)).isEmpty)
+        exam.reminders = .init(dayBefore: true, beforeStart: true)
+        exam.room = "A302"; exam.seatNumber = "17"
+        let reminders = ExamPlan.reminders(for: exam, termID: "t", now: date(2026, 12, 18))
+        #expect(reminders.map(\.date) == [date(2026, 12, 19, 9), date(2026, 12, 20, 8, 30)])
+        #expect(reminders.allSatisfy { $0.body.contains("A302 · 座位 17") })
+        #expect(ExamPlan.reminders(for: exam, termID: "t", now: date(2026, 12, 19, 9)) == Array(reminders.suffix(1)))
+    }
+
+    @Test func widgetMovesToTheFollowingExamAtEndAndLinksToItsTerm() throws {
+        let first = try #require(ExamSession(exam: exam("高数", date(2026, 12, 20), "09:00", "11:00"), termID: "a"))
+        let later = try #require(ExamSession(exam: exam("英语", date(2026, 12, 20), "14:00", "16:00"), termID: "b"))
+        #expect(ExamPlan.nextSession([later, first], now: first.start) == first)
+        #expect(ExamPlan.nextSession([later, first], now: first.end) == later)
+        let url = try #require(ExamDeepLink.url(examID: later.id, termID: later.termID))
+        #expect(ExamDeepLink.target(url) == .init(examID: later.id, termID: later.termID))
+    }
+
     @Test func startDateCombinesDayAndTime() throws {
         let e = exam("高数", date(2026, 12, 20), "09:00", "11:00")
         let start = try #require(ExamPlan.startDate(e))

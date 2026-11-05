@@ -43,6 +43,7 @@ struct TodayView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         milestoneSummary.padding(.horizontal, 20).padding(.top, 4)
+                        dueTasks.padding(.horizontal, 20)
                         agenda.padding(.horizontal, 20).padding(.top, 18)
                         closingNote.padding(20)
                         Color.clear.frame(height: 20).id("agenda-end")
@@ -290,16 +291,19 @@ struct TodayView: View {
     /// 只在两周内出现，避免平时占地方；已经考完的不显示。
     @ViewBuilder private var examBanner: some View {
         let upcoming = ExamPlan.upcoming(store.exams, now: store.now)
-        if let next = upcoming.first,
+        if let next = upcoming.first, let session = ExamSession(exam: next, termID: store.activeTermID),
            let days = ExamPlan.daysUntilNext(store.exams, now: store.now),
            days <= 14 {
-            HStack(spacing: 10) {
+            NavigationLink {
+                ExamSessionView(session: session)
+            } label: {
+              HStack(spacing: 10) {
                 Image(systemName: "graduationcap.fill")
                     .font(.footnote)
                     .foregroundStyle(DesignSystem.accent)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(next.courseTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Text(examDetail(next, days: days))
+                    Text(examDetail(session))
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -307,7 +311,9 @@ struct TodayView: View {
                     .font(.caption.weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(DesignSystem.accent)
+              }
             }
+            .buttonStyle(.plain)
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -316,15 +322,45 @@ struct TodayView: View {
                 Rectangle().fill(DesignSystem.rule).frame(height: 0.5)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("考试提醒：\(next.courseTitle)，\(examDetail(next, days: days))")
+            .accessibilityLabel("考试提醒：\(next.courseTitle)，\(examDetail(session))")
         }
     }
 
-    private func examDetail(_ exam: Exam, days: Int) -> String {
-        let date = exam.date.formatted(.dateTime.month().day())
-        let place = exam.room.isEmpty ? "" : " · \(exam.room)"
-        let when = days == 0 ? "\(exam.startTime) 开考" : "\(date) \(exam.startTime)"
-        return when + place
+    private func examDetail(_ session: ExamSession) -> String {
+        let when = "\(session.dateLabel(relativeTo: store.now)) \(ScheduleRules.time(session.start))"
+        return session.location.isEmpty ? when : when + " · " + session.location
+    }
+
+    @ViewBuilder private var dueTasks: some View {
+        let tasks = CourseTask.dueSoon(store.courseTasks, now: store.now)
+        if !tasks.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("临近截止", systemImage: "checklist").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(tasks) { task in
+                    if let course = store.courses.first(where: { $0.id == task.courseID }), let due = task.due {
+                        Button { openCourse(course) } label: {
+                            HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(task.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                                    Text("\(course.title) · \(CourseTaskDueLabel.text(due, now: store.now))")
+                                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("today.course-task.\(task.title)")
+                    }
+                }
+            }
+            .padding(14)
+            .background(DesignSystem.surface, in: .rect(cornerRadius: 14))
+            .padding(.top, 8)
+        }
     }
 
     /// 列表收尾：三种状态各自说明今天的情况，并附本周与本月统计。

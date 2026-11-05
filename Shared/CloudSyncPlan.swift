@@ -37,6 +37,7 @@ public enum CloudSyncPlan {
         guard var archive = try? ScheduleArchive.decoded(from: data) else { return data }
         archive.exportedAt = Date(timeIntervalSince1970: 0)
         archive.appVersion = nil
+        archive.schema = archive.requiredSchema
         archive.semesters = archive.semesters.map { semester in
             var result = semester
             result.periods.sort { $0.index < $1.index }
@@ -44,6 +45,7 @@ public enum CloudSyncPlan {
                 .sorted { $0.id < $1.id }
             result.exceptions.sort { $0.id < $1.id }
             result.exams.sort { $0.id < $1.id }
+            result.courseTasks.sort { $0.id.uuidString < $1.id.uuidString }
             return result
         }.sorted { $0.id < $1.id }
         return (try? archive.encoded()) ?? data

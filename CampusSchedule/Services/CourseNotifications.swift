@@ -9,7 +9,7 @@ actor CourseNotifications {
     }
 
     func synchronize(courses: [CourseOccurrence], enabled: Bool, lead: Int, endEnabled: Bool, endLead: Int,
-                     milestones: [Milestone]) async throws {
+                     milestones: [Milestone], examsByTerm: [String: [Exam]]) async throws {
         try Task.checkCancellation()
         let previous = scheduledWork
         previous?.cancel()
@@ -24,7 +24,10 @@ actor CourseNotifications {
             let milestoneEvents = MilestoneReminderPlan.make(milestones, now: now).map { event in
                 CourseReminder(date: event.date, id: event.id, title: event.title, body: event.body)
             }
-            try await reconcile(events: courseEvents + milestoneEvents)
+            let examEvents = examsByTerm.flatMap { termID, exams in
+                exams.flatMap { ExamPlan.reminders(for: $0, termID: termID, now: now) }
+            }
+            try await reconcile(events: courseEvents + milestoneEvents + examEvents)
         }
         scheduledWork = work
         try await withTaskCancellationHandler {
@@ -40,11 +43,11 @@ actor CourseNotifications {
         let settings = await center.notificationSettings()
         try Task.checkCancellation()
         let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-        let managed = requests.filter { $0.identifier.hasPrefix("course.") || $0.identifier.hasPrefix("milestone.") }
+        let managed = requests.filter {
+            $0.identifier.hasPrefix("course.") || $0.identifier.hasPrefix("milestone.") || $0.identifier.hasPrefix("exam.")
+        }
         let limit = max(0, 64 - (requests.count - managed.count))
-        let desired = authorized ? Array(events.sorted {
-            $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date
-        }.prefix(limit)) : []
+        let desired = authorized ? ReminderChanges.prioritized(events, limit: limit) : []
         let pending = Dictionary(uniqueKeysWithValues: managed.map { request in
             let date = (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() ?? .distantPast
             return (request.identifier, CourseReminder(date: date, id: request.identifier,
@@ -62,7 +65,7 @@ actor CourseNotifications {
             content.body = event.body
             content.sound = .default
             content.userInfo = ["reminderID": event.id.hasPrefix("course.") ? String(event.id.dropFirst("course.".count)) : event.id]
-            let calendar = event.id.hasPrefix("course.") ? ScheduleRules.calendar : MilestoneCounter.calendar
+            let calendar = event.id.hasPrefix("milestone.") ? MilestoneCounter.calendar : ScheduleRules.calendar
             var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: event.date)
             components.timeZone = calendar.timeZone
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)

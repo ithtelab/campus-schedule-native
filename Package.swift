@@ -11,7 +11,7 @@ let package = Package(
             name: "ScheduleCore",
             path: "Shared",
             exclude: ["SystemSnapshot.swift", "WidgetContent.swift", "CampusIllustration.swift",
-                      "CourseLiveContent.swift", "CourseActivityIntents.swift"],
+                      "CourseLiveContent.swift", "CourseActivityIntents.swift", "ExamWidgetContent.swift"],
             resources: [.copy("schools.json")]
         ),
         .testTarget(name: "ScheduleCoreTests", dependencies: ["ScheduleCore"], path: "Tests")

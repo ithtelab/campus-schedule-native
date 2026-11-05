@@ -61,6 +61,7 @@ struct RootView: View {
     @State private var linkUnavailable = false
     /// 从组件点进来时要打开的纪念事件。nil 表示没有待处理的目标。
     @State private var milestoneLink: MilestoneLinkPayload?
+    @State private var examLink: ExamDeepLink.Target?
     enum Screen: String, CaseIterable, Identifiable {
         case today, week, settings
         var id: String { rawValue }
@@ -124,6 +125,13 @@ struct RootView: View {
         .onOpenURL { url in
             guard url.scheme == "campusschedule" else { return }
             linkedCourse = nil; linkedOccurrenceID = nil; linkUnavailable = false
+            if let target = ExamDeepLink.target(url) {
+                milestoneLink = nil
+                examLink = target
+                courseNavigationRevision += 1
+                return
+            }
+            examLink = nil
             // 纪念事件走独立入口：它不属于任何学期，也不在课表页。
             if let target = MilestoneDeepLink.target(url) {
                 milestoneLink = MilestoneLinkPayload(milestoneID: target.milestoneID)
@@ -156,6 +164,18 @@ struct RootView: View {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("完成") { milestoneLink = nil }
                     }
+                }
+            }
+            .environment(store)
+        }
+        .sheet(item: $examLink) { target in
+            NavigationStack {
+                Group {
+                    if let session = store.examSession(for: target) { ExamSessionView(session: session) }
+                    else { ExamListView() }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) { Button("完成") { examLink = nil } }
                 }
             }
             .environment(store)

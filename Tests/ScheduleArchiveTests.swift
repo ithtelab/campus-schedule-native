@@ -56,7 +56,7 @@ struct ScheduleArchiveTests {
     @Test func exportedJSONIsHumanReadable() throws {
         let data = try archive([semester()]).encoded()
         let text = try #require(String(data: data, encoding: .utf8))
-        #expect(text.contains("\"schema\" : 1"))
+        #expect(text.contains("\"schema\" : \(ScheduleArchive.currentSchema)"))
         #expect(text.contains("高等数学"))
         #expect(text.contains(".000Z"))          // ISO 8601 时间，而不是浮点时间戳
         #expect(!text.contains("756000000"))     // Date 的 timeIntervalSinceReferenceDate
@@ -74,6 +74,30 @@ struct ScheduleArchiveTests {
         """.data(using: .utf8))
         let decoded = try ScheduleArchive.decoded(from: data)
         #expect(decoded.courseCount == 1)
+        #expect(decoded.semesters[0].courseTasks.isEmpty)
+    }
+
+    @Test func taskAndExamReminderSurviveBackupAndSyncNormalization() throws {
+        var term = semester()
+        term.courseTasks = [CourseTask(courseID: "c1", title: "交作业", due: start)]
+        term.exams = [Exam(courseTitle: "高数", date: start, startTime: "09:00", endTime: "10:00",
+                           reminders: .init(dayBefore: true, beforeStart: false))]
+        let canonical = CloudSyncPlan.canonicalPayload(try archive([term]).encoded())
+        let restored = try ScheduleArchive.decoded(from: canonical)
+        #expect(restored.schema == 2)
+        #expect(restored.semesters[0] == term)
+
+        term.courseTasks.append(CourseTask(courseID: "removed", title: "旧作业"))
+        #expect(throws: ArchiveError.invalidCourseTasks(term.name)) { try archive([term]).validated() }
+    }
+
+    @Test func todayOnlyShowsThreeNearestIncompleteDatedTasks() {
+        let deadlines = [-2.0, -1.0, 1.0, 2.0, 8.0].map { day in
+            CourseTask(courseID: "c1", title: "作业 \(day)", due: start.addingTimeInterval(day * 86_400))
+        }
+        let finished = CourseTask(courseID: "c1", title: "已做完", due: start, isCompleted: true)
+        let undated = CourseTask(courseID: "c1", title: "带书")
+        #expect(CourseTask.dueSoon(Array(deadlines.reversed()) + [finished, undated], now: start) == Array(deadlines.prefix(3)))
     }
 
     // MARK: 版本

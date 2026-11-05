@@ -2,7 +2,12 @@
 set -euo pipefail
 bundle_id="${1:?Expected app bundle identifier}"
 
-if [[ "${CAMPUS_UI_FOCUS:-full}" == blue-stickers ]]; then
+if [[ "${CAMPUS_UI_FOCUS:-full}" == exam-tasks ]]; then
+  tests=(
+    -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testExamReminderOptionsAndReadOnlyDetails
+    -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testCourseTaskAppearsInTodayAndCanBeCompleted
+  )
+elif [[ "${CAMPUS_UI_FOCUS:-full}" == blue-stickers ]]; then
   xcrun simctl ui booted appearance light
   tests=(-only-testing:CampusCourseLinkUITests/CourseLinkUITests/testBlueStickersPreserveTodayLayout)
 elif [[ "${CAMPUS_UI_FOCUS:-full}" == appearance-check ]]; then
@@ -41,7 +46,11 @@ xcodebuild -project ios/CampusSchedule.xcodeproj -scheme CampusCourseLinks -conf
   -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath ios/build \
   -resultBundlePath build/course-links.xcresult -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO "${tests[@]}" test
 
-if [[ "${CAMPUS_UI_FOCUS:-full}" == appearance-check ]]; then
+if [[ "${CAMPUS_UI_FOCUS:-full}" == exam-tasks ]]; then
+  SIMCTL_CHILD_CAMPUS_WIDGET_PREVIEW=exam xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id"
+  sleep 3
+  xcrun simctl io "$simulator_id" screenshot screenshots/exam-widget-layout.png
+elif [[ "${CAMPUS_UI_FOCUS:-full}" == appearance-check ]]; then
   xcrun simctl launch --terminate-running-process "$simulator_id" "$bundle_id"
   for appearance in dark light; do
     xcrun simctl ui "$simulator_id" appearance "$appearance"

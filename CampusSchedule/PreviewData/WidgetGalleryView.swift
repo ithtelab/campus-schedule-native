@@ -5,6 +5,7 @@ import WidgetKit
 /// 仅供云端截图；直接复用扩展的内容视图，不模拟桌面或锁屏系统宿主。
 struct WidgetGalleryView: View {
     private var isLockScreen: Bool { ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] == "lock" }
+    private var isExam: Bool { ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] == "exam" }
     private let appearance = AppearancePreferences.simulatorPreview
     private var entry: ScheduleEntry {
         let day = ScheduleRules.calendar.date(from: DateComponents(year: 2026, month: 10, day: 26))!
@@ -22,7 +23,11 @@ struct WidgetGalleryView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     Text("原生内容布局预览 · 演示数据")
                         .font(.subheadline).foregroundStyle(.secondary)
-                    if isLockScreen {
+                    if isExam {
+                        section("小号", subtitle: "桌面考试组件") { examContent(.systemSmall, width: 164, height: 164) }
+                        section("中号", subtitle: "桌面考试组件") { examContent(.systemMedium, width: 344, height: 164) }
+                        section("矩形", subtitle: "锁屏考试组件") { examContent(.accessoryRectangular, width: 160, height: 76) }
+                    } else if isLockScreen {
                         section("矩形组件", subtitle: "课程、教室和上课时间") {
                             content(.accessoryRectangular, width: 160, height: 76)
                         }
@@ -46,7 +51,7 @@ struct WidgetGalleryView: View {
                 .padding(20)
             }
             .background(DesignSystem.background)
-            .navigationTitle(isLockScreen ? "锁屏组件预览" : "桌面组件预览")
+            .navigationTitle(isExam ? "考试组件预览" : isLockScreen ? "锁屏组件预览" : "桌面组件预览")
             .navigationBarTitleDisplayMode(.inline)
         }
         .environment(\.timeZone, ScheduleRules.calendar.timeZone)
@@ -64,6 +69,16 @@ struct WidgetGalleryView: View {
             .padding(family == .systemSmall || family == .systemMedium ? 16 : 8)
             .frame(width: width, height: height, alignment: .leading)
             .background(DesignSystem.surface, in: RoundedRectangle(cornerRadius: family == .systemSmall || family == .systemMedium ? 22 : 10))
+    }
+    private func examContent(_ family: WidgetFamily, width: CGFloat, height: CGFloat) -> some View {
+        let date = entry.date.addingTimeInterval(86_400)
+        let exam = Exam(courseTitle: "高等数学", date: date, startTime: "09:00", endTime: "11:00", room: "教学楼 A · 302", seatNumber: "17")
+        return ExamWidgetContent(family: family, session: ExamSession(exam: exam, termID: "preview-term"),
+                                 date: entry.date, appearance: appearance)
+            .environment(\.widgetRenderingMode, family == .accessoryRectangular ? .vibrant : .fullColor)
+            .padding(family == .accessoryRectangular ? 8 : 16)
+            .frame(width: width, height: height, alignment: .leading)
+            .background(DesignSystem.surface, in: .rect(cornerRadius: 16))
     }
 }
 #endif

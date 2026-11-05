@@ -2,6 +2,73 @@ import XCTest
 import UIKit
 
 final class CourseLinkUITests: XCTestCase {
+    @MainActor func testExamReminderOptionsAndReadOnlyDetails() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "settings", "CAMPUS_PREVIEW_SHEET": "exams"]
+        app.launch()
+
+        let exam = app.buttons["exam.row.preview-exam-0"]
+        XCTAssertTrue(exam.waitForExistence(timeout: 12))
+        exam.tap()
+        let save = app.buttons["保存"]
+        XCTAssertTrue(save.waitForExistence(timeout: 8))
+        for id in ["exam.reminder.day-before", "exam.reminder.before-start"] {
+            let option = app.switches[id]
+            reveal(option, in: app)
+            option.tap()
+            XCTAssertEqual(option.value as? String, "1")
+        }
+        capture(app, name: "exam-reminder-options")
+        save.tap()
+        XCTAssertTrue(exam.waitForExistence(timeout: 8))
+        exam.tap()
+        let reminder = app.switches["exam.reminder.before-start"]
+        reveal(reminder, in: app)
+        XCTAssertEqual(reminder.value as? String, "1")
+        app.buttons["取消"].tap()
+
+        app.open(try XCTUnwrap(URL(string: "campusschedule://exams?id=preview-exam-0&term=preview-term")))
+        confirmSystemOpenIfNeeded(app)
+        XCTAssertTrue(app.navigationBars["考试详情"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["A302"].exists)
+        XCTAssertTrue(app.staticTexts["17"].exists)
+        XCTAssertFalse(app.buttons["保存"].exists)
+        capture(app, name: "exam-read-only-details")
+    }
+
+    @MainActor func testCourseTaskAppearsInTodayAndCanBeCompleted() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "today", "CAMPUS_PREVIEW_SHEET": "detail"]
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["课程详情"].waitForExistence(timeout: 12))
+        let add = app.buttons["course-task.add"]
+        reveal(add, in: app)
+        add.tap()
+        let title = app.textFields["course-task.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 8))
+        title.tap()
+        title.typeText("Read chapter")
+        app.switches["course-task.has-due"].tap()
+        app.navigationBars["课程待办"].buttons["保存"].tap()
+
+        let detail = app.navigationBars["课程详情"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 8))
+        detail.buttons["完成"].tap()
+        let due = app.buttons["today.course-task.Read chapter"]
+        reveal(due, in: app)
+        capture(app, name: "today-due-course-task")
+        due.tap()
+        let toggle = app.buttons["course-task.toggle.Read chapter"]
+        reveal(toggle, in: app)
+        toggle.tap()
+        XCTAssertEqual(toggle.label, "将Read chapter标为未完成")
+        detail.buttons["完成"].tap()
+        XCTAssertFalse(due.exists)
+    }
+
     @MainActor func testWeekConflictOpensBothCourses() {
         continueAfterFailure = false
         let app = XCUIApplication()

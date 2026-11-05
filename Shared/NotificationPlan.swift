@@ -11,6 +11,15 @@ struct ReminderChanges {
     let obsolete: [String]
     let additions: [CourseReminder]
 
+    static func prioritized(_ events: [CourseReminder], limit: Int) -> [CourseReminder] {
+        Array(events.sorted {
+            let firstIsExam = $0.id.hasPrefix("exam.")
+            let secondIsExam = $1.id.hasPrefix("exam.")
+            if firstIsExam != secondIsExam { return firstIsExam }
+            return $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date
+        }.prefix(max(0, limit)))
+    }
+
     init(pending: [String: CourseReminder], desired: [CourseReminder]) {
         let ids = Set(desired.map(\.id))
         obsolete = pending.keys.filter { !ids.contains($0) }

@@ -12,10 +12,11 @@ public struct Exam: Codable, Equatable, Sendable, Identifiable {
     public var room: String
     public var seatNumber: String
     public var notes: String
+    public var reminders: ExamReminders?
 
     public init(id: String = UUID().uuidString, courseTitle: String, date: Date,
                 startTime: String, endTime: String, room: String = "",
-                seatNumber: String = "", notes: String = "") {
+                seatNumber: String = "", notes: String = "", reminders: ExamReminders? = nil) {
         self.id = id
         self.courseTitle = courseTitle
         self.date = date
@@ -24,10 +25,76 @@ public struct Exam: Codable, Equatable, Sendable, Identifiable {
         self.room = room
         self.seatNumber = seatNumber
         self.notes = notes
+        self.reminders = reminders
+    }
+}
+
+public struct ExamReminders: Codable, Equatable, Sendable {
+    public var dayBefore = false
+    public var beforeStart = false
+    var isEnabled: Bool { dayBefore || beforeStart }
+}
+
+/// The shared widget receives only the fields needed to show an exam and open it.
+struct ExamSession: Codable, Equatable, Sendable {
+    let id: String
+    let termID: String
+    let title: String
+    let start: Date
+    let end: Date
+    let room: String
+    let seat: String
+
+    init?(exam: Exam, termID: String) {
+        guard let start = ExamPlan.startDate(exam), let end = ExamPlan.endDate(exam), end > start else { return nil }
+        id = exam.id
+        self.termID = termID
+        title = exam.courseTitle
+        self.start = start
+        self.end = end
+        room = exam.room
+        seat = exam.seatNumber
+    }
+
+    var location: String {
+        [room, seat.isEmpty ? "" : "座位 \(seat)"].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    func dateLabel(relativeTo now: Date) -> String {
+        let calendar = ScheduleRules.calendar
+        let day = calendar.startOfDay(for: start)
+        let today = calendar.startOfDay(for: now)
+        if day == today { return "今天" }
+        if day == calendar.date(byAdding: .day, value: 1, to: today) { return "明天" }
+        return "\(calendar.component(.month, from: start))月\(calendar.component(.day, from: start))日"
     }
 }
 
 public enum ExamPlan {
+    static func nextSession(_ sessions: [ExamSession], now: Date) -> ExamSession? {
+        sessions.filter { $0.end > now }.min {
+            if $0.start != $1.start { return $0.start < $1.start }
+            if $0.termID != $1.termID { return $0.termID < $1.termID }
+            return $0.id < $1.id
+        }
+    }
+
+    static func reminders(for exam: Exam, termID: String, now: Date) -> [CourseReminder] {
+        guard let options = exam.reminders, options.isEnabled,
+              let session = ExamSession(exam: exam, termID: termID), session.start > now else { return [] }
+        let id = "exam.\(termID.utf8.count):\(termID).\(exam.id)"
+        let startText = "\(ScheduleRules.time(session.start)) 开考"
+        let details = session.location.isEmpty ? startText : "\(startText) · \(session.location)"
+        var result: [CourseReminder] = []
+        if options.dayBefore, let date = ScheduleRules.calendar.date(byAdding: .day, value: -1, to: session.start), date > now {
+            result.append(.init(date: date, id: id + ".day", title: "明天考试 · \(session.title)", body: details))
+        }
+        let beforeStart = session.start.addingTimeInterval(-30 * 60)
+        if options.beforeStart, beforeStart > now {
+            result.append(.init(date: beforeStart, id: id + ".soon", title: "30 分钟后开考 · \(session.title)", body: details))
+        }
+        return result
+    }
     /// 即将到来的考试，按开始时间从近到远。已结束的不返回。
     public static func upcoming(_ exams: [Exam], now: Date) -> [Exam] {
         exams.compactMap { exam -> (Exam, Date)? in

@@ -9,7 +9,7 @@ on:
       focus:
         description: 'Select the native screens and interactions to validate'
         type: choice
-        options: [full, course-links, campus-style, release-check, appearance-check, blue-stickers]
+        options: [full, course-links, campus-style, release-check, appearance-check, blue-stickers, exam-tasks]
         default: full
 
 permissions:

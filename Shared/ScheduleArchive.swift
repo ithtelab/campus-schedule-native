@@ -9,7 +9,7 @@ import Foundation
 /// 新文件也只是多填几个元素，不需要再升版本重新设计。
 public struct ScheduleArchive: Codable, Equatable {
     /// 当前写出的格式版本。读取时接受 1...currentSchema，超出范围明确报错而不是猜。
-    public static let currentSchema = 1
+    public static let currentSchema = 2
 
     public var schema: Int
     public var exportedAt: Date
@@ -18,6 +18,12 @@ public struct ScheduleArchive: Codable, Equatable {
     /// 纪念事件跨学期存在，因此挂在根上而不是某个学期里。
     /// 旧备份没有这个键，缺省为空数组即可读回。
     public var milestones: [Milestone]
+
+    var requiredSchema: Int {
+        semesters.contains { term in
+            !term.courseTasks.isEmpty || term.exams.contains { $0.reminders?.isEnabled == true }
+        } ? 2 : 1
+    }
 
     public init(schema: Int = ScheduleArchive.currentSchema, exportedAt: Date = Date(),
                 appVersion: String? = nil, semesters: [ArchivedSemester],
@@ -53,10 +59,11 @@ public struct ArchivedSemester: Codable, Equatable {
     public var exceptions: [ArchivedException]
     /// 较早的备份没有考试字段；解码时缺省为空数组，旧文件仍然可读。
     public var exams: [Exam]
+    public var courseTasks: [CourseTask]
 
     public init(id: String, name: String, startDate: Date, totalWeeks: Int,
                 periods: [ArchivedPeriod], courses: [ArchivedCourse], exceptions: [ArchivedException],
-                exams: [Exam] = []) {
+                exams: [Exam] = [], courseTasks: [CourseTask] = []) {
         self.id = id
         self.name = name
         self.startDate = startDate
@@ -65,10 +72,11 @@ public struct ArchivedSemester: Codable, Equatable {
         self.courses = courses
         self.exceptions = exceptions
         self.exams = exams
+        self.courseTasks = courseTasks
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, startDate, totalWeeks, periods, courses, exceptions, exams
+        case id, name, startDate, totalWeeks, periods, courses, exceptions, exams, courseTasks
     }
 
     public init(from decoder: any Decoder) throws {
@@ -81,6 +89,7 @@ public struct ArchivedSemester: Codable, Equatable {
         courses = try container.decode([ArchivedCourse].self, forKey: .courses)
         exceptions = try container.decode([ArchivedException].self, forKey: .exceptions)
         exams = try container.decodeIfPresent([Exam].self, forKey: .exams) ?? []
+        courseTasks = try container.decodeIfPresent([CourseTask].self, forKey: .courseTasks) ?? []
     }
 }
 
@@ -170,6 +179,7 @@ public enum ArchiveError: LocalizedError, Equatable {
     case exceptionWithoutCourse(String)
     case duplicateExamID(String)
     case invalidExam(String, String)
+    case invalidCourseTasks(String)
     case duplicateMilestoneID(String)
     case invalidMilestone(String, String)
 
@@ -211,6 +221,8 @@ public enum ArchiveError: LocalizedError, Equatable {
             "考试标识 \(id) 重复出现。"
         case .invalidExam(let id, let reason):
             "考试 \(id) 数据无效：\(reason)。"
+        case .invalidCourseTasks(let semester):
+            "「\(semester)」包含无效、重复或未关联课程的待办。"
         case .duplicateMilestoneID(let id):
             "纪念事件标识 \(id) 重复出现。"
         case .invalidMilestone(let id, let reason):
@@ -293,6 +305,9 @@ public extension ScheduleArchive {
                 case .malformedTime(let value): throw ArchiveError.invalidExam(exam.id, "时间「\(value)」格式不正确")
                 case .endBeforeStart: throw ArchiveError.invalidExam(exam.id, "结束时间早于开始时间")
                 }
+            }
+            guard CourseTask.isValid(semester.courseTasks, courseIDs: courseIDs) else {
+                throw ArchiveError.invalidCourseTasks(semester.name)
             }
         }
 

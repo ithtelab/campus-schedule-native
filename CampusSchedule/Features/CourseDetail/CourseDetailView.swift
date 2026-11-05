@@ -33,6 +33,7 @@ struct CourseDetailView: View {
                     LabeledContent("时间", value: "\(original.startTime)–\(original.endTime)")
                     LabeledContent("周次", value: original.weeks.sorted().map(String.init).joined(separator: "、"))
                 }
+                CourseTaskSection(courseID: original.id)
                 Section {
                     Button("编辑整门课程", systemImage: "pencil") { editing = true }
                     Button("单次停课或调课", systemImage: "calendar.badge.clock") { changing = true }
@@ -62,6 +63,10 @@ struct CourseDetailView: View {
                 Button("删除", role: .destructive) {
                     if store.deleteCourse(original.id) { dismiss() }
                     else { activityMessage = store.errorMessage ?? "未能删除课程。" }
+                }
+            } message: {
+                if store.courseTasks.contains(where: { $0.courseID == original.id }) {
+                    Text("这门课关联的待办也会一起删除。")
                 }
             }
         }
