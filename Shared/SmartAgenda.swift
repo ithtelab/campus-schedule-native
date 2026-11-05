@@ -137,11 +137,14 @@ public enum SmartAgenda {
     /// 纪念事件剩余三天内进入主位。
     public static let milestoneLeadDays = 3
 
-    public static func select(courses: [CourseOccurrence], exams: [ExamSession],
-                              tasks: [AgendaTask], milestones: [Milestone],
-                              now: Date, leadMinutes: Int,
-                              options: SmartAgendaOptions,
-                              calendar: Calendar = ScheduleRules.calendar) -> SmartAgendaSelection {
+    /// 这两个入口接收 `CourseOccurrence` / `ExamSession`，它们只在模块内可见，
+    /// 因此函数本身也保持 internal。App 与组件各自把 `Shared` 编进同一个模块，
+    /// 测试用 `@testable import`，都不需要 public。
+    static func select(courses: [CourseOccurrence], exams: [ExamSession],
+                       tasks: [AgendaTask], milestones: [Milestone],
+                       now: Date, leadMinutes: Int,
+                       options: SmartAgendaOptions,
+                       calendar: Calendar = ScheduleRules.calendar) -> SmartAgendaSelection {
         let candidates = buildCandidates(courses: courses, exams: exams, tasks: tasks,
                                          milestones: milestones, now: now,
                                          leadMinutes: leadMinutes, options: options,
@@ -163,13 +166,13 @@ public enum SmartAgenda {
     /// 覆盖：所有课程与考试的起止、开考前十分钟内的提醒阈值、待办的截止与
     /// 两小时阈值、纪念事件的日期切换、以及下一个零点。只保留未来且落在观察
     /// 窗口内的点，避免塞给系统几百个无意义的条目。
-    public static func switchDates(courses: [CourseOccurrence], exams: [ExamSession],
-                                   tasks: [AgendaTask], milestones: [Milestone],
-                                   now: Date, leadMinutes: Int,
-                                   options: SmartAgendaOptions,
-                                   horizonHours: Int = 48,
-                                   limit: Int = 20,
-                                   calendar: Calendar = ScheduleRules.calendar) -> [Date] {
+    static func switchDates(courses: [CourseOccurrence], exams: [ExamSession],
+                            tasks: [AgendaTask], milestones: [Milestone],
+                            now: Date, leadMinutes: Int,
+                            options: SmartAgendaOptions,
+                            horizonHours: Int = 48,
+                            limit: Int = 20,
+                            calendar: Calendar = ScheduleRules.calendar) -> [Date] {
         let horizon = now.addingTimeInterval(Double(horizonHours) * 3600)
         var dates: Set<Date> = [now]
 
