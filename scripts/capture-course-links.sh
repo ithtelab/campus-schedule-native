@@ -28,6 +28,9 @@ else
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testSystemCourseLinksShowReadOnlySession
     -only-testing:CampusCourseLinkUITests/CourseLinkUITests/testWeekConflictOpensBothCourses
   )
+fi
+
+if [[ "${CAMPUS_UI_FOCUS:-full}" =~ ^(full|course-links|exam-tasks)$ ]]; then
   SIMCTL_CHILD_CAMPUS_SMOKE_TEST=data-reliability xcrun simctl launch --terminate-running-process booted "$bundle_id"
   sleep 3
   data_path=$(xcrun simctl get_app_container booted "$bundle_id" data)

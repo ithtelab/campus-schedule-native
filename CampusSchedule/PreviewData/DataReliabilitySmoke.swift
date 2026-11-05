@@ -21,12 +21,23 @@ import Foundation
         check(store.applyImport([odd, even]) == 2, "separate week sets")
         check(store.courses.filter { $0.title == odd.title }.count == 2, "odd and even retained")
         let sourceTerm = store.activeTermID
+        let pending = CourseTask(courseID: course.id, title: "待完成")
+        var completed = CourseTask(courseID: course.id, title: "已完成")
+        completed.isCompleted = true
+        check(store.updateCourseTask(pending, termID: sourceTerm) && store.updateCourseTask(completed, termID: sourceTerm),
+              "save course tasks")
+        if var edited = store.course(withID: course.id, in: sourceTerm) {
+            edited.room = "再次换教室"
+            check(store.saveCourse(edited, replacingExisting: true), "edit course")
+            check(Set(store.courseTasks.map(\.id)) == [pending.id, completed.id], "edit preserves pending and completed tasks")
+            check(store.exceptions.contains { $0.id == exception.id }, "edit preserves exception")
+        } else { check(false, "editable course exists") }
         // Preview stores deliberately cannot export an archive. Compare the actual in-memory data instead.
         let navigationEncoder = JSONEncoder()
         navigationEncoder.outputFormatting = [.sortedKeys]
         let beforeOpening = try? navigationEncoder.encode(store.termContents)
         let linked = store.resolveCourseLink(.init(courseID: course.id, termID: sourceTerm))
-        check(linked?.id == course.id, "course link resolves existing course")
+        check(linked?.course.id == course.id && linked?.termID == sourceTerm, "course link resolves existing course")
         check(store.resolveCourseLink(.init(courseID: course.id, termID: "missing-term")) == nil,
               "stale semester link rejected")
         check(store.activeTermID == sourceTerm, "invalid link preserves semester")
