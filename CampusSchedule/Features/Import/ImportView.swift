@@ -8,11 +8,13 @@ import CoreFoundation
 struct ImportView: View {
     @Environment(PreviewStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    var showChangesOnOpen = false
 
     @State private var query = ""
     @State private var directory: SchoolDirectory?
     @State private var directoryError: String?
     @State private var importError: String?
+    @State private var selectedArchive: ArchiveFile?
     @State private var pastedText = ""
     @State private var showingPaste = false
     @State private var showingFile = false
@@ -23,6 +25,16 @@ struct ImportView: View {
     @State private var numbering: AcademicSystemProfile.WeekdayNumbering = .automatic
     @State private var refresh = AcademicRefreshService.shared
     @State private var reviewingChanges = false
+    @State private var openedChangesFromNotification = false
+
+    init(showChangesOnOpen: Bool = false) {
+        self.showChangesOnOpen = showChangesOnOpen
+    }
+
+    private struct ArchiveFile: Identifiable {
+        let id = UUID()
+        let archive: ScheduleArchive
+    }
 
     enum Mode: String, CaseIterable, Identifiable {
         case school = "学校"
@@ -63,14 +75,29 @@ struct ImportView: View {
                 AcademicLoginView(school: school)
             }
             .sheet(isPresented: $reviewingChanges) {
-                if let connection = refresh.connection { changesView(connection) }
+                AcademicChangesView(refresh: refresh)
+            }
+            .sheet(item: $selectedArchive) { file in
+                ImportArchiveReview(archive: file.archive) {
+                    try store.restore(from: file.archive)
+                    selectedArchive = nil
+                    dismiss()
+                }
             }
             .alert("未能导入课表", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
                 Button("好", role: .cancel) {}
             } message: { Text(importError ?? "") }
             .task {
                 loadDirectory()
-                if !store.isPreview { refresh.restore() }
+                if !store.isPreview {
+                    refresh.updateLocalTerms(store.terms)
+                    refresh.restore()
+                    if showChangesOnOpen, !openedChangesFromNotification, let connection = refresh.connection,
+                       !refresh.requiresReconnect(connection) {
+                        openedChangesFromNotification = true
+                        reviewingChanges = true
+                    }
+                }
             }
         }
     }
@@ -110,10 +137,18 @@ struct ImportView: View {
                     if connection.scope.usesHTTP {
                         LabeledContent("连接方式", value: "HTTP · 未加密")
                     }
-                    LabeledContent("绑定时学期", value: connection.term)
+                    let term = store.terms.first { $0.id == connection.termID }
+                    LabeledContent("绑定学期", value: term?.name ?? connection.term)
                     LabeledContent("最近成功检查") { Text(connection.checkedAt, format: .dateTime.month().day().hour().minute()) }
-                    if connection.needsLogin {
+                    if connection.needsLogin || refresh.requiresReconnect(connection) {
+                        if refresh.requiresReconnect(connection) {
+                            Text("学期设置已变化或这个连接缺少学期绑定。请确认当前学期，再重新提取课表。").font(.footnote)
+                        }
                         Button("重新登录", systemImage: "person.badge.key") {
+                            if let term, term.id != store.activeTermID {
+                                importError = "请先切换到「\(term.name)」再重新登录。"
+                                return
+                            }
                             selectedSchool = SchoolEntry(name: connection.school, url: connection.scope.entrance.absoluteString,
                                                          system: nil, confidence: 0)
                         }
@@ -121,7 +156,8 @@ struct ImportView: View {
                         Button("立即检查", systemImage: "arrow.clockwise") { Task { await refresh.check(force: true) } }
                             .disabled(refresh.busy)
                     }
-                    if !connection.diff.isEmpty {
+                    if !refresh.requiresReconnect(connection), !connection.diff.isEmpty
+                        || store.canUndoAcademicChanges(termID: connection.termID ?? "") {
                         Button("查看课表变更", systemImage: "list.bullet.rectangle") { reviewingChanges = true }
                     }
                     Button("关闭检查并清除会话", systemImage: "trash", role: .destructive) { refresh.disconnect() }
@@ -132,46 +168,6 @@ struct ImportView: View {
                 }
             } header: { Text("课表变更检查") }
             footer: { Text("系统允许时尝试后台检查，间隔至少 6 小时。查到差异会留在这里供核对。") }
-        }
-    }
-
-    private func changesView(_ connection: AcademicRefreshService.Connection) -> some View {
-        let diff = connection.diff
-        return NavigationStack {
-            List {
-                Section("教务来源") {
-                    LabeledContent("学校", value: connection.school)
-                    LabeledContent("绑定时学期", value: connection.term)
-                    Text("以下是两次教务页面之间的差异。请对照学校通知，确认调课或停课后，再调整本地课表。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                if !diff.appeared.isEmpty { changesSection("新页面出现的安排", courses: diff.appeared) }
-                if !diff.missing.isEmpty { changesSection("新页面未见的安排", courses: diff.missing) }
-                if diff.isEmpty { Text("当前没有待核对的变更。") }
-                if let message = refresh.message { Text(message).font(.footnote).foregroundStyle(.secondary) }
-                Button("已核对，使用这次页面作为基准") {
-                    refresh.markReviewed(id: connection.id, latest: connection.latest)
-                    if refresh.connection?.diff.isEmpty == true { reviewingChanges = false }
-                }
-                .disabled(refresh.busy || diff.isEmpty)
-            }
-            .navigationTitle("教务课表变更")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("完成") { reviewingChanges = false } } }
-        }
-    }
-
-    private func changesSection(_ title: String, courses: [ParsedCourse]) -> some View {
-        Section(title) {
-            ForEach(courses, id: \.self) { course in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(course.title).font(.headline)
-                    Text("周\(ImportPlanner.weekdayName(course.weekday)) 第 \(course.startPeriod)–\(course.endPeriod) 节 · \(course.room.isEmpty ? "教室待确认" : course.room)")
-                    Text(course.weeks.isEmpty ? "整学期" : "第 \(course.weeks.sorted().map(String.init).joined(separator: "、")) 周")
-                    if !course.teacher.isEmpty { Text(course.teacher) }
-                }
-                .font(.subheadline)
-            }
         }
     }
 
@@ -275,7 +271,12 @@ struct ImportView: View {
             let url = try result.get()
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            let data = try Data(contentsOf: url)
+            let data = try Data(contentsOf: url, options: .mappedIfSafe)
+            if let header = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+               header["schema"] != nil, header["semesters"] != nil {
+                selectedArchive = ArchiveFile(archive: try ScheduleArchive.decoded(from: data))
+                return
+            }
             // 国内教务系统常导出 GB18030，按 UTF-8 失败后尝试它，最后退回 Latin-1 保证能读。
             let gb18030 = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
                 CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))

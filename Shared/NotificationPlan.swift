@@ -5,6 +5,7 @@ struct CourseReminder: Equatable, Sendable {
     var id: String
     var title: String
     var body: String
+    var destination: URL? = nil
 }
 
 struct ReminderChanges {
@@ -13,11 +14,20 @@ struct ReminderChanges {
 
     static func prioritized(_ events: [CourseReminder], limit: Int) -> [CourseReminder] {
         Array(events.sorted {
+            if $0.date != $1.date { return $0.date < $1.date }
             let firstIsExam = $0.id.hasPrefix("exam.")
             let secondIsExam = $1.id.hasPrefix("exam.")
             if firstIsExam != secondIsExam { return firstIsExam }
-            return $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date
+            return $0.id < $1.id
         }.prefix(max(0, limit)))
+    }
+
+    static func refillDate(desired: [CourseReminder], availableCount: Int, now: Date) -> Date? {
+        guard availableCount > desired.count else { return nil }
+        let earliest = now.addingTimeInterval(5 * 60)
+        guard !desired.isEmpty else { return now.addingTimeInterval(6 * 3600) }
+        let slot = desired[(desired.count - 1) / 3].date.addingTimeInterval(60)
+        return max(earliest, slot)
     }
 
     init(pending: [String: CourseReminder], desired: [CourseReminder]) {
@@ -32,15 +42,17 @@ enum NotificationPlan {
                      endEnabled: Bool, endLead: Int, limit: Int = 60) -> [CourseReminder] {
         var events: [CourseReminder] = []
         for course in courses where course.remindersEnabled {
+            let key = course.termID.map { "\($0.utf8.count):\($0).\(course.id)" } ?? course.id
+            let destination = CourseDeepLink.url(courseID: course.courseID, termID: course.termID, occurrenceID: course.id)
             if enabled {
                 events.append(.init(date: course.start.addingTimeInterval(-Double(max(0, lead) * 60)),
-                    id: course.id + ".start", title: "即将上课 · " + course.title, body: course.room))
+                    id: key + ".start", title: "即将上课 · " + course.title, body: course.room, destination: destination))
             }
             if endEnabled {
                 let next = course.nextTitle.map { "下一节：\($0) · \(course.nextRoom ?? "地点待确认")" }
                 events.append(.init(date: course.end.addingTimeInterval(-Double(max(0, endLead) * 60)),
-                    id: course.id + ".end", title: endLead == 0 ? "下课了 · " + course.title : "即将下课 · " + course.title,
-                    body: next ?? "本次课程即将结束"))
+                    id: key + ".end", title: endLead == 0 ? "下课了 · " + course.title : "即将下课 · " + course.title,
+                    body: next ?? (endLead == 0 ? "本次课程已结束" : "本次课程即将结束"), destination: destination))
             }
         }
         return Array(events.filter { $0.date > now }.sorted {

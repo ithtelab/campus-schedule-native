@@ -86,6 +86,8 @@ struct ExamListView: View {
             Spacer()
             if finished {
                 Text("已考").font(.caption2).foregroundStyle(.tertiary)
+            } else if let start = ExamPlan.startDate(exam), start <= store.now {
+                Text("考试中").font(.caption.weight(.medium)).foregroundStyle(DesignSystem.accent)
             } else if let days = ExamPlan.daysUntilNext([exam], now: store.now) {
                 Text(days == 0 ? "今天" : "\(days) 天")
                     .font(.caption.weight(.medium))

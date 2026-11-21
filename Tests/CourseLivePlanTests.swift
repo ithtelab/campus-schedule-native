@@ -26,6 +26,22 @@ import Testing
         #expect(plan.map { $0.course.id } == ["a", "b"])
         #expect(plan.last?.start == current.end)
     }
+    @Test func plansThirdClassAndTomorrowWithoutStartingAnOverlap() {
+        let calendar = ScheduleRules.calendar
+        let today = calendar.startOfDay(for: start)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        let hours = [8, 10, 10, 14]
+        var items = hours.enumerated().map { index, hour in
+            let time = today.addingTimeInterval(Double(hour) * 3600)
+            return CourseOccurrence(id: "c\(index)", courseID: "c\(index)", title: "课", room: "A302",
+                                    start: time, end: time.addingTimeInterval(3600))
+        }
+        let nextDay = tomorrow.addingTimeInterval(8 * 3600)
+        items.append(.init(id: "tomorrow", courseID: "tomorrow", title: "课", room: "B201",
+                           start: nextDay, end: nextDay.addingTimeInterval(3600)))
+        let plan = CourseLivePlan.schedule(items: Array(items.reversed()), now: today, lead: 10)
+        #expect(plan.map { $0.course.id } == ["c0", "c1", "c3", "tomorrow"])
+    }
     @Test func spriteRowsDoNotIncludeNextRowsHands() {
         let rect = CampusSpriteLayout.rect(index: 11, girl: true, width: 887, height: 1774)!
         #expect(rect.maxY <= 1288)

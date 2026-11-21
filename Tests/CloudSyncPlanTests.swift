@@ -88,19 +88,36 @@ struct CloudSyncPlanTests {
 
     // MARK: 体积
 
-    @Test func acceptsPayloadAtLimit() throws {
-        let ok = StampedPayload(updatedAt: now, deviceID: "d",
-                                payload: Data(count: CloudSyncPlan.maximumPayloadBytes))
-        try CloudSyncPlan.validateSize(ok)
+    @Test func acceptsEncodedPayloadBelowLimit() throws {
+        let ok = StampedPayload(updatedAt: now, deviceID: "d", payload: Data(count: 640_000))
+        let encoded = try CloudSyncPlan.storageData(ok)
+        #expect(encoded.count > ok.payload.count)
+        #expect(encoded.count < CloudSyncPlan.maximumPayloadBytes)
     }
 
-    @Test func rejectsPayloadAboveLimit() {
+    @Test func rejectsPayloadWhenBase64MakesStorageTooLarge() throws {
         let tooBig = StampedPayload(updatedAt: now, deviceID: "d",
-                                    payload: Data(count: CloudSyncPlan.maximumPayloadBytes + 1))
-        #expect(throws: CloudSyncError.payloadTooLarge(CloudSyncPlan.maximumPayloadBytes + 1,
-                                                       CloudSyncPlan.maximumPayloadBytes)) {
-            try CloudSyncPlan.validateSize(tooBig)
+                                    payload: Data(count: CloudSyncPlan.maximumPayloadBytes - 1))
+        let encodedSize = try JSONEncoder().encode(tooBig).count
+        #expect(throws: CloudSyncError.payloadTooLarge(encodedSize, CloudSyncPlan.maximumPayloadBytes)) {
+            try CloudSyncPlan.storageData(tooBig)
         }
+    }
+
+    @Test func deletionPausesBothBeforeAndAfterAnotherDeviceUploads() throws {
+        let marker = StampedPayload(updatedAt: now, deviceID: "other", payload: Data(), deletionGeneration: "cleared")
+        let encoded = try CloudSyncPlan.storageData(marker)
+        let restored = try JSONDecoder().decode(StampedPayload.self, from: encoded)
+        #expect(restored.isDeletion)
+        #expect(!CloudSyncPlan.canUseRemote(restored, acceptedGeneration: nil))
+        #expect(CloudSyncPlan.canUseRemote(restored, acceptedGeneration: "cleared"))
+
+        let newCopy = StampedPayload(updatedAt: now, deviceID: "other", payload: Data([1]), deletionGeneration: "cleared")
+        #expect(!newCopy.isDeletion)
+        #expect(!CloudSyncPlan.canUseRemote(newCopy, acceptedGeneration: "previous"))
+        #expect(CloudSyncPlan.canUseRemote(newCopy, acceptedGeneration: "cleared"))
+        let staleQueuedWrite = StampedPayload(updatedAt: now, deviceID: "offline", payload: Data([1]))
+        #expect(!CloudSyncPlan.canUseRemote(staleQueuedWrite, acceptedGeneration: nil, deletionGeneration: "cleared"))
     }
 
     @Test func errorMessageMentionsSizes() {

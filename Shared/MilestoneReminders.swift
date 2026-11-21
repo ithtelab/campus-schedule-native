@@ -5,6 +5,7 @@ import Foundation
 /// 与课程提醒分开：课程提醒按上课时间逐次生成，纪念事件只有「某天早上」一个点，
 /// 并且每年重复的事件每次只需排最近的一次，跨年后再由应用重新排。
 public struct MilestoneReminder: Equatable, Sendable {
+    public var milestoneID: String
     public var date: Date
     public var id: String
     public var title: String
@@ -41,13 +42,13 @@ public enum MilestoneReminderPlan {
                let at = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: lead),
                at > now {
                 events.append(MilestoneReminder(
-                    date: at, id: "milestone.\(milestone.id).lead",
+                    milestoneID: milestone.id, date: at, id: "milestone.\(milestone.id).lead",
                     title: "还有 \(milestone.reminderDaysBefore) 天 · \(milestone.title)",
                     body: "\(dateText(reading.effectiveDate, calendar: calendar)) 就是这一天。"))
             }
             if let at = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day), at > now {
                 events.append(MilestoneReminder(
-                    date: at, id: "milestone.\(milestone.id).today",
+                    milestoneID: milestone.id, date: at, id: "milestone.\(milestone.id).today",
                     title: "就是今天 · \(milestone.title)",
                     body: milestone.direction == .countUp ? "从今天开始累计。" : "别忘了今天。"))
             }

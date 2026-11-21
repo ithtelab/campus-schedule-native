@@ -8,6 +8,7 @@ import Foundation
 /// `semesters` 是数组，即使当前只写一个学期：多学期功能上线后，旧文件仍然有效，
 /// 新文件也只是多填几个元素，不需要再升版本重新设计。
 public struct ScheduleArchive: Codable, Equatable {
+    static let maximumSemesters = 40
     /// 当前写出的格式版本。读取时接受 1...currentSchema，超出范围明确报错而不是猜。
     public static let currentSchema = 2
 
@@ -239,7 +240,7 @@ public extension ScheduleArchive {
         }
         guard !semesters.isEmpty else { throw ArchiveError.emptySemesterList }
         // 上限按「一个人在校期间可能保留的学期数」放宽，同时避免恶意文件撑爆内存。
-        guard semesters.count <= 40 else { throw ArchiveError.tooManySemesters(semesters.count) }
+        guard semesters.count <= Self.maximumSemesters else { throw ArchiveError.tooManySemesters(semesters.count) }
 
         var semesterIDs = Set<String>()
         for semester in semesters {

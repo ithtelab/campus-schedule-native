@@ -37,7 +37,9 @@ struct ScheduleWidgetContent: View {
             if let next {
                 switch family {
                 case .accessoryInline:
-                    let text = "\(dayLabel(next.start)) \(ScheduleRules.time(next.start)) \(next.title)"
+                    let time = next.start <= entry.date ? "\(ScheduleRules.time(next.end)) 下课"
+                        : "\(dayLabel(next.start)) \(ScheduleRules.time(next.start))"
+                    let text = "\(time) \(next.title)"
                     if entry.appearance.showsBlueStickers {
                         Label(text, systemImage: "paperplane.fill")
                     } else {
@@ -48,7 +50,9 @@ struct ScheduleWidgetContent: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(next.title).font(.headline).lineLimit(1)
                             Text(next.room).font(.caption).lineLimit(1)
-                            Text("\(ScheduleRules.time(next.start))–\(ScheduleRules.time(next.end))").font(.caption2.monospacedDigit()).lineLimit(1)
+                            Text(next.start <= entry.date ? "\(ScheduleRules.time(next.end)) 下课"
+                                 : "\(dayLabel(next.start)) \(ScheduleRules.time(next.start)) 上课")
+                                .font(.caption2.monospacedDigit()).lineLimit(1)
                         }.frame(maxWidth: .infinity, alignment: .leading)
                         accessoryArt
                     }
@@ -80,6 +84,7 @@ struct ScheduleWidgetContent: View {
                 }
             }
         }
+        .privacySensitive()
     }
     private func primaryCourse(_ course: CourseOccurrence, medium: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {

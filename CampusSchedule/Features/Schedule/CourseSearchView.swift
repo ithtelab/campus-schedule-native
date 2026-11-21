@@ -5,7 +5,7 @@ struct CourseSearchView: View {
     @Environment(PreviewStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
-    @State private var selectedHit: CourseSearch.Hit?
+    @State private var selectedVariant: CourseSearch.Variant?
 
     private var searchable: [SearchableCourse] {
         store.courses.map {
@@ -27,9 +27,21 @@ struct CourseSearchView: View {
                 } else if hits.isEmpty {
                     ContentUnavailableView.search(text: query)
                 } else {
-                    List(hits) { hit in
-                        Button { selectedHit = hit } label: { row(hit) }
-                            .buttonStyle(.plain)
+                    List {
+                        ForEach(hits) { hit in
+                            Section {
+                                ForEach(hit.variants) { variant in
+                                    Button { selectedVariant = variant } label: { row(variant) }
+                                        .buttonStyle(.plain)
+                                }
+                            } header: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(hit.title).font(.headline).foregroundStyle(.primary)
+                                    let description = [hit.teacher, hit.room].filter { !$0.isEmpty }.joined(separator: " · ")
+                                    if !description.isEmpty { Text(description).font(.caption) }
+                                }
+                            }
+                        }
                     }
                     .listStyle(.plain)
                 }
@@ -40,32 +52,23 @@ struct CourseSearchView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("完成") { dismiss() } }
             }
-            .sheet(item: $selectedHit) { hit in
-                if let course = store.courses.first(where: { $0.id == hit.courseID }) {
-                    CourseDetailView(course: course)
+            .sheet(item: $selectedVariant) { variant in
+                let termID = store.activeTermID
+                if let course = store.course(withID: variant.id, in: termID) {
+                    CourseDetailView(course: course, linkedTermID: termID)
+                } else {
+                    ContentUnavailableView("课程已更新", systemImage: "calendar.badge.exclamationmark")
                 }
             }
         }
     }
 
-    private func row(_ hit: CourseSearch.Hit) -> some View {
+    private func row(_ variant: CourseSearch.Variant) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(hit.title).font(.body.weight(.medium)).lineLimit(1)
-                Spacer(minLength: 0)
-                Text(hit.weeksText).font(.caption2).foregroundStyle(.secondary)
-            }
-            if !hit.teacher.isEmpty {
-                Text(hit.teacher).font(.caption).foregroundStyle(.secondary)
-            }
-            // 同一门课可能在不同天上课，全部列出。
-            Text(hit.slots.joined(separator: " · "))
-                .font(.caption).foregroundStyle(.secondary).lineLimit(2)
-            if !hit.room.isEmpty {
-                Text(hit.room).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
-            }
+            Text(variant.slot).foregroundStyle(.primary)
+            Text(variant.weeksText).font(.caption).foregroundStyle(.secondary)
         }
-        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .contentShape(Rectangle())
     }
 }

@@ -7,6 +7,7 @@ struct TermListView: View {
     @State private var renaming: TermSummary?
     @State private var renameText = ""
     @State private var pendingDeletion: TermSummary?
+    @State private var creationError: String?
 
     var body: some View {
         NavigationStack {
@@ -69,8 +70,11 @@ struct TermListView: View {
                 }
                 Button("取消", role: .cancel) { pendingDeletion = nil }
             } message: { term in
-                Text("该学期的课程、作息与调课记录都会被删除，且无法撤销。建议先导出备份。")
+                Text("将删除该学期的课程、作息、调停课、考试和待办。删除前会备份，可从设置里的「备份记录与学期恢复」恢复。")
             }
+            .alert("未能新建学期", isPresented: Binding(get: { creationError != nil }, set: { if !$0 { creationError = nil } })) {
+                Button("好", role: .cancel) {}
+            } message: { Text(creationError ?? "") }
         }
     }
 
@@ -91,12 +95,18 @@ struct TermListView: View {
     private func dateRange(_ term: TermSummary) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.timeZone = ScheduleRules.calendar.timeZone
         formatter.dateFormat = "yyyy.MM.dd"
         return "\(formatter.string(from: term.startDate)) – \(formatter.string(from: term.endDate)) · \(term.totalWeeks) 周"
     }
 
     private func createTerm() {
+        let previous = store.activeTermID
         let id = store.addTerm()
+        guard id != previous else {
+            creationError = store.errorMessage ?? "请稍后再试。"
+            return
+        }
         store.selectTerm(id)
         if let created = store.terms.first(where: { $0.id == id }) {
             renameText = created.name

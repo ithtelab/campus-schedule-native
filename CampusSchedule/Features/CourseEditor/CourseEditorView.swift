@@ -12,13 +12,26 @@ struct CourseEditorView: View {
     @State private var color = CourseColor.blue
     @State private var frequency = "每周"
     @State private var customWeeks: Set<Int> = [8]
+    @State private var makeupDate = Date()
+    @State private var formTermID: String?
     @State private var saveError: String?
     var editing: DemoCourse? = nil
     var template: DemoCourse? = nil
+    var targetTermID: String? = nil
     private let weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
+    private var selectedTermID: String { formTermID ?? targetTermID ?? store.activeTermID }
+    private var term: TermSummary? { store.terms.first { $0.id == selectedTermID } }
+    private var periods: [DemoPeriod] { store.periods(in: selectedTermID) }
+    private var totalWeeks: Int { term?.totalWeeks ?? 1 }
+    private var makeupWeekday: Int { (ScheduleRules.calendar.component(.weekday, from: makeupDate) + 5) % 7 }
+
     private var weeks: Set<Int> {
-        let all = Set(1...store.totalWeeks)
+        if template != nil, let term {
+            guard term.contains(makeupDate) else { return [] }
+            return [ScheduleRules.week(on: makeupDate, semesterStart: term.startDate)]
+        }
+        let all = Set(1...totalWeeks)
         switch frequency {
         case "单周": return all.filter { $0 % 2 == 1 }
         case "双周": return all.filter { $0 % 2 == 0 }
@@ -28,7 +41,12 @@ struct CourseEditorView: View {
     }
 
     private var conflict: Bool {
-        store.courses.contains { course in
+        if template != nil, let selectedPeriods,
+           let start = ScheduleRules.date(day: makeupDate, time: selectedPeriods.start.start),
+           let end = ScheduleRules.date(day: makeupDate, time: selectedPeriods.end.end) {
+            return store.occurrences(in: selectedTermID).contains { $0.start < end && $0.end > start }
+        }
+        return store.courses(in: selectedTermID).contains { course in
             guard course.id != editing?.id, course.weekday == weekday else { return false }
             let sharedWeeks = course.weeks.intersection(weeks)
             let overlapStart = max(startPeriod, course.startPeriod)
@@ -41,9 +59,9 @@ struct CourseEditorView: View {
     }
 
     private var selectedPeriods: (start: DemoPeriod, end: DemoPeriod)? {
-        guard store.periods.indices.contains(startPeriod - 1),
-              store.periods.indices.contains(endPeriod - 1), startPeriod <= endPeriod else { return nil }
-        return (store.periods[startPeriod - 1], store.periods[endPeriod - 1])
+        guard periods.indices.contains(startPeriod - 1),
+              periods.indices.contains(endPeriod - 1), startPeriod <= endPeriod else { return nil }
+        return (periods[startPeriod - 1], periods[endPeriod - 1])
     }
 
     var body: some View {
@@ -56,14 +74,21 @@ struct CourseEditorView: View {
                 } header: { Text("课程信息") }
 
                 Section("上课时间") {
-                    Picker("星期", selection: $weekday) {
-                        ForEach(0..<7, id: \.self) { Text(weekdays[$0]).tag($0) }
+                    if template != nil, let term {
+                        let date = Binding(get: { min(term.endDate, max(term.startDate, makeupDate)) },
+                                           set: { makeupDate = $0 })
+                        DatePicker("补课日期", selection: date, in: term.startDate...term.endDate,
+                                   displayedComponents: .date)
+                    } else {
+                        Picker("星期", selection: $weekday) {
+                            ForEach(0..<7, id: \.self) { Text(weekdays[$0]).tag($0) }
+                        }
                     }
                     Picker("开始节次", selection: $startPeriod) {
-                        ForEach(1...max(1, store.periods.count), id: \.self) { Text("第 \($0) 节").tag($0) }
+                        ForEach(1...max(1, periods.count), id: \.self) { Text("第 \($0) 节").tag($0) }
                     }
                     Picker("结束节次", selection: $endPeriod) {
-                        ForEach(startPeriod...max(startPeriod, store.periods.count), id: \.self) { Text("第 \($0) 节").tag($0) }
+                        ForEach(startPeriod...max(startPeriod, periods.count), id: \.self) { Text("第 \($0) 节").tag($0) }
                     }
                     if let selectedPeriods {
                         LabeledContent("对应时间", value: "\(selectedPeriods.start.start)–\(selectedPeriods.end.end)")
@@ -99,51 +124,55 @@ struct CourseEditorView: View {
                 }
                 header: { Text("外观") }
 
-                Section {
-                    Picker("重复", selection: $frequency) {
-                        ForEach(["每周", "单周", "双周", "指定"], id: \.self) { Text($0).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    if frequency == "指定" {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 10) {
-                            ForEach(1...store.totalWeeks, id: \.self) { week in
-                                Button {
-                                    if customWeeks.contains(week) { customWeeks.remove(week) }
-                                    else { customWeeks.insert(week) }
-                                } label: {
-                                    Text("\(week)").font(.subheadline.monospacedDigit())
-                                        .foregroundStyle(customWeeks.contains(week) ? DesignSystem.accent : Color.primary)
-                                        .frame(maxWidth: .infinity).padding(.vertical, 9)
-                                        .background(customWeeks.contains(week) ? DesignSystem.accent.opacity(0.15) : Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                if template == nil {
+                    Section {
+                        Picker("重复", selection: $frequency) {
+                            ForEach(["每周", "单周", "双周", "指定"], id: \.self) { Text($0).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        if frequency == "指定" {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 10) {
+                                ForEach(1...totalWeeks, id: \.self) { week in
+                                    Button {
+                                        if customWeeks.contains(week) { customWeeks.remove(week) }
+                                        else { customWeeks.insert(week) }
+                                    } label: {
+                                        Text("\(week)").font(.subheadline.monospacedDigit())
+                                            .foregroundStyle(customWeeks.contains(week) ? DesignSystem.accent : Color.primary)
+                                            .frame(maxWidth: .infinity).padding(.vertical, 9)
+                                            .background(customWeeks.contains(week) ? DesignSystem.accent.opacity(0.15) : Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("第 \(week) 周")
+                                    .accessibilityAddTraits(customWeeks.contains(week) ? [.isSelected] : [])
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("第 \(week) 周")
-                                .accessibilityAddTraits(customWeeks.contains(week) ? [.isSelected] : [])
                             }
                         }
-                    }
-                } header: { Text("上课周次") }
-                footer: { Text("已选择 \(weeks.count) 个教学周。指定周次适合短学期课程或集中授课。") }
+                    } header: { Text("上课周次") }
+                    footer: { Text("已选择 \(weeks.count) 个教学周。指定周次适合短学期课程或集中授课。") }
+                }
 
                 if conflict {
                     Section { Label("与已有课程时间重叠，请调整时间或周次", systemImage: "exclamationmark.circle").foregroundStyle(.primary) }
                 }
             }
-            .navigationTitle(editing == nil ? "添加课程" : "编辑课程").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(template != nil ? "添加一次补课" : editing == nil ? "添加课程" : "编辑课程").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editing == nil ? "添加" : "保存") { addCourse() }
                         .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                  || weeks.isEmpty || conflict || selectedPeriods == nil)
+                                  || term == nil || store.storageReadOnly || weeks.isEmpty || conflict || selectedPeriods == nil)
                 }
             }
             .onChange(of: startPeriod) { _, value in endPeriod = max(endPeriod, value) }
             .task {
+                guard formTermID == nil else { return }
+                formTermID = selectedTermID
                 if let template {
                     title = template.title; room = template.room; teacher = template.teacher
                     startPeriod = template.startPeriod; endPeriod = template.endPeriod; color = template.color
-                    frequency = "指定"; customWeeks = [min(store.totalWeeks, max(1, store.currentWeek))]
+                    if let term { makeupDate = min(term.endDate, max(term.startDate, store.now)) }
                 }
                 if let editing {
                     title = editing.title; room = editing.room; teacher = editing.teacher; weekday = editing.weekday
@@ -156,10 +185,10 @@ struct CourseEditorView: View {
                 // 新建课程按已用颜色轮换，避免所有新课程都是同一种颜色。
                 if editing == nil && template == nil {
                     let palette = CourseColor.allCases
-                    color = palette[store.courses.count % palette.count]
+                    color = palette[store.courses(in: selectedTermID).count % palette.count]
                 }
-                startPeriod = min(startPeriod, store.periods.count)
-                endPeriod = min(endPeriod, store.periods.count)
+                startPeriod = min(startPeriod, max(1, periods.count))
+                endPeriod = min(endPeriod, max(1, periods.count))
             }
             .alert("未能保存课程", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
                 Button("好", role: .cancel) {}
@@ -173,11 +202,11 @@ struct CourseEditorView: View {
         let value = DemoCourse(
             id: editing?.id ?? UUID().uuidString, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             room: room.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "地点待定" : room,
-            teacher: teacher.isEmpty ? "教师待定" : teacher, weekday: weekday,
+            teacher: teacher.isEmpty ? "教师待定" : teacher, weekday: template == nil ? weekday : makeupWeekday,
             startPeriod: startPeriod, endPeriod: endPeriod,
             startTime: selectedPeriods.start.start, endTime: selectedPeriods.end.end,
             color: color, weeks: weeks)
-        if store.saveCourse(value, replacingExisting: editing != nil) { dismiss() }
+        if store.saveCourse(value, replacingExisting: editing != nil, termID: selectedTermID) { dismiss() }
         else { saveError = store.errorMessage ?? "请检查学期和课程设置后重试。" }
     }
 }

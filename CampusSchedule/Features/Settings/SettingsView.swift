@@ -31,6 +31,8 @@ enum SettingsRoute: Hashable {
     case milestones
     case appearance
     case about
+    case calendarExport
+    case backupHistory
 }
 
 /// 上课提醒的提前量。用枚举而不是内联数组：`Picker` 里的 `ForEach([Int])`
@@ -54,6 +56,7 @@ enum EndReminderLead: Int, CaseIterable {
 
 struct SettingsView: View {
     @Environment(PreviewStore.self) private var store
+    @Environment(\.scenePhase) private var phase
     @Binding var appearance: AppAppearance
     @State private var showingAcademicSettings = false
     @State private var showingTermList = false
@@ -67,6 +70,9 @@ struct SettingsView: View {
     @State private var showingRestorePrompt = false
     @State private var confirmingCloudDeletion = false
     @State private var showingCloudConflict = false
+    @State private var notificationStatus: CourseNotifications.Status?
+    @State private var notificationActionInProgress = false
+    @State private var notificationFeedback: String?
     var body: some View {
         @Bindable var settings = store
         NavigationStack(path: $path) {
@@ -80,6 +86,7 @@ struct SettingsView: View {
                     Button("导入课表", systemImage: "square.and.arrow.down.on.square") { showingImport = true }
                     NavigationLink("考试安排", value: SettingsRoute.exams)
                     NavigationLink("纪念事件", value: SettingsRoute.milestones)
+                    NavigationLink("导出到日历", value: SettingsRoute.calendarExport)
                 }
                 Section {
                     Toggle("上课提醒", isOn: $settings.reminderPreview).tint(DesignSystem.switchTint)
@@ -96,11 +103,12 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    notificationDetails
                 } header: { Text("提醒") }
                 Section {
                     Toggle("课程实时活动", isOn: $settings.liveEnabled).tint(DesignSystem.switchTint)
                 } header: { Text("锁屏与灵动岛") }
-                footer: { Text("在锁屏与灵动岛查看课程安排。") }
+                footer: { Text("在锁屏与灵动岛查看课程安排。后台显示和移除时间由 iOS 调度。") }
                 Section("外观") {
                     Picker("显示模式", selection: $appearance) {
                         ForEach(AppAppearance.allCases) { mode in
@@ -137,6 +145,7 @@ struct SettingsView: View {
                     Button("从备份恢复", systemImage: "square.and.arrow.down") { showingImporter = true }
                     Button("导出修改前的副本", systemImage: "clock.arrow.circlepath") { exportPreviousBackup() }
                         .disabled(store.isPreview)
+                    NavigationLink("备份记录与学期恢复", value: SettingsRoute.backupHistory)
                 } header: { Text("备份") }
                 footer: { Text("备份包含全部学期、课程、考试和调停课记录。恢复会替换本机全部学期，覆盖前会保留原始副本。") }
                 if store.storageReadOnly {
@@ -171,6 +180,8 @@ struct SettingsView: View {
                 case .milestones: MilestoneListView()
                 case .appearance: AppearanceSettingsView()
                 case .about: AboutView()
+                case .calendarExport: CalendarExportView()
+                case .backupHistory: BackupHistoryView()
                 }
             }
             .sheet(isPresented: $showingAcademicSettings) { AcademicSettingsView() }
@@ -225,8 +236,13 @@ struct SettingsView: View {
                 default: break
                 }
             }
-            .onChange(of: settings.reminderPreview) { _, enabled in if enabled { authorizeNotifications(revertReminders: true) } }
-            .onChange(of: settings.endReminder) { _, enabled in if enabled { authorizeNotifications(revertReminders: false, revertEndReminder: true) } }
+            .task(id: phase) {
+                if phase == .active { await refreshNotificationStatus() }
+            }
+            .onChange(of: settings.reminderPreview) { _, enabled in updateReminderPreference(enabled: enabled) }
+            .onChange(of: settings.endReminder) { _, enabled in updateReminderPreference(enabled: enabled) }
+            .onChange(of: settings.reminderMinutes) { _, _ in updateReminderPreference(enabled: false) }
+            .onChange(of: settings.endLead) { _, _ in updateReminderPreference(enabled: false) }
         }
     }
 
@@ -284,32 +300,79 @@ struct SettingsView: View {
             store.errorMessage = "恢复失败：\(error.localizedDescription)"
         }
     }
-    /// 请求通知权限。被拒时把开关恢复为关闭。
-    ///
-    /// 不恢复的话开关会显示「已开启」但实际永远不会发出通知，用户要到提醒
-    /// 没响时才发现。权限一旦被拒，系统不会再弹窗，只能引导用户去设置里改。
+    @ViewBuilder private var notificationDetails: some View {
+        if let notificationStatus {
+            switch notificationStatus.permission {
+            case .needsRequest:
+                LabeledContent("系统通知", value: "尚未授权")
+                Button("允许发送通知", systemImage: "bell") { requestNotificationPermission() }
+                    .disabled(notificationActionInProgress)
+            case .denied:
+                LabeledContent("系统通知", value: "未允许")
+                Button("打开系统通知设置", systemImage: "gear", action: openSystemSettings)
+            case .quiet, .allowed:
+                LabeledContent("系统通知", value: notificationStatus.permission == .quiet ? "静默送达" : "已允许")
+                if let date = notificationStatus.nextCourseReminder {
+                    LabeledContent("下次课程提醒") {
+                        Text(date, format: .dateTime.month().day().hour().minute())
+                    }
+                } else if store.reminderPreview || store.endReminder {
+                    LabeledContent("下次课程提醒", value: "暂无待发送提醒")
+                }
+                Button("发送测试提醒", systemImage: "bell.badge", action: sendTestReminder)
+                    .disabled(notificationActionInProgress)
+            }
+        }
+        if let notificationFeedback { Text(notificationFeedback).font(.footnote).foregroundStyle(.secondary) }
+    }
+
     private func openSystemSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
     }
 
-    private func authorizeNotifications(revertReminders: Bool = true, revertEndReminder: Bool = false) {
+    private func refreshNotificationStatus() async {
+        guard !store.isPreview else { return }
+        let status = await CourseNotifications.shared.status()
+        if !Task.isCancelled { notificationStatus = status }
+    }
+
+    private func updateReminderPreference(enabled: Bool) {
         guard !store.isPreview else { return }
         Task {
-            do {
-                if try await CourseNotifications.shared.authorize() {
-                    store.synchronize()
-                } else {
-                    // 把开关退回关闭，让界面与实际能力一致。
-                    if revertReminders { store.reminderPreview = false }
-                    if revertEndReminder { store.endReminder = false }
-                    store.errorMessage = "通知权限未开启。请在系统设置中允许「课间册」发送通知后重新开启提醒。"
-                }
-            } catch {
-                if revertReminders { store.reminderPreview = false }
-                if revertEndReminder { store.endReminder = false }
-                store.errorMessage = error.localizedDescription
+            await refreshNotificationStatus()
+            if enabled, notificationStatus?.permission == .needsRequest {
+                requestNotificationPermission()
+            } else {
+                await store.synchronize()?.value
+                await refreshNotificationStatus()
             }
+        }
+    }
+
+    private func requestNotificationPermission() {
+        guard !store.isPreview, !notificationActionInProgress else { return }
+        notificationActionInProgress = true
+        notificationFeedback = nil
+        Task {
+            defer { notificationActionInProgress = false }
+            do {
+                if try await CourseNotifications.shared.authorize() { await store.synchronize()?.value }
+            } catch { notificationFeedback = error.localizedDescription }
+            await refreshNotificationStatus()
+        }
+    }
+
+    private func sendTestReminder() {
+        notificationActionInProgress = true
+        notificationFeedback = nil
+        Task {
+            defer { notificationActionInProgress = false }
+            do {
+                try await CourseNotifications.shared.sendTestReminder()
+                notificationFeedback = "测试提醒已安排。显示方式取决于系统通知和专注模式。"
+            } catch { notificationFeedback = error.localizedDescription }
+            await refreshNotificationStatus()
         }
     }
 }

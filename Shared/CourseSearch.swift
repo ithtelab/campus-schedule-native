@@ -8,17 +8,25 @@ import Foundation
 public enum CourseSearch {
 
     /// 一条搜索结果：一门课及其全部上课时段。
+    public struct Variant: Equatable, Sendable, Identifiable {
+        public let id: String
+        public let slot: String
+        public let weeksText: String
+    }
+
     public struct Hit: Equatable, Sendable, Identifiable {
         public var id: String
         public var title: String
         public var teacher: String
         public var room: String
-        /// 每周的时段，例如「周一 第1–2节」。
-        public var slots: [String]
-        /// 周次说明，例如「1–16 周」「单周」「整学期」。
-        public var weeksText: String
-        /// 课程标识，用于跳转到详情。
-        public var courseID: String
+        public var variants: [Variant]
+        public var slots: [String] { variants.map(\.slot) }
+    }
+
+    private struct GroupKey: Hashable {
+        let title: String
+        let teacher: String
+        let room: String
     }
 
     /// 搜索课程。
@@ -37,25 +45,24 @@ public enum CourseSearch {
         }
 
         // 同名同师同地点视为同一门课（可能分布在多个时段），合并成一条。
-        var grouped: [String: [SearchableCourse]] = [:]
-        for course in matched {
-            let key = "\(course.title)|\(course.teacher)|\(course.room)"
-            grouped[key, default: []].append(course)
+        let grouped = Dictionary(grouping: matched) { course in
+            GroupKey(title: course.title, teacher: course.teacher, room: course.room)
         }
 
         let hits: [Hit] = grouped.compactMap { key, group in
-            guard let first = group.first else { return nil }
-            let slots = group
-                .sorted { ($0.weekday, $0.startPeriod) < ($1.weekday, $1.startPeriod) }
-                .map { "\(weekdayName($0.weekday)) 第\($0.startPeriod)–\($0.endPeriod)节" }
-            // 周次以第一条为准：同一门课的不同时段周次通常一致。
-            let weeks = weeksText(first.weeks, totalWeeks: totalWeeks)
-            return Hit(id: key, title: first.title, teacher: first.teacher, room: first.room,
-                       slots: slots, weeksText: weeks, courseID: first.id)
+            let variants = group.sorted {
+                ($0.weekday, $0.startPeriod, $0.endPeriod, $0.id) < ($1.weekday, $1.startPeriod, $1.endPeriod, $1.id)
+            }.map { course in
+                Variant(id: course.id, slot: "\(weekdayName(course.weekday)) 第\(course.startPeriod)–\(course.endPeriod)节",
+                        weeksText: weeksText(course.weeks, totalWeeks: totalWeeks))
+            }
+            guard let first = variants.first else { return nil }
+            return Hit(id: first.id, title: key.title, teacher: key.teacher, room: key.room, variants: variants)
         }
         return Array(hits.sorted { lhs, rhs in
             if lhs.title != rhs.title { return lhs.title < rhs.title }
-            return lhs.teacher < rhs.teacher
+            if lhs.teacher != rhs.teacher { return lhs.teacher < rhs.teacher }
+            return lhs.room < rhs.room
         }.prefix(limit))
     }
 

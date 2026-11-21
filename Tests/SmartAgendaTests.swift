@@ -72,11 +72,12 @@ struct SmartAgendaTests {
         #expect(selection.primary?.status == "09:00 开考")
     }
 
-    @Test func examBeyondOneHourDoesNotTakePrimary() {
+    @Test func examBeyondOneHourIsAUsefulFallbackWithoutDisplacingClass() {
         let now = at(6, 0)
-        let selection = select(now: now, exams: [exam(start: at(9, 0), end: at(11, 0))])
-        // 距开考三小时，不应占据主位。
-        #expect(selection.primary == nil)
+        let upcoming = exam(start: at(9, 0, day: 1), end: at(11, 0, day: 1))
+        #expect(select(now: now, exams: [upcoming]).primary?.status == "明天 09:00 开考")
+        let lesson = course(start: at(14, 0), end: at(16, 0))
+        #expect(select(now: now, courses: [lesson], exams: [upcoming]).primary?.kind == .course)
     }
 
     @Test func examKeepsRoomAndSeat() {
@@ -144,10 +145,12 @@ struct SmartAgendaTests {
         #expect(selection.primary?.status == "22:00 截止")
     }
 
-    @Test func taskBeyondTwoHoursDoesNotTakePrimary() {
+    @Test func taskBeyondTwoHoursIsAUsefulFallbackWithoutDisplacingClass() {
         let now = at(18, 0)
-        let selection = select(now: now, tasks: [task(due: at(22, 0))])
-        #expect(selection.primary == nil)
+        let assignment = task(due: at(22, 0))
+        #expect(select(now: now, tasks: [assignment]).primary?.status == "今天 22:00 截止")
+        let lesson = course(start: at(20, 0), end: at(21, 0))
+        #expect(select(now: now, courses: [lesson], tasks: [assignment]).primary?.kind == .course)
     }
 
     @Test func overdueTaskNeverTakesPrimary() {

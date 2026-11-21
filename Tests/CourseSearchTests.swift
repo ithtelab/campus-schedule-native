@@ -66,6 +66,15 @@ struct CourseSearchTests {
         #expect(hit.slots[2].contains("周四"))
     }
 
+    @Test func groupedVariantsKeepTheirOwnWeeksAndCourseIDs() {
+        let odd = course("线性代数", weekday: 0, weeks: Set(stride(from: 1, through: 20, by: 2)), id: "odd")
+        let even = course("线性代数", weekday: 3, weeks: Set(stride(from: 2, through: 20, by: 2)), id: "even")
+        let hits = CourseSearch.search([even, odd], query: "代数", totalWeeks: 20)
+        #expect(hits.count == 1)
+        #expect(hits.first?.variants.map(\.id) == ["odd", "even"])
+        #expect(hits.first?.variants.map(\.weeksText) == ["单周", "双周"])
+    }
+
     @Test func differentTeachersStaySeparate() {
         // 同名但不同老师，是两门课。
         let items = [course("导论", teacher: "张老师"), course("导论", teacher: "王老师")]

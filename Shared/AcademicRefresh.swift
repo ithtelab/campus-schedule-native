@@ -59,6 +59,13 @@ struct AcademicRefreshCookie: Codable, Equatable, Sendable {
     private static let nameSeparators = Set("()<>@,;:\\\"/[]?={}".utf8)
 }
 
+struct AcademicRefreshChange: Hashable, Identifiable, Sendable {
+    let before: ParsedCourse?
+    let after: ParsedCourse?
+
+    var id: Self { self }
+}
+
 struct AcademicRefreshDiff: Equatable, Sendable {
     let appeared: [ParsedCourse]
     let missing: [ParsedCourse]
@@ -70,7 +77,40 @@ struct AcademicRefreshDiff: Equatable, Sendable {
 
     var isEmpty: Bool { appeared.isEmpty && missing.isEmpty }
 
+    /// Only pair a replacement if the match is unique in both directions.
+    func changes(totalWeeks: Int) -> [AcademicRefreshChange] {
+        var removed = missing
+        var added = appeared
+        var changes: [AcademicRefreshChange] = []
+        func pair(_ matches: (ParsedCourse, ParsedCourse) -> Bool) {
+            for before in removed {
+                let candidates = added.filter { matches(before, $0) }
+                guard candidates.count == 1, let after = candidates.first,
+                      removed.filter({ matches($0, after) }).count == 1 else { continue }
+                changes.append(AcademicRefreshChange(before: before, after: after))
+            }
+            let pairedBefore = Set(changes.compactMap(\.before))
+            let pairedAfter = Set(changes.compactMap(\.after))
+            removed.removeAll { pairedBefore.contains($0) }
+            added.removeAll { pairedAfter.contains($0) }
+        }
+        pair { ImportPlanner.sameIdentity($0, $1, totalWeeks: totalWeeks) }
+        pair { $0.title == $1.title }
+        return changes + added.map { AcademicRefreshChange(before: nil, after: $0) }
+            + removed.map { AcademicRefreshChange(before: $0, after: nil) }
+    }
+
+    static func hasContinuity(baseline: Set<ParsedCourse>, latest: Set<ParsedCourse>) -> Bool {
+        !Set(baseline.map(\.title)).isDisjoint(with: latest.map(\.title))
+    }
+
     private static func earlier(_ lhs: ParsedCourse, _ rhs: ParsedCourse) -> Bool {
-        (lhs.weekday, lhs.startPeriod, lhs.title) < (rhs.weekday, rhs.startPeriod, rhs.title)
+        let lhsSlot = (lhs.weekday, lhs.startPeriod, lhs.endPeriod)
+        let rhsSlot = (rhs.weekday, rhs.startPeriod, rhs.endPeriod)
+        if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
+        let lhsFields = (lhs.title, lhs.teacher, lhs.room)
+        let rhsFields = (rhs.title, rhs.teacher, rhs.room)
+        if lhsFields != rhsFields { return lhsFields < rhsFields }
+        return lhs.weeks.sorted().lexicographicallyPrecedes(rhs.weeks.sorted())
     }
 }

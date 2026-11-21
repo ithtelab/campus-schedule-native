@@ -38,10 +38,12 @@ struct ScheduleWidgetView: View {
                     }
                 }
             }
-            .widgetURL(CourseDeepLink.url(courseID: ScheduleRules.next(in: entry.courses, now: entry.date)?.courseID,
-                                         termID: entry.termID,
-                                         occurrenceID: ScheduleRules.next(in: entry.courses, now: entry.date)?.id))
+            .widgetURL(CourseDeepLink.url(courseID: displayedCourse?.courseID,
+                                         termID: displayedCourse?.termID ?? entry.termID,
+                                         occurrenceID: displayedCourse?.id))
     }
+
+    private var displayedCourse: CourseOccurrence? { ScheduleRules.next(in: entry.courses, now: entry.date) }
 }
 struct TimetableWidget: Widget {
     let kind = "TimetableWidget"
@@ -66,6 +68,7 @@ struct CourseLiveWidget: Widget {
             // 不指定背景与配色：锁屏和灵动岛属于系统界面，由系统按壁纸明暗
             // 决定底色与前景色才能保证可读。此前强制深底白字，在浅色壁纸上
             // 会突兀成一块黑卡，也与 App 本身的纸色风格不连续。
+            .privacySensitive()
             .widgetURL(CourseDeepLink.activityURL(courseID: context.attributes.courseID, termID: context.attributes.termID,
                                                   occurrenceID: context.attributes.occurrenceID))
         } dynamicIsland: { context in
@@ -83,6 +86,7 @@ struct CourseLiveWidget: Widget {
                         nextTitle: context.state.nextTitle, nextRoom: context.state.nextRoom,
                         blueStickers: blueStickers, stickerPersona: appearance?.persona ?? context.state.persona ?? .fallback,
                         density: appearance?.density ?? context.state.decorationDensity ?? .light)
+                    .privacySensitive()
                 }
             } compactLeading: {
                 if blueStickers {

@@ -21,6 +21,7 @@ struct CourseOccurrence: Codable, Identifiable, Equatable, Sendable {
     var originalRoom: String?
     /// 是否属于单双周课程中的一种。用于课表角标。
     var weekPattern: WeekPattern = .everyWeek
+    var termID: String?
 }
 
 /// 课程的周次规律，只用于界面提示。
@@ -54,6 +55,7 @@ enum WeekPattern: String, Codable, Sendable {
 enum ScheduleRules {
     static func time(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
@@ -93,6 +95,12 @@ enum ScheduleRules {
     }
     static func next(in items: [CourseOccurrence], now: Date) -> CourseOccurrence? {
         items.sorted { $0.start < $1.start }.first { $0.end > now }
+    }
+
+    static func nextOnSameDay(after course: CourseOccurrence, in sortedItems: [CourseOccurrence]) -> CourseOccurrence? {
+        guard let next = sortedItems.first(where: { $0.start >= course.end }),
+              calendar.isDate(course.start, inSameDayAs: next.start) else { return nil }
+        return next
     }
     static func mergeContinuous(_ items: [CourseOccurrence]) -> [CourseOccurrence] {
         var result: [CourseOccurrence] = []

@@ -11,12 +11,17 @@ public struct StampedPayload: Codable, Equatable, Sendable {
     public var deviceID: String
     /// 课表备份的 JSON 字节。
     public var payload: Data
+    /// Replaced on deletion and carried by every subsequent write. An empty payload with a generation is a deletion marker.
+    public var deletionGeneration: String?
 
-    public init(updatedAt: Date, deviceID: String, payload: Data) {
+    public init(updatedAt: Date, deviceID: String, payload: Data, deletionGeneration: String? = nil) {
         self.updatedAt = updatedAt
         self.deviceID = deviceID
         self.payload = payload
+        self.deletionGeneration = deletionGeneration
     }
+
+    var isDeletion: Bool { payload.isEmpty && deletionGeneration != nil }
 }
 
 /// 一次同步应当执行的动作。
@@ -100,10 +105,16 @@ public enum CloudSyncPlan {
     }
 
     /// 写入前的体积检查。超过上限时明确报错，不截断也不丢字段。
-    public static func validateSize(_ stamped: StampedPayload) throws {
-        guard stamped.payload.count <= maximumPayloadBytes else {
-            throw CloudSyncError.payloadTooLarge(stamped.payload.count, maximumPayloadBytes)
+    public static func storageData(_ stamped: StampedPayload) throws -> Data {
+        let encoded = try JSONEncoder().encode(stamped)
+        guard encoded.count <= maximumPayloadBytes else {
+            throw CloudSyncError.payloadTooLarge(encoded.count, maximumPayloadBytes)
         }
+        return encoded
+    }
+
+    static func canUseRemote(_ remote: StampedPayload?, acceptedGeneration: String?, deletionGeneration: String? = nil) -> Bool {
+        (deletionGeneration ?? remote?.deletionGeneration) == acceptedGeneration
     }
 
     /// 把字节格式化成便于展示的大小。
@@ -120,6 +131,8 @@ public enum CloudSyncError: LocalizedError, Equatable, Sendable {
     case payloadTooLarge(Int, Int)
     case decodeFailed
     case writeRejected
+    case accountChanged
+    case cloudCopyRemoved
 
     public var errorDescription: String? {
         switch self {
@@ -131,6 +144,10 @@ public enum CloudSyncError: LocalizedError, Equatable, Sendable {
             "iCloud 中的课表数据无法解析，可能是更高版本的 App 写入的。"
         case .writeRejected:
             "iCloud 拒绝写入，可能是空间不足或暂时不可用。"
+        case .accountChanged:
+            "Apple 账户已变更。课表仍保存在本机，请确认账户后重新开启同步。"
+        case .cloudCopyRemoved:
+            "iCloud 课表副本已被删除。本机课表已保留，重新开启同步后才会上传。"
         }
     }
 }

@@ -1,9 +1,11 @@
 @preconcurrency import ActivityKit
 import UIKit
+import os
 
 @MainActor final class CourseLiveActivities {
     static let shared = CourseLiveActivities()
     private typealias CourseActivity = Activity<CourseActivityAttributes>
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "CampusSchedule", category: "CourseLiveActivities")
 
     private var boundaryTask: Task<Void, Never>?
     private var watchTasks: [String: Task<Void, Never>] = [:]
@@ -155,7 +157,8 @@ import UIKit
         let active = UIApplication.shared.applicationState == .active
         if active {
             for entry in plan where !seen.contains(entry.course.id) {
-                try? start(entry.course, scheduledAt: entry.start, lead: lead, termID: termID, appearance: appearance)
+                do { try start(entry.course, scheduledAt: entry.start, lead: lead, termID: termID, appearance: appearance) }
+                catch { logger.notice("ActivityKit declined a course activity: \(error.localizedDescription)") }
             }
         }
         updateCleanupSchedule()

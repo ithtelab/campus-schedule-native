@@ -70,5 +70,37 @@ struct AcademicRefreshTests {
         let change = AcademicRefreshDiff(baseline: [math, english], latest: [english, moved])
         #expect(change.appeared == [moved])
         #expect(change.missing == [math])
+        #expect(change.changes(totalWeeks: 20) == [AcademicRefreshChange(before: math, after: moved)])
+    }
+
+    @Test func pairsAnUnchangedSlotBeforeConsideringSameNameMoves() {
+        let first = ParsedCourse(title: "实验", room: "302", weekday: 0, startPeriod: 1, endPeriod: 2)
+        let second = ParsedCourse(title: "实验", room: "503", weekday: 2, startPeriod: 5, endPeriod: 6)
+        var firstWithNewRoom = first
+        firstWithNewRoom.room = "404"
+        var secondMoved = second
+        secondMoved.weekday = 3
+        let changes = AcademicRefreshDiff(baseline: [first, second], latest: [firstWithNewRoom, secondMoved])
+            .changes(totalWeeks: 20)
+        #expect(changes == [AcademicRefreshChange(before: first, after: firstWithNewRoom),
+                            AcademicRefreshChange(before: second, after: secondMoved)])
+    }
+
+    @Test func keepsAmbiguousSameNameMovesSeparate() {
+        let first = ParsedCourse(title: "实验", weekday: 0, startPeriod: 1, endPeriod: 2)
+        let second = ParsedCourse(title: "实验", weekday: 1, startPeriod: 1, endPeriod: 2)
+        let moved = ParsedCourse(title: "实验", weekday: 2, startPeriod: 1, endPeriod: 2)
+        let changes = AcademicRefreshDiff(baseline: [first, second], latest: [moved]).changes(totalWeeks: 20)
+        #expect(changes.count == 3)
+        #expect(changes.allSatisfy { $0.before == nil || $0.after == nil })
+    }
+
+    @Test func rejectsAReplacementPageWithoutAnyPreviouslySeenCourse() {
+        let math = ParsedCourse(title: "数学", weekday: 0, startPeriod: 1, endPeriod: 2)
+        let biology = ParsedCourse(title: "生物", weekday: 1, startPeriod: 3, endPeriod: 4)
+        var mathMoved = math
+        mathMoved.weekday = 4
+        #expect(AcademicRefreshDiff.hasContinuity(baseline: [math], latest: [mathMoved, biology]))
+        #expect(!AcademicRefreshDiff.hasContinuity(baseline: [math], latest: [biology]))
     }
 }

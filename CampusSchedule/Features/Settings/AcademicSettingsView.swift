@@ -123,7 +123,7 @@ struct AcademicSettingsView: View {
                 Button("移除 \(affected.count) 门课程并保存", role: .destructive) { save() }
                 Button("继续编辑", role: .cancel) {}
             } message: {
-                Text("将移除：\(affected.joined(separator: "、"))。相关调停课记录也会移除。保存前会保留原始副本。")
+                Text("将移除：\(affected.joined(separator: "、"))。关联的待办及调停课也会移除。保存前会保留副本，可从「备份记录与学期恢复」恢复。")
             }
         }
         .presentationDetents([.large])

@@ -15,6 +15,8 @@ final class AcademicRefreshService {
         let id: UUID
         let school: String
         let term: String
+        let termID: String?
+        let termStart: Date?
         let scope: AcademicRefreshScope
         let totalWeeks: Int
         let numbering: String
@@ -33,6 +35,20 @@ final class AcademicRefreshService {
     private(set) var busy = false
     private(set) var message: String?
     private var revision = UUID()
+    private var localTerms: [TermSummary]?
+    @ObservationIgnored private var lastAppliedReview: (UUID, Set<ParsedCourse>, [AcademicRefreshChange])?
+
+    func updateLocalTerms(_ terms: [TermSummary]) {
+        guard localTerms != terms else { return }
+        localTerms = terms
+        restore()
+        scheduleNext()
+    }
+
+    func requiresReconnect(_ connection: Connection) -> Bool {
+        guard let local = localTerms?.first(where: { $0.id == connection.termID }) else { return true }
+        return local.startDate != connection.termStart || local.totalWeeks != connection.totalWeeks
+    }
 
     func restore() {
         guard connection == nil, !busy else { return }
@@ -41,12 +57,13 @@ final class AcademicRefreshService {
     }
 
     /// Enroll only if a fresh GET with the captured cookies reproduces the exact table the user reviewed.
-    func connect(school: String, term: String, scope: AcademicRefreshScope, totalWeeks: Int,
+    func connect(school: String, term: TermSummary, scope: AcademicRefreshScope,
                  numbering: AcademicSystemProfile.WeekdayNumbering, cookies: [AcademicRefreshCookie],
                  baseline: Set<ParsedCourse>) async {
         guard !busy else { return }
         let now = Date()
-        let candidate = Connection(id: UUID(), school: school, term: term, scope: scope, totalWeeks: totalWeeks,
+        let candidate = Connection(id: UUID(), school: school, term: term.name, termID: term.id,
+                                    termStart: term.startDate, scope: scope, totalWeeks: term.totalWeeks,
                                    numbering: numbering.rawValue, expires: now.addingTimeInterval(7 * 24 * 3600),
                                    cookies: cookies.filter { $0.isUsable(in: scope, now: now) }, baseline: baseline,
                                    latest: baseline, checkedAt: now, attemptedAt: now)
@@ -57,7 +74,7 @@ final class AcademicRefreshService {
         do {
             guard try await Self.fetch(candidate) == baseline else { throw RefreshError.notReplayable }
             try Task.checkCancellation()
-            guard revision == currentRevision else { return }
+            guard revision == currentRevision, !requiresReconnect(candidate) else { return }
             try save(candidate)
         } catch is CancellationError {
         } catch {
@@ -68,7 +85,7 @@ final class AcademicRefreshService {
 
     func check(force: Bool = false) async {
         restore()
-        guard !busy, var active = connection, !active.needsLogin else { return }
+        guard !busy, var active = connection, !active.needsLogin, !requiresReconnect(active) else { return }
         let now = Date()
         guard force || now.timeIntervalSince(active.attemptedAt) >= Self.interval else {
             scheduleNext()
@@ -83,7 +100,14 @@ final class AcademicRefreshService {
             try save(active)
             let latest = try await Self.fetch(active)
             try Task.checkCancellation()
-            guard revision == currentRevision, !Task.isCancelled else { return }
+            guard revision == currentRevision, !Task.isCancelled, !requiresReconnect(active) else { return }
+            guard AcademicRefreshDiff.hasContinuity(baseline: active.latest, latest: latest) else {
+                active.needsLogin = true
+                active.cookies = []
+                try save(active)
+                message = "教务页面已没有上次课表中的课程。请重新登录并核对教务页面上的学期。"
+                return
+            }
             let changed = latest != active.latest && latest != active.baseline
             active.latest = latest
             active.checkedAt = Date()
@@ -102,11 +126,36 @@ final class AcademicRefreshService {
         }
     }
 
-    func markReviewed(id: UUID, latest: Set<ParsedCourse>) {
-        guard !busy, var active = connection, active.id == id, active.latest == latest else { return }
-        active.baseline = latest
-        do { try save(active); message = nil }
-        catch { message = error.localizedDescription }
+    func canReview(id: UUID, latest: Set<ParsedCourse>, changes: [AcademicRefreshChange]) -> Bool {
+        guard !busy, let active = connection, active.id == id, active.latest == latest,
+              !requiresReconnect(active), !changes.isEmpty else { return false }
+        return Set(changes).isSubset(of: Set(active.diff.changes(totalWeeks: active.totalWeeks)))
+    }
+
+    @discardableResult
+    func markReviewed(id: UUID, latest: Set<ParsedCourse>, changes: [AcademicRefreshChange], applied: Bool = false) -> Bool {
+        guard canReview(id: id, latest: latest, changes: changes), var active = connection else { return false }
+        active.baseline.subtract(changes.compactMap(\.before))
+        active.baseline.formUnion(changes.compactMap(\.after))
+        do {
+            try save(active)
+            if applied { lastAppliedReview = (id, latest, changes) }
+            message = nil
+            return true
+        }
+        catch { message = error.localizedDescription; return false }
+    }
+
+    func reopenLastAppliedReview() {
+        guard let (id, latest, changes) = lastAppliedReview, var active = connection,
+              active.id == id, active.latest == latest, !busy else { return }
+        active.baseline.subtract(changes.compactMap(\.after))
+        active.baseline.formUnion(changes.compactMap(\.before))
+        do {
+            try save(active)
+            lastAppliedReview = nil
+            message = nil
+        } catch { message = error.localizedDescription }
     }
 
     func disconnect() {
@@ -114,6 +163,7 @@ final class AcademicRefreshService {
             try AcademicRefreshKeychain.remove()
             revision = UUID()
             connection = nil
+            lastAppliedReview = nil
             message = nil
             scheduleNext()
         } catch { message = error.localizedDescription }
@@ -127,10 +177,12 @@ final class AcademicRefreshService {
     func scheduleNext() {
         let now = Date()
         let academicDate = connection.flatMap { active in
-            active.needsLogin ? nil : max(now.addingTimeInterval(60), active.attemptedAt.addingTimeInterval(Self.interval))
+            active.needsLogin || requiresReconnect(active) ? nil
+                : max(now.addingTimeInterval(60), active.attemptedAt.addingTimeInterval(Self.interval))
         }
         let cleanupDate = CourseLiveActivities.shared.cleanupDeadline
-        guard let nextDate = [academicDate, cleanupDate].compactMap({ $0 }).min() else {
+        let refillDate = CourseNotifications.refillDeadline
+        guard let nextDate = [academicDate, cleanupDate, refillDate].compactMap({ $0 }).min() else {
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskID)
             return
         }
@@ -149,7 +201,8 @@ final class AcademicRefreshService {
               settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
         content.title = "教务课表有变化"
-        content.body = "打开课间册，在「导入课表」里核对新旧安排。"
+        content.body = "轻点核对新旧安排。"
+        content.userInfo = [CourseNotifications.destinationKey: "campusschedule://import"]
         try? await center.add(UNNotificationRequest(identifier: "academic.refresh.changes", content: content, trigger: nil))
     }
 

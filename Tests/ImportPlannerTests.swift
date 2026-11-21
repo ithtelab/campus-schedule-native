@@ -67,6 +67,16 @@ struct ImportPlannerTests {
         #expect(plan.conflicts[0].existingTitle == "线性代数")
     }
 
+    @Test func detectsConflictsWithinFirstImportWithoutRepeatingPairs() {
+        let first = course("高数", day: 0, start: 1, end: 2, weeks: [1, 3])
+        let collision = course("线性代数", day: 0, start: 2, end: 3, weeks: [1])
+        let otherWeek = course("实验", day: 0, start: 2, end: 3, weeks: [2])
+        let plan = ImportPlanner.plan(ParseOutcome(courses: [first, collision, otherWeek]), existing: [], totalWeeks: 20)
+        #expect(plan.conflicts.count == 1)
+        #expect(plan.conflicts.first?.fromSameImport == true)
+        #expect(plan.conflicts.first?.existingTitle == "线性代数")
+    }
+
     @Test func noConflictOnDifferentDays() {
         let existing = [course("线性代数", day: 1, start: 1, end: 2)]
         let plan = ImportPlanner.plan(

@@ -1,22 +1,32 @@
 import SwiftUI
 @preconcurrency import ActivityKit
+@preconcurrency import UserNotifications
 
 @main
 struct CampusScheduleApp: App {
+    @UIApplicationDelegateAdaptor(CampusNotificationDelegate.self) private var notifications
+    @State private var store = PreviewStore(testingInMemory: ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "data-reliability")
+
     var body: some Scene {
+        let store = store
         WindowGroup {
-            CampusWindowContent()
+            CampusWindowContent(store: store, notifications: notifications)
         }
         // iPad 允许任意尺寸窗口，才能在分屏与台前调度里按需调整。
         .windowResizability(.contentMinSize)
         .backgroundTask(.appRefresh(AcademicRefreshService.taskID)) {
             await CourseLiveActivities.shared.cleanUpAfterBackgroundWake()
+            if let task = await store.synchronize() {
+                await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+            }
             await AcademicRefreshService.shared.check()
         }
     }
 }
 
 private struct CampusWindowContent: View {
+    let store: PreviewStore
+    let notifications: CampusNotificationDelegate
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
 
     var body: some View {
@@ -29,15 +39,41 @@ private struct CampusWindowContent: View {
             } else if ProcessInfo.processInfo.environment["CAMPUS_WIDGET_PREVIEW"] != nil {
                 WidgetGalleryView()
             } else {
-                RootView(appearance: $appearance)
+                RootView(appearance: $appearance, store: store, notifications: notifications)
             }
             #else
-            RootView(appearance: $appearance)
+            RootView(appearance: $appearance, store: store, notifications: notifications)
             #endif
         }
         .background {
             AppAppearanceHost(appearance: appearance).frame(width: 0, height: 0)
         }
+    }
+}
+
+@MainActor @Observable
+final class CampusNotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    private(set) var destination: URL?
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+              let rawURL = response.notification.request.content.userInfo[CourseNotifications.destinationKey] as? String,
+              let url = URL(string: rawURL), url.scheme == "campusschedule" else { return }
+        await MainActor.run { destination = url }
+    }
+
+    func takeDestination() -> URL? {
+        defer { destination = nil }
+        return destination
     }
 }
 
@@ -52,6 +88,8 @@ struct MilestoneLinkPayload: Identifiable {
 /// 两套布局共享同一份状态与子视图，因此切换设备不会改变行为。
 struct RootView: View {
     @Binding var appearance: AppAppearance
+    let store: PreviewStore
+    var notifications: CampusNotificationDelegate? = nil
     @Environment(\.dynamicTypeSize) private var systemTypeSize
     @Environment(\.scenePhase) private var phase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -63,6 +101,7 @@ struct RootView: View {
     /// 从组件点进来时要打开的纪念事件。nil 表示没有待处理的目标。
     @State private var milestoneLink: MilestoneLinkPayload?
     @State private var examLink: ExamDeepLink.Target?
+    @State private var showingAcademicChanges = false
     enum Screen: String, CaseIterable, Identifiable {
         case today, week, settings
         var id: String { rawValue }
@@ -83,10 +122,8 @@ struct RootView: View {
     }
 
     #if targetEnvironment(simulator)
-    @State private var store = PreviewStore(testingInMemory: ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] == "data-reliability")
     @State private var selectedScreen = Screen(rawValue: ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_TAB"] ?? "week") ?? .week
     #else
-    @State private var store = PreviewStore()
     @State private var selectedScreen: Screen = .week
     #endif
 
@@ -129,37 +166,9 @@ struct RootView: View {
         }
         // A dedicated root screen avoids competing with a previously presented editor sheet.
         .id(courseNavigationRevision)
-        .onOpenURL { url in
-            guard url.scheme == "campusschedule" else { return }
-            linkedCourse = nil; linkedOccurrenceID = nil; linkedTasks = false; linkUnavailable = false
-            if let target = ExamDeepLink.target(url) {
-                milestoneLink = nil
-                examLink = target
-                courseNavigationRevision += 1
-                return
-            }
-            examLink = nil
-            // 纪念事件走独立入口：它不属于任何学期，也不在课表页。
-            if let target = MilestoneDeepLink.target(url) {
-                milestoneLink = MilestoneLinkPayload(milestoneID: target.milestoneID)
-                courseNavigationRevision += 1
-                return
-            }
-            milestoneLink = nil
-            if let target = CourseDeepLink.target(url) {
-                selectedScreen = .week
-                linkedCourse = store.resolveCourseLink(target)
-                linkUnavailable = linkedCourse == nil
-                linkedTasks = target.opensTasks
-                if !target.opensTasks, let termID = linkedCourse?.termID {
-                    let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences(in: termID), now: store.now)
-                    linkedOccurrenceID = target.occurrenceID ?? occurrence?.id
-                    if let occurrence, termID == store.activeTermID {
-                        store.selectedWeek = min(store.totalWeeks, max(1, ScheduleRules.week(on: occurrence.start, semesterStart: store.semesterStart)))
-                    }
-                }
-            } else { selectedScreen = .today }
-            courseNavigationRevision += 1
+        .onOpenURL(perform: openDestination)
+        .onChange(of: notifications?.destination, initial: true) { _, _ in
+            openPendingNotification()
         }
         .sheet(item: $milestoneLink) { target in
             NavigationStack {
@@ -190,14 +199,21 @@ struct RootView: View {
             }
             .environment(store)
         }
+        .sheet(isPresented: $showingAcademicChanges) {
+            ImportView(showChangesOnOpen: true).environment(store)
+        }
         .onChange(of: phase) { _, value in
-            if value == .active && !(ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] ?? "").hasPrefix("live") {
-                store.clockDate = Date(); store.synchronize()
+            guard value == .active else { return }
+            openPendingNotification()
+            if !(ProcessInfo.processInfo.environment["CAMPUS_SMOKE_TEST"] ?? "").hasPrefix("live") {
+                store.clockDate = Date()
+                store.synchronize()
             }
         }
         .task { await runSmokeChecksIfRequested() }
         .task(id: phase) {
             guard phase == .active, !store.isPreview else { return }
+            AcademicRefreshService.shared.updateLocalTerms(store.terms)
             await AcademicRefreshService.shared.check()
         }
         .environment(store)
@@ -207,6 +223,34 @@ struct RootView: View {
             ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_ACCESSIBILITY"] == "1" ? .accessibility3 : systemTypeSize)
         .environment(\.campusSuppressMotion,
             store.appearance.effects == .staticOnly || ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_REDUCE_MOTION"] == "1")
+    }
+
+    private func openPendingNotification() {
+        if phase == .active, let url = notifications?.takeDestination() { openDestination(url) }
+    }
+
+    private func openDestination(_ url: URL) {
+        guard url.scheme == "campusschedule" else { return }
+        linkedCourse = nil; linkedOccurrenceID = nil; linkedTasks = false; linkUnavailable = false
+        examLink = ExamDeepLink.target(url)
+        milestoneLink = MilestoneDeepLink.target(url).map { MilestoneLinkPayload(milestoneID: $0.milestoneID) }
+        showingAcademicChanges = url.host == "import"
+        if showingAcademicChanges {
+            selectedScreen = .settings
+        } else if let target = CourseDeepLink.target(url) {
+            selectedScreen = .week
+            linkedCourse = store.resolveCourseLink(target)
+            linkUnavailable = linkedCourse == nil
+            linkedTasks = target.opensTasks
+            if !target.opensTasks, let termID = linkedCourse?.termID {
+                let occurrence = CourseDeepLink.occurrence(for: target, in: store.occurrences(in: termID), now: store.now)
+                linkedOccurrenceID = target.occurrenceID ?? occurrence?.id
+                if let occurrence, termID == store.activeTermID {
+                    store.selectedWeek = min(store.totalWeeks, max(1, ScheduleRules.week(on: occurrence.start, semesterStart: store.semesterStart)))
+                }
+            }
+        } else if examLink == nil && milestoneLink == nil { selectedScreen = .today }
+        courseNavigationRevision += 1
     }
 
     private func closeLinkedCourse() {
@@ -324,10 +368,11 @@ struct RootView: View {
             #endif
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(for: .seconds(30)); store.clockDate = Date()
-                    if !store.isPreview {
-                        await CourseLiveActivities.shared.reconcile(items: store.occurrences, enabled: store.liveEnabled,
-                            lead: store.reminderMinutes, termID: store.activeTermID, appearance: store.appearance)
+                    try await Task.sleep(for: .seconds(30))
+                    let previous = store.clockDate
+                    store.clockDate = Date()
+                    if phase == .active && store.systemTermID(at: previous) != store.systemTermID(at: store.clockDate) {
+                        store.synchronize()
                     }
                 }
                 catch { break }
@@ -336,9 +381,9 @@ struct RootView: View {
 }
 
 #Preview("浅色") {
-    RootView(appearance: .constant(.light)).preferredColorScheme(.light)
+    RootView(appearance: .constant(.light), store: PreviewStore()).preferredColorScheme(.light)
 }
 
 #Preview("深色") {
-    RootView(appearance: .constant(.dark)).preferredColorScheme(.dark)
+    RootView(appearance: .constant(.dark), store: PreviewStore()).preferredColorScheme(.dark)
 }

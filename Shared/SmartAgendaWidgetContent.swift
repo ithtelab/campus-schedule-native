@@ -13,7 +13,7 @@ struct SmartAgendaWidgetContent: View {
         Group {
             switch family {
             case .accessoryInline:
-                Label(selection.primary.map { "\($0.statusWithQuantity) · \($0.title)" } ?? "暂时没有安排",
+                Label(selection.primary.map { "\($0.statusWithQuantity) · \($0.title)" } ?? "暂无紧急安排",
                       systemImage: selection.primary.map { symbol($0.kind) } ?? "checkmark.circle")
             case .accessoryCircular:
                 circular
@@ -44,7 +44,7 @@ struct SmartAgendaWidgetContent: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(selection.primary?.accessibilityText ?? "暂时没有安排")
+        .accessibilityLabel(selection.primary?.accessibilityText ?? "暂无紧急安排")
     }
 
     private var lockRectangular: some View {
@@ -52,23 +52,27 @@ struct SmartAgendaWidgetContent: View {
             if let item = selection.primary {
                 Text(item.statusWithQuantity).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.85)
                 Text(item.title).font(.headline).lineLimit(1).minimumScaleFactor(0.85)
-                if !item.detailWithSeat.isEmpty {
-                    Text(item.detailWithSeat).font(.caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+                if !item.detail.isEmpty || item.examSeat != nil {
+                    HStack(spacing: 4) {
+                        if !item.detail.isEmpty { Text(item.detail) }
+                        if let seat = item.examSeat { Text(seat).layoutPriority(1) }
+                    }
+                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
                 }
             } else {
-                Label("暂时没有安排", systemImage: "checkmark.circle").font(.headline)
+                Label("暂无紧急安排", systemImage: "checkmark.circle").font(.headline)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(selection.primary?.accessibilityText ?? "暂时没有安排")
+        .accessibilityLabel(selection.primary?.accessibilityText ?? "暂无紧急安排")
     }
 
     private var desktop: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
                 if let item = selection.primary { mainCard(item) }
-                else { Label("暂时没有安排", systemImage: "checkmark.circle").font(.headline) }
+                else { Label("暂无紧急安排", systemImage: "checkmark.circle").font(.headline) }
                 if family == .systemMedium {
                     Spacer(minLength: 4)
                     footer

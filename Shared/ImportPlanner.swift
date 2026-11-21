@@ -41,6 +41,7 @@ public enum ImportPlanner {
         public var existingTitle: String
         public var weekday: Int
         public var detail: String
+        public var fromSameImport = false
     }
 
     /// 生成导入方案。
@@ -102,20 +103,17 @@ public enum ImportPlanner {
             normalized.removeAll { ambiguous.contains($0) }
         }
         var conflicts: [Conflict] = []
-        for incoming in normalized {
+        // Evaluate the same batch as well as the existing schedule, listing each pair once.
+        for (index, incoming) in normalized.enumerated() {
             for other in existing {
-                guard other.weekday == incoming.weekday else { continue }
-                if sameIdentity(incoming, other, totalWeeks: totalWeeks) { continue }
-                guard overlaps(incoming, other) else { continue }
-                // 周次不相交时不算冲突：单双周分开的课程本就是设计如此。
-                if !incoming.weeks.isEmpty, !other.weeks.isEmpty,
-                   incoming.weeks.isDisjoint(with: other.weeks) { continue }
-                conflicts.append(Conflict(
-                    incoming: incoming,
-                    existingTitle: other.title,
-                    weekday: incoming.weekday,
-                    detail: "周\(weekdayName(incoming.weekday)) 第\(incoming.startPeriod)-\(incoming.endPeriod)节"
-                ))
+                if let conflict = conflict(between: incoming, and: other, totalWeeks: totalWeeks, fromSameImport: false) {
+                    conflicts.append(conflict)
+                }
+            }
+            for other in normalized.dropFirst(index + 1) {
+                if let conflict = conflict(between: incoming, and: other, totalWeeks: totalWeeks, fromSameImport: true) {
+                    conflicts.append(conflict)
+                }
             }
         }
 
@@ -123,6 +121,17 @@ public enum ImportPlanner {
         let replaced = normalized.filter { replacementIndex(for: $0, in: existing, totalWeeks: totalWeeks) != nil }.count
         return Plan(courses: normalized, conflicts: conflicts,
                     replacedCount: replaced, warnings: warnings)
+    }
+
+    private static func conflict(between incoming: ParsedCourse, and other: ParsedCourse,
+                                 totalWeeks: Int, fromSameImport: Bool) -> Conflict? {
+        guard incoming.weekday == other.weekday, overlaps(incoming, other),
+              !sameIdentity(incoming, other, totalWeeks: totalWeeks),
+              incoming.weeks.isEmpty || other.weeks.isEmpty || !incoming.weeks.isDisjoint(with: other.weeks) else { return nil }
+        let first = max(incoming.startPeriod, other.startPeriod)
+        let last = min(incoming.endPeriod, other.endPeriod)
+        return Conflict(incoming: incoming, existingTitle: other.title, weekday: incoming.weekday,
+                        detail: "周\(weekdayName(incoming.weekday)) 第\(first)-\(last)节", fromSameImport: fromSameImport)
     }
 
     static func key(_ course: ParsedCourse) -> String {

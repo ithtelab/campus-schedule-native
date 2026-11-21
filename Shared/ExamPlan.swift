@@ -83,15 +83,16 @@ public enum ExamPlan {
         guard let options = exam.reminders, options.isEnabled,
               let session = ExamSession(exam: exam, termID: termID), session.start > now else { return [] }
         let id = "exam.\(termID.utf8.count):\(termID).\(exam.id)"
+        let destination = ExamDeepLink.url(examID: exam.id, termID: termID)
         let startText = "\(ScheduleRules.time(session.start)) 开考"
         let details = session.location.isEmpty ? startText : "\(startText) · \(session.location)"
         var result: [CourseReminder] = []
         if options.dayBefore, let date = ScheduleRules.calendar.date(byAdding: .day, value: -1, to: session.start), date > now {
-            result.append(.init(date: date, id: id + ".day", title: "明天考试 · \(session.title)", body: details))
+            result.append(.init(date: date, id: id + ".day", title: "明天考试 · \(session.title)", body: details, destination: destination))
         }
         let beforeStart = session.start.addingTimeInterval(-30 * 60)
         if options.beforeStart, beforeStart > now {
-            result.append(.init(date: beforeStart, id: id + ".soon", title: "30 分钟后开考 · \(session.title)", body: details))
+            result.append(.init(date: beforeStart, id: id + ".soon", title: "30 分钟后开考 · \(session.title)", body: details, destination: destination))
         }
         return result
     }

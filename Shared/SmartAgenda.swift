@@ -136,7 +136,7 @@ public struct SmartAgendaSelection: Equatable, Sendable {
 
 /// 智能课间的选条规则。
 ///
-/// 五档优先级来自产品定义，档位内一律取**时间最近**的一条；同一时刻再按类别
+/// 按事项紧急程度排序，档位内一律取**时间最近**的一条；同一时刻再按类别
 /// 固定顺序决定，保证输入相同时结果稳定 —— 组件在多个切换点重复求值时不能
 /// 出现来回跳变。
 public enum SmartAgenda {
@@ -207,9 +207,10 @@ public enum SmartAgenda {
             }
         }
         // 天数与「今天/明天」都按日历日变化，零点必须重新求值，与开关无关。
-        if let midnight = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)),
-           midnight > now, midnight < horizon {
+        var day = calendar.startOfDay(for: now)
+        while let midnight = calendar.date(byAdding: .day, value: 1, to: day), midnight > day, midnight < horizon {
             dates.insert(midnight)
+            day = midnight
         }
         return Array(dates.sorted().prefix(limit))
     }
@@ -232,13 +233,15 @@ public enum SmartAgenda {
 
         // 1. 考试进行中或一小时内开考。
         let leadSeconds = Double(max(0, leadMinutes)) * 60
+        let endOfTomorrow = calendar.date(byAdding: .day, value: 2, to: calendar.startOfDay(for: now)) ?? now
         for exam in exams {
             guard exam.end > now else { continue }
             let inProgress = exam.start <= now
-            guard inProgress || exam.start.timeIntervalSince(now) <= examLead else { continue }
+            let imminent = inProgress || exam.start.timeIntervalSince(now) <= examLead
+            guard imminent || exam.start < endOfTomorrow else { continue }
             result.append(Candidate(
-                item: examItem(exam, now: now, inProgress: inProgress),
-                tier: 1, moment: exam.start))
+                item: examItem(exam, now: now, inProgress: inProgress, imminent: imminent, calendar: calendar),
+                tier: imminent ? 1 : 6, moment: exam.start))
         }
 
         // 2. 正在上课，或下一节进入课前提醒时段。
@@ -260,9 +263,11 @@ public enum SmartAgenda {
 
         // 3. 两小时内有待办截止。已逾期的由底部提示承担，不抢主位。
         if options.allowTasks {
-            for task in tasks where task.due > now && task.due.timeIntervalSince(now) <= taskLead {
-                result.append(Candidate(item: taskItem(task),
-                                        tier: 3, moment: task.due))
+            for task in tasks where task.due > now {
+                let imminent = task.due.timeIntervalSince(now) <= taskLead
+                guard imminent || task.due < endOfTomorrow else { continue }
+                result.append(Candidate(item: taskItem(task, now: now, imminent: imminent, calendar: calendar),
+                                        tier: imminent ? 3 : 6, moment: task.due))
             }
         }
 
@@ -285,7 +290,7 @@ public enum SmartAgenda {
                 let moment = max(calendar.startOfDay(for: now), calendar.startOfDay(for: reading.effectiveDate))
                 result.append(Candidate(
                     item: milestoneItem(milestone, reading: reading, now: now, calendar: calendar),
-                     tier: secondaryOnly ? 6 : 4, moment: moment, secondaryOnly: secondaryOnly))
+                     tier: secondaryOnly ? 7 : 4, moment: moment, secondaryOnly: secondaryOnly))
             }
         }
 
@@ -321,16 +326,19 @@ public enum SmartAgenda {
 
     // MARK: - 文案
 
-    static func examItem(_ exam: ExamSession, now: Date, inProgress: Bool) -> SmartAgendaItem {
+    static func examItem(_ exam: ExamSession, now: Date, inProgress: Bool, imminent: Bool, calendar: Calendar) -> SmartAgendaItem {
+        let start = ScheduleRules.time(exam.start)
+        let upcoming = imminent && calendar.isDate(exam.start, inSameDayAs: now) ? "\(start) 开考"
+            : "\(dayLabel(exam.start, now: now, calendar: calendar)) \(start) 开考"
         return SmartAgendaItem(
             id: "exam:\(exam.termID.utf8.count):\(exam.termID).\(exam.id)",
             kind: .exam,
             status: inProgress ? "考试中 · \(ScheduleRules.time(exam.end)) 结束"
-                               : "\(ScheduleRules.time(exam.start)) 开考",
+                               : upcoming,
             title: exam.title,
             detail: exam.room,
             value: ScheduleRules.time(inProgress ? exam.end : exam.start),
-            urgency: inProgress ? .happening : .imminent,
+            urgency: inProgress ? .happening : imminent ? .imminent : .upcoming,
             target: .exam(id: exam.id, termID: exam.termID),
             changesAt: inProgress ? exam.end : exam.start,
             examSeat: exam.seat.isEmpty ? nil : "\(exam.seat) 号座")
@@ -352,19 +360,22 @@ public enum SmartAgenda {
             detail: detail,
             value: ScheduleRules.time(inProgress ? course.end : course.start),
             urgency: inProgress ? .happening : .upcoming,
-            target: .course(courseID: course.courseID, termID: termID, occurrenceID: course.id),
+            target: .course(courseID: course.courseID, termID: course.termID ?? termID, occurrenceID: course.id),
             changesAt: inProgress ? course.end : course.start)
     }
 
-    static func taskItem(_ task: AgendaTask) -> SmartAgendaItem {
-        SmartAgendaItem(
+    static func taskItem(_ task: AgendaTask, now: Date, imminent: Bool, calendar: Calendar) -> SmartAgendaItem {
+        let time = ScheduleRules.time(task.due)
+        let status = calendar.isDate(task.due, inSameDayAs: now) && imminent ? "\(time) 截止"
+            : "\(dayLabel(task.due, now: now, calendar: calendar)) \(time) 截止"
+        return SmartAgendaItem(
             id: "task:" + task.id,
             kind: .task,
-            status: "\(ScheduleRules.time(task.due)) 截止",
+            status: status,
             title: task.title,
             detail: task.courseTitle,
             value: ScheduleRules.time(task.due),
-            urgency: .imminent,
+            urgency: imminent ? .imminent : .upcoming,
             target: .task(courseID: task.courseID, termID: task.termID),
             changesAt: task.due)
     }

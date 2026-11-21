@@ -62,12 +62,11 @@ struct AcademicLoginView: View {
             .sheet(item: $plan) { plan in
                 ImportPreviewView(plan: plan) { confirmed in
                     guard store.applyImport(confirmed) > 0 else { return false }
-                    if let candidate = refreshCandidate {
-                        let term = store.semesterName
-                        let totalWeeks = store.totalWeeks
+                    if let candidate = refreshCandidate,
+                       let term = store.terms.first(where: { $0.id == confirmed.targetTermID }) {
                         Task {
                             await AcademicRefreshService.shared.connect(school: school.name, term: term, scope: candidate.scope,
-                                totalWeeks: totalWeeks, numbering: candidate.numbering, cookies: candidate.cookies,
+                                numbering: candidate.numbering, cookies: candidate.cookies,
                                 baseline: candidate.baseline)
                         }
                     }

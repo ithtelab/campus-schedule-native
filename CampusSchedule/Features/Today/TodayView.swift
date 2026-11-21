@@ -11,27 +11,32 @@ struct TodayView: View {
     @ScaledMetric(relativeTo: .body) private var timeColumn: CGFloat = 72
     @State private var selectedCourse: DemoCourse?
     @State private var showingEditor = false
+    @State private var showingImport = false
+    @State private var showingTaskOverview = false
+    @State private var selectedCourseTerm: String?
+    @State private var focusCardAboveViewport = false
     @State private var character = CampusCharacterPlayer(style: .girl)
     @State private var detailCharacter: CampusCharacterPlayer?
     @State private var courseFeedback = 0
     @State private var headingWidth: CGFloat = 0
     private var time: String { store.timeText }
     private var daily: [DemoCourse] { store.todayCourses }
+    private var termID: String { store.todayTermID }
+    private var term: TermSummary? { store.terms.first { $0.id == termID } }
+    private var items: [CourseOccurrence] { store.occurrences(in: termID) }
     private var next: DemoCourse? { daily.first { $0.endTime > time } }
     private var blueTheme: Bool { store.appearance.theme == .blueStickers }
     private var themeAccent: Color { blueTheme ? CampusStickerMark.accent : .primary }
     private var selectedFill: Color { blueTheme ? CampusStickerMark.blue : .primary }
     private var selectedInk: Color { blueTheme ? CampusStickerMark.ink : DesignSystem.inverse }
     private var characterContext: CampusScheduleContext {
-        CampusScheduleContext.make(items: store.occurrences, now: store.now, leadMinutes: store.reminderMinutes)
+        CampusScheduleContext.make(items: items, now: store.now, leadMinutes: store.reminderMinutes)
     }
 
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    // 课程卡片随页面滚动，不再吸顶：吸顶后在长列表里挡住内容，而且
-                    // 卡片本身足够大，滚动时一直压在顶部会显得拥挤。
                     LazyVStack(alignment: .leading, spacing: 0) {
                         introduction.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 12)
                         // 考试提醒放在课程卡之前：临近考试时它比今天的课更该被看到。
@@ -41,6 +46,9 @@ struct TodayView: View {
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, 4)
                                 .frame(maxWidth: .infinity)
+                                .onGeometryChange(for: Bool.self) {
+                                    $0.frame(in: .named("todayScroll")).maxY < 8
+                                } action: { focusCardAboveViewport = $0 }
                         }
                         milestoneSummary.padding(.horizontal, 20).padding(.top, 4)
                         dueTasks.padding(.horizontal, 20)
@@ -51,6 +59,11 @@ struct TodayView: View {
                     .padding(.bottom, 20)
                 }
                 .coordinateSpace(name: "todayScroll")
+                .overlay(alignment: .top) {
+                    if focusCardAboveViewport, let next, !typeSize.isAccessibilitySize {
+                        compactCourse(next)
+                    }
+                }
                 .task {
                     // 截图流程需要看到页面底部的收尾区域。
                     guard store.isPreview, ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SCROLL"] == "1" else { return }
@@ -61,12 +74,15 @@ struct TodayView: View {
             .background(DesignSystem.background)
             .navigationTitle("今日").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button("待办总览", systemImage: "checklist") { showingTaskOverview = true }.tint(DesignSystem.toolbarTint)
                     Button("添加课程", systemImage: "plus") { showingEditor = true }.tint(DesignSystem.toolbarTint)
                 }
             }
-            .sheet(item: $selectedCourse) { CourseDetailView(course: $0, character: detailCharacter) }
-            .sheet(isPresented: $showingEditor) { CourseEditorView() }
+            .sheet(item: $selectedCourse) { CourseDetailView(course: $0, character: detailCharacter, linkedTermID: selectedCourseTerm) }
+            .sheet(isPresented: $showingEditor) { CourseEditorView(targetTermID: termID) }
+            .sheet(isPresented: $showingImport) { ImportView() }
+            .sheet(isPresented: $showingTaskOverview) { CourseTaskOverviewView() }
             .task {
                 guard permitsPreviewSheets, store.isPreview else { return }
                 showingEditor = ProcessInfo.processInfo.environment["CAMPUS_PREVIEW_SHEET"] == "course"
@@ -100,7 +116,7 @@ struct TodayView: View {
             layout {
                 Text(store.now, format: .dateTime.month().day().weekday(.wide)).font(.caption)
                 if !typeSize.isAccessibilitySize { Spacer() }
-                Text("第 \(store.currentWeek) 周").font(.caption.weight(.medium))
+                Text(weekCaption).font(.caption.weight(.medium))
                     .padding(.horizontal, 9).padding(.vertical, 4)
                     .foregroundStyle(selectedInk)
                     .background(selectedFill, in: RoundedRectangle(cornerRadius: 5)).rotationEffect(.degrees(-2))
@@ -125,6 +141,41 @@ struct TodayView: View {
                 }
             }
         }
+    }
+
+    private var weekCaption: String {
+        guard let term else { return "未设置学期" }
+        let calendar = ScheduleRules.calendar
+        let week = ScheduleRules.week(on: store.now, semesterStart: term.startDate)
+        if week == 0 {
+            let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: store.now), to: term.startDate).day ?? 0
+            return "距开学 \(days) 天"
+        }
+        if week > term.totalWeeks { return "学期已结束" }
+        return "第 \(week) 周"
+    }
+
+    private func compactCourse(_ course: DemoCourse) -> some View {
+        Button { openCourse(course) } label: {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(course.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(course.shortRoom.isEmpty ? "地点待确认" : course.shortRoom)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Text(course.startTime <= time ? "\(course.endTime) 下课" : "\(course.startTime) 上课")
+                    .font(.caption.weight(.medium).monospacedDigit())
+                Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
+            }
+            .padding(.horizontal, 12).frame(minHeight: 48)
+            .background(.regularMaterial, in: .rect(cornerRadius: 12))
+            .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(DesignSystem.rule) }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .padding(.top, 3)
+        .accessibilityElement(children: .combine)
     }
 
     /// 今日页的置顶纪念事件摘要。
@@ -182,9 +233,6 @@ struct TodayView: View {
                     Text(course.startTime <= time ? "正在上课" : "下一节课")
                         .font(.caption.weight(.semibold)).foregroundStyle(themeAccent)
                     Spacer(minLength: 8)
-                    Button("课程详情", systemImage: "arrow.up.right") { openCourse(course) }
-                        .labelStyle(.iconOnly).font(.caption).buttonStyle(.plain)
-                        .foregroundStyle(themeAccent)
                 }
                 HStack(alignment: .center, spacing: 12) {
                     Button { openCourse(course) } label: {
@@ -235,12 +283,29 @@ struct TodayView: View {
             layout {
                 Text("一天的安排").font(DesignSystem.hand(25))
                 if !typeSize.isAccessibilitySize { Spacer() }
-                Text("\(daily.count) 门课 · \(daily.last?.endTime ?? "—") 结束")
-                    .font(.caption).foregroundStyle(.secondary)
+                if let latest = daily.map(\.endTime).max() {
+                    Text("\(daily.count) 门课 · \(latest) 结束")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             if daily.isEmpty {
-                ContentUnavailableView("今天没有课程", systemImage: "calendar",
-                                       description: Text("添加课程，或到课表查看其他日期。"))
+                if store.courses(in: termID).isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("开始安排这个学期").font(.subheadline.weight(.semibold))
+                        Button("导入课表", systemImage: "square.and.arrow.down") {
+                            store.selectTerm(termID)
+                            showingImport = true
+                        }
+                        Button("手动添加", systemImage: "plus") { showingEditor = true }
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(DesignSystem.surface, in: .rect(cornerRadius: 14))
+                } else if let upcoming = items.first(where: { $0.start > store.now }) {
+                    Text("下一堂课 · \(upcoming.start, format: .dateTime.month().day().weekday(.abbreviated)) \(ScheduleRules.time(upcoming.start)) · \(upcoming.title)")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
             }
             ForEach(daily) { course in agendaRow(course) }
         }
@@ -290,10 +355,11 @@ struct TodayView: View {
     ///
     /// 只在两周内出现，避免平时占地方；已经考完的不显示。
     @ViewBuilder private var examBanner: some View {
-        let upcoming = ExamPlan.upcoming(store.exams, now: store.now)
-        if let next = upcoming.first, let session = ExamSession(exam: next, termID: store.activeTermID),
-           let days = ExamPlan.daysUntilNext(store.exams, now: store.now),
-           days <= 14 {
+        let now = store.now
+        let sessions = store.termContents.flatMap { id, content in content.exams.compactMap { ExamSession(exam: $0, termID: id) } }
+        if let session = ExamPlan.nextSession(sessions, now: now), session.start.timeIntervalSince(now) <= 14 * 86_400 {
+            let calendar = ScheduleRules.calendar
+            let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: session.start)).day ?? 0
             NavigationLink {
                 ExamSessionView(session: session)
             } label: {
@@ -302,12 +368,11 @@ struct TodayView: View {
                     .font(.footnote)
                     .foregroundStyle(DesignSystem.accent)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(next.courseTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Text(examDetail(session))
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(session.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                    Text(examDetail(session)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
-                Text(days == 0 ? "今天" : "\(days) 天")
+                Text(session.start <= now ? "考试中" : (days == 0 ? "今天" : "\(days) 天"))
                     .font(.caption.weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(DesignSystem.accent)
@@ -322,7 +387,7 @@ struct TodayView: View {
                 Rectangle().fill(DesignSystem.rule).frame(height: 0.5)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("考试提醒：\(next.courseTitle)，\(examDetail(session))")
+            .accessibilityLabel("\(session.start <= now ? "考试中" : "考试提醒")，\(session.title)，\(examDetail(session))")
         }
     }
 
@@ -332,13 +397,13 @@ struct TodayView: View {
     }
 
     @ViewBuilder private var dueTasks: some View {
-        let tasks = CourseTask.dueSoon(store.courseTasks, now: store.now)
+        let tasks = CourseTask.dueSoon(store.courseTasks(in: termID), now: store.now)
         if !tasks.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Label("临近截止", systemImage: "checklist").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     .accessibilityAddTraits(.isHeader)
                 ForEach(tasks) { task in
-                    if let course = store.courses.first(where: { $0.id == task.courseID }), let due = task.due {
+                    if let course = store.course(withID: task.courseID, in: termID), let due = task.due {
                         Button { openCourse(course) } label: {
                             HStack(spacing: 10) {
                                 VStack(alignment: .leading, spacing: 3) {
@@ -367,8 +432,8 @@ struct TodayView: View {
     ///
     /// 居中排版，不带图标与手写字，避免看起来像可点的入口。
     @ViewBuilder private var closingNote: some View {
-        let summary = ScheduleSummary.make(occurrences: store.occurrences, now: store.now,
-                                           semesterStart: store.semesterStart)
+        let summary = ScheduleSummary.make(occurrences: items, now: store.now,
+                                           semesterStart: term?.startDate ?? store.now)
         let state = ClosingState(daily: daily, remaining: summary.todayRemaining,
                                  completed: summary.todayCompleted)
         // 没有课时中间已有空状态说明，底部再写一次就是重复文案。
@@ -433,6 +498,7 @@ struct TodayView: View {
         let relevant = store.showsCharacter && characterContext.occurrenceID == course.id
         detailCharacter = relevant ? character : nil
         if relevant && !suppressMotion { character.respondToContext(reducedMotion: reduceMotion) }
+        selectedCourseTerm = termID
         selectedCourse = course
     }
 

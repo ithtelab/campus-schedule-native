@@ -3,10 +3,21 @@ import Testing
 @testable import ScheduleCore
 
 struct SystemPlanTests {
-    @Test func examRemindersAreRetainedWhenCourseQueueFills() {
+    @Test func imminentCoursesOutrankDistantExamsAndExamsWinTies() {
         let course = CourseReminder(date: now, id: "course.a", title: "课程", body: "")
-        let exam = CourseReminder(date: now.addingTimeInterval(86_400), id: "exam.a", title: "考试", body: "")
+        var exam = CourseReminder(date: now.addingTimeInterval(86_400), id: "exam.a", title: "考试", body: "")
+        #expect(ReminderChanges.prioritized([course, exam], limit: 1) == [course])
+        exam.date = now
         #expect(ReminderChanges.prioritized([course, exam], limit: 1) == [exam])
+    }
+
+    @Test func fullQueuePlansARefillBeforeTheLastScheduledReminder() {
+        let desired = (1...9).map { index in
+            CourseReminder(date: now.addingTimeInterval(Double(index) * 3600), id: "course.\(index)", title: "课", body: "")
+        }
+        let date = ReminderChanges.refillDate(desired: desired, availableCount: 20, now: now)
+        #expect(date == desired[2].date.addingTimeInterval(60))
+        #expect(ReminderChanges.refillDate(desired: desired, availableCount: 9, now: now) == nil)
     }
     @Test func reminderDiffKeepsUnchangedRequestsAndReplacesOnlyEditedOnes() {
         let unchanged = CourseReminder(date: now, id: "course.a", title: "课", body: "A101")
@@ -38,6 +49,16 @@ struct SystemPlanTests {
         #expect(events[0].date == course.start.addingTimeInterval(-600))
         #expect(events[1].date == course.end.addingTimeInterval(-180))
         #expect(events[1].body.contains("数学") && events[1].body.contains("B205"))
+    }
+    @Test func courseRemindersTargetTheirOwnTermAndOccurrence() throws {
+        var first = course
+        first.termID = "term-a"
+        var second = first
+        second.termID = "term-b"
+        let events = plan([first, second], end: false)
+        #expect(Set(events.map(\.id)).count == 2)
+        let firstDestination = try #require(events.first?.destination)
+        #expect(CourseDeepLink.target(firstDestination) == .init(courseID: "course", termID: "term-a", occurrenceID: "instance"))
     }
     @Test func mutedCourseProducesNoReminders() {
         var muted = course; muted.remindersEnabled = false

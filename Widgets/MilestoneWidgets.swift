@@ -154,6 +154,7 @@ struct MilestoneWidgetView: View {
                 empty
             }
         }
+        .privacySensitive()
         .widgetURL(MilestoneDeepLink.url(milestoneID: entry.milestone?.id))
     }
 

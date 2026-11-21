@@ -1,6 +1,6 @@
 import Foundation
 
-struct CourseException: Identifiable, Codable {
+struct CourseException: Identifiable, Codable, Equatable {
     var id = UUID()
     var courseID: String
     var day: Date

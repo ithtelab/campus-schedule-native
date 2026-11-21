@@ -9,6 +9,12 @@ import Foundation
 }
 
 @MainActor final class LocalPersistence {
+    struct Backup: Identifiable {
+        let id: String
+        let savedAt: Date
+        let archive: ScheduleArchive
+    }
+
     private let container: ModelContainer
     init() throws { container = try ModelContainer(for: ScheduleDocument.self) }
     func load() throws -> Data? {
@@ -49,6 +55,7 @@ import Foundation
         if let archive {
             let archiveURL = folder.appendingPathComponent(name + ".archive.json")
             try archive.write(to: archiveURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            try? pruneBackups(in: folder, keeping: 12)
             return archiveURL
         }
         return rawURL
@@ -64,5 +71,35 @@ import Foundation
                 < ((try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast)
         }) else { throw CocoaError(.fileReadNoSuchFile) }
         return try Data(contentsOf: latest)
+    }
+
+    func recentBackups() throws -> [Backup] {
+        let folder = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                 appropriateFor: nil, create: true).appendingPathComponent("Recovery", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.creationDateKey])
+            .filter { $0.lastPathComponent.hasSuffix(".archive.json") }
+            .sorted { backupDate($0) > backupDate($1) }
+            .prefix(12).compactMap { url in
+                guard let data = try? Data(contentsOf: url), let archive = try? ScheduleArchive.decoded(from: data) else { return nil }
+                return Backup(id: url.lastPathComponent, savedAt: backupDate(url), archive: archive)
+            }
+    }
+
+    private func backupDate(_ url: URL) -> Date {
+        (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+    }
+
+    private func pruneBackups(in folder: URL, keeping limit: Int) throws {
+        let files = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.creationDateKey])
+        let suffix = ".archive.json"
+        let archives = files.filter { $0.lastPathComponent.hasSuffix(suffix) }.sorted { backupDate($0) > backupDate($1) }
+        for archive in archives.dropFirst(limit) {
+            let base = String(archive.lastPathComponent.dropLast(suffix.count))
+            guard base.hasPrefix("schedule-"), UUID(uuidString: String(base.dropFirst("schedule-".count))) != nil else { continue }
+            try FileManager.default.removeItem(at: archive)
+            let raw = folder.appendingPathComponent(base + ".raw.json")
+            if FileManager.default.fileExists(atPath: raw.path) { try FileManager.default.removeItem(at: raw) }
+        }
     }
 }
