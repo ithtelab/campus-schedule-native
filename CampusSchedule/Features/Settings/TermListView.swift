@@ -127,7 +127,9 @@ private struct NewTermView: View {
                             store.selectTerm(newTermID)
                             importCourses = true
                         }
+                        .accessibilityIdentifier("new-term.import")
                         Button("手动添加", systemImage: "plus") { addCourse = true }
+                            .accessibilityIdentifier("new-term.add-course")
                     }
                     Section("提醒与组件") {
                         if permission == .denied {

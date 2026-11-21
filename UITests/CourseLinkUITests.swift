@@ -16,10 +16,21 @@ final class CourseLinkUITests: XCTestCase {
         editor.buttons["创建"].tap()
         let created = app.navigationBars["学期已创建"]
         XCTAssertTrue(created.waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["导入课表"].isHittable)
-        XCTAssertTrue(app.buttons["手动添加"].isHittable)
+        let importButton = app.buttons["new-term.import"]
+        XCTAssertTrue(importButton.waitForExistence(timeout: 8))
+        importButton.tap()
+        let importSheet = app.navigationBars["导入课表"]
+        XCTAssertTrue(importSheet.waitForExistence(timeout: 8))
+        importSheet.buttons["取消"].tap()
+        let manualButton = app.buttons["new-term.add-course"]
+        XCTAssertTrue(manualButton.waitForExistence(timeout: 8))
+        manualButton.tap()
+        let courseEditor = app.navigationBars["添加课程"]
+        XCTAssertTrue(courseEditor.waitForExistence(timeout: 8))
+        courseEditor.buttons["取消"].tap()
         created.buttons["完成"].tap()
-        let newTerm = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "新学期")).firstMatch
+        let newTerm = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "term.term-", "新学期")).firstMatch
+        XCTAssertTrue(newTerm.waitForExistence(timeout: 8))
         XCTAssertTrue(newTerm.isSelected)
     }
 
