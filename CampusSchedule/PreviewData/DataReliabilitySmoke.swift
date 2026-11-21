@@ -21,6 +21,17 @@ import Foundation
         check(store.applyImport([odd, even]) == 2, "separate week sets")
         check(store.courses.filter { $0.title == odd.title }.count == 2, "odd and even retained")
         let sourceTerm = store.activeTermID
+        if let start = ScheduleRules.date(day: exception.day, time: course.startTime),
+           let end = ScheduleRules.date(day: exception.day, time: course.endTime) {
+            let replacement = CourseException(courseID: course.id, day: exception.day, start: start, end: end, room: "B309")
+            check(store.updateCourseException(replacement, termID: sourceTerm), "replace adjustment in one write")
+            let instanceID = course.id + ":" + String(Int(exception.day.timeIntervalSince1970))
+            check(store.occurrences.first(where: { $0.id == instanceID })?.room == "B309", "adjusted occurrence keeps identity")
+            let invalid = CourseException(courseID: course.id, day: exception.day, start: start,
+                                          end: end.addingTimeInterval(86_400), room: "错误教室")
+            check(!store.updateCourseException(invalid, termID: sourceTerm) && store.exceptions.contains { $0.id == replacement.id },
+                  "invalid change keeps existing adjustment")
+        } else { check(false, "adjustable occurrence exists") }
         let pending = CourseTask(courseID: course.id, title: "待完成")
         var completed = CourseTask(courseID: course.id, title: "已完成")
         completed.isCompleted = true
@@ -32,7 +43,7 @@ import Foundation
                 startTime: saved.startTime, endTime: saved.endTime, color: saved.color, weeks: saved.weeks)
             check(store.saveCourse(edited, replacingExisting: true), "edit course")
             check(Set(store.courseTasks.map(\.id)) == [pending.id, completed.id], "edit preserves pending and completed tasks")
-            check(store.exceptions.contains { $0.id == exception.id }, "edit preserves exception")
+            check(store.exceptions.contains { $0.courseID == course.id && $0.room == "B309" }, "edit preserves exception")
         } else { check(false, "editable course exists") }
         // Preview stores deliberately cannot export an archive. Compare the actual in-memory data instead.
         let navigationEncoder = JSONEncoder()

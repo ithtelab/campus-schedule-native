@@ -1236,23 +1236,36 @@ final class PreviewStore {
 
     /// 新建学期，返回新学期标识。节次时间沿用当前学期的作息，减少重复输入。
     @discardableResult
-    func addTerm(name: String? = nil, start: Date? = nil, totalWeeks weeks: Int = 20) -> String {
+    func addTerm(name: String? = nil, start: Date? = nil, totalWeeks weeks: Int = 20,
+                 reusePeriods: Bool = true, select: Bool = false) -> String {
         guard !storageReadOnly else { errorMessage = storageIssue; return activeTermID }
         guard termContents.count < ScheduleArchive.maximumSemesters else {
             errorMessage = "最多可保存 \(ScheduleArchive.maximumSemesters) 个学期。"
             return activeTermID
         }
         let id = "term-" + UUID().uuidString
-        let suggested = name ?? TermSelection.uniqueName("新学期", existing: terms)
+        let suggested = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? TermSelection.uniqueName("新学期", existing: terms)
+        let calendar = ScheduleRules.calendar
+        let startDate = calendar.startOfDay(for: start ?? TermSelection.suggestedStart(after: terms))
+        guard !suggested.isEmpty, calendar.component(.weekday, from: startDate) == 2 else {
+            errorMessage = "请填写学期名称，并选择第一周的周一。"
+            return activeTermID
+        }
         let content = TermContent(
             name: suggested,
-            startDate: start ?? TermSelection.suggestedStart(after: terms),
+            startDate: startDate,
             totalWeeks: weeks,
-            periods: periods.isEmpty ? Self.defaultPeriods : periods,
+            periods: reusePeriods && !periods.isEmpty ? periods : Self.defaultPeriods,
             courses: [],
             exceptions: []
         )
-        return commitBatch({ termContents[id] = content }) ? id : activeTermID
+        return commitBatch({
+            termContents[id] = content
+            if select {
+                activeTermID = id
+                selectedWeek = min(weeks, max(1, ScheduleRules.week(on: now, semesterStart: startDate)))
+            }
+        }) ? id : activeTermID
     }
 
     /// 删除学期。至少保留一个，避免界面进入没有任何学期的状态。
@@ -1396,6 +1409,11 @@ final class PreviewStore {
         guard plan.targetTermID == activeTermID else {
             errorMessage = "当前学期已改变，请重新预览导入内容。"; return 0
         }
+        let current = makeImportPlan(ParseOutcome(courses: plan.courses))
+        guard current.courses == plan.courses, current.conflicts == plan.conflicts else {
+            errorMessage = "预览期间课表或作息发生了变化。请关闭预览并重新解析。"
+            return 0
+        }
         return applyImport(plan.courses)
     }
 
@@ -1422,7 +1440,7 @@ final class PreviewStore {
             let existing = result.map { ParsedCourse(title: $0.title, teacher: $0.teacher, room: $0.room,
                 weekday: $0.weekday, startPeriod: $0.startPeriod, endPeriod: $0.endPeriod, weeks: $0.weeks) }
             let matchingIndex = ImportPlanner.replacementIndex(for: parsed, in: existing, totalWeeks: totalWeeks)
-            var course = DemoCourse(
+            let course = DemoCourse(
                 id: matchingIndex.map { result[$0].id } ?? "import-\(UUID().uuidString)",
                 title: parsed.title,
                 room: parsed.room,
@@ -1463,6 +1481,6 @@ final class PreviewStore {
         let palette = CourseColor.allCases
         var hash = 5381
         for byte in title.utf8 { hash = (hash &* 33) &+ Int(byte) }
-        return palette[abs(hash) % palette.count]
+        return palette[Int(hash.magnitude % UInt(palette.count))]
     }
 }

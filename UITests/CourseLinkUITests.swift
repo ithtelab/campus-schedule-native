@@ -2,6 +2,27 @@ import XCTest
 import UIKit
 
 final class CourseLinkUITests: XCTestCase {
+    @MainActor func testNewTermSetupOpensEmptyTermWithImportActions() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment = ["CAMPUS_PREVIEW_TAB": "settings"]
+        app.launch()
+        let list = app.buttons["全部学期"]
+        XCTAssertTrue(list.waitForExistence(timeout: 12))
+        list.tap()
+        app.navigationBars["学期"].buttons["新建"].tap()
+        let editor = app.navigationBars["新建学期"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 8))
+        editor.buttons["创建"].tap()
+        let created = app.navigationBars["学期已创建"]
+        XCTAssertTrue(created.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["导入课表"].isHittable)
+        XCTAssertTrue(app.buttons["手动添加"].isHittable)
+        created.buttons["完成"].tap()
+        let newTerm = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "新学期")).firstMatch
+        XCTAssertTrue(newTerm.isSelected)
+    }
+
     @MainActor func testSmartAgendaTaskLinkOpensCorrectTerm() throws {
         continueAfterFailure = false
         let app = XCUIApplication()

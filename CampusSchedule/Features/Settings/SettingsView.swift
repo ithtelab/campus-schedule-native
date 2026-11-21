@@ -190,7 +190,7 @@ struct SettingsView: View {
             .confirmationDialog("删除 iCloud 课表副本？", isPresented: $confirmingCloudDeletion, titleVisibility: .visible) {
                 Button("删除 iCloud 副本", role: .destructive) { store.removeCloudCopy() }
             } message: {
-                Text("本机课表会保留。请先在其他设备关闭课间册同步，避免这些设备再次上传副本。")
+                Text("本机课表会保留。支持此操作的其他设备收到变更后会暂停同步。如果有设备仍在用旧版本，请先在这些设备关闭同步。")
             }
             .fileExporter(isPresented: $showingExporter, document: backupDocument,
                           contentType: exportContentType, defaultFilename: backupDocument?.filename ?? "课间册.json") { result in
