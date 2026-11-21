@@ -1,6 +1,6 @@
 # 课间册 · iOS 原生工程
 
-当前分发基线（2026-11-21 核对）为课间册 **1.0（106.1）**，源码提交 `51257e7`。App Store Connect 显示构建有效，内测和外测均为「正在测试」。正式发布草稿单独选取构建。 [公开测试入口](https://testflight.apple.com/join/s1RtwCzq) · [签名构建](https://github.com/ithtelab/campus-schedule-native/actions/runs/42026974114)
+当前内测构建（2026-11-21 核对）为课间册 **1.0（110.1）**，源码提交 `08bd9bb`。App Store Connect 显示构建有效，已加入「本人真机测试」并处于「正在测试」。正式发布草稿和外测各自选取构建。 [签名与上传](https://github.com/ithtelab/campus-schedule-native/actions/runs/44874355291) · [发布源码的模拟器回归](https://github.com/ithtelab/campus-schedule-native/actions/runs/44870051032)
 
 历史 TestFlight：6.1 安装失败，7.1 外测提交返回 Apple 422；现按用户要求，旧 App 的所有构建均已过期，旧公开链接停用。历史凭证见 [TestFlight 发布](docs/TestFlight发布.md)，不再把旧测试资格视为当前可用。界面和功能代码仍保留；本轮重建的是分发配置。
 
